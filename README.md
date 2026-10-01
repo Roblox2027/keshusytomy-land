@@ -53,7 +53,7 @@ KeshusyTomy-LanD/
 │   │   │   ├── Types/              # Tipos Luau (solo tipado)
 │   │   │   ├── Utils/              # Logger y utilidades
 │   │   │   └── Libraries/          # Modulos internos de proposito general
-│   │   ├── Remotes/               # Canales RemoteEvent (no confiables)
+│   │   ├── Remotes.model.json          # 8 RemoteEvent (canales no confiables)
 │   │   └── WorldDefinitions/       # Datos de Forest, Desert, Ice, Volcano, Cyber
 │   ├── StarterPlayer/
 │   │   └── StarterPlayerScripts/
@@ -124,6 +124,12 @@ desbloqueos, quests y resultados.
 
 Los `RemoteEvent` son canales de comunicacion y entradas **no confiables**:
 se sanean, se limitan en frecuencia y se validan en el servidor.
+
+Se declaran en `src/ReplicatedStorage/Remotes.model.json` (formato JSON
+Model de Rojo 7, no un `remotes.json`). Para anadir un canal nuevo se
+agrega una entrada `{ "Name": "...", "ClassName": "RemoteEvent" }` a ese
+archivo y su nombre a `GameConstants.RemoteAction`; el codigo cliente y
+servidor lo resuelven siempre desde ahi.
 
 ## Rendimiento
 

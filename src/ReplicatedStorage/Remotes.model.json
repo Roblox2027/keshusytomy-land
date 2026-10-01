@@ -1,0 +1,13 @@
+{
+"ClassName": "Folder",
+"Children": [
+{ "Name": "PlayerAction", "ClassName": "RemoteEvent" },
+{ "Name": "BombAction", "ClassName": "RemoteEvent" },
+{ "Name": "ShopAction", "ClassName": "RemoteEvent" },
+{ "Name": "InventoryAction", "ClassName": "RemoteEvent" },
+{ "Name": "QuestAction", "ClassName": "RemoteEvent" },
+{ "Name": "PortalAction", "ClassName": "RemoteEvent" },
+{ "Name": "PartyAction", "ClassName": "RemoteEvent" },
+{ "Name": "SettingsAction", "ClassName": "RemoteEvent" }
+]
+}

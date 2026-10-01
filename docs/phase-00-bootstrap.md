@@ -20,7 +20,7 @@ FILES CREATED:
   src/ReplicatedStorage/Shared/Types/Types.lua
   src/ReplicatedStorage/Shared/Utils/Logger.lua
   src/ReplicatedStorage/Shared/Libraries/README.md
-  src/ReplicatedStorage/Remotes/*.remotes.json      (8 canales)
+  src/ReplicatedStorage/Remotes.model.json        (8 RemoteEvent)
   src/ReplicatedStorage/WorldDefinitions/*.lua       (5 mundos)
   src/StarterPlayer/StarterPlayerScripts/ClientMain.client.lua
   src/StarterPlayer/StarterPlayerScripts/Controllers/*.lua (11 modulos)

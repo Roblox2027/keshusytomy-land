@@ -27,7 +27,7 @@ ReplicatedStorage
 ├── Shared/Types        -> contratos de datos (solo tipado)
 ├── Shared/Utils        -> Logger y utilidades
 ├── Shared/Libraries    -> modulos internos puros
-├── Remotes            -> canales de comunicacion
+├── Remotes.model.json  -> 8 RemoteEvent (canales no confiables)
 └── WorldDefinitions   -> datos de cada mundo
 ```
 
