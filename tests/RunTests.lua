@@ -22,6 +22,7 @@ local SUITES = {
 	{ name = "StateMachine", path = "./shared/StateMachine.spec" },
 	{ name = "RemoteSchema", path = "./shared/RemoteSchema.spec" },
 	{ name = "GameConfig", path = "./shared/GameConfig.spec" },
+	{ name = "Gameplay", path = "./shared/Gameplay.spec" },
 }
 
 local loadedSuites = 0

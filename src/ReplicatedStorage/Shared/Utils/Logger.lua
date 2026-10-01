@@ -39,8 +39,19 @@ function Logger.Warn(...)
 	warn(("%s WARN: %s"):format(PREFIX, format(...)))
 end
 
+-- ERROR NUNCA lanza una excepcion.
+--
+-- Regla: un log no debe cambiar el flujo del programa. Antes esta
+-- funcion usaba `error(...)`, de modo que CUALQUIER registro de error
+-- abortaba la funcion que lo emitia. Por ejemplo, `Registry:_ResolveOrder`
+-- registra un error y despues hace `return false`: con `error(...)` la
+-- excepcion escapaba de `Registry:Start()` y el servidor no arrancaba.
+--
+-- La severidad se marca en la salida de Studio. El fallo se propaga
+-- mediante el valor de retorno de cada funcion, nunca con una
+-- excepcion no controlada.
 function Logger.Error(...)
-	error(("%s ERROR: %s"):format(PREFIX, format(...)), 2)
+	warn(("%s ERROR: %s"):format(PREFIX, format(...)))
 end
 
 function Logger.Debug(...)

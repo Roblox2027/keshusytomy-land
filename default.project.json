@@ -15,7 +15,1930 @@
       "$path": "src/StarterPlayer"
     },
     "Workspace": {
-      "$path": "src/Workspace"
+      "$className": "Workspace",
+      "$properties": {
+        "Gravity": 196.2,
+        "StreamingEnabled": false
+      },
+      "Environment": {
+        "$className": "Folder"
+      },
+      "SpawnLocations": {
+        "$className": "Folder",
+        "LobbySpawn1": {
+          "$className": "SpawnLocation",
+          "$properties": {
+            "Anchored": true,
+            "CanCollide": true,
+            "CanTouch": false,
+            "Neutral": true,
+            "Enabled": true,
+            "Duration": 0,
+            "AllowTeamChangeOnTouch": false,
+            "Transparency": 0.4,
+            "Material": "Neon",
+            "Color": [
+              0.33725490196078434,
+              0.8392156862745098,
+              0.48627450980392156
+            ],
+            "Size": [
+              12,
+              1,
+              12
+            ],
+            "Position": [
+              0,
+              1.6,
+              -24
+            ]
+          }
+        },
+        "LobbySpawn2": {
+          "$className": "SpawnLocation",
+          "$properties": {
+            "Anchored": true,
+            "CanCollide": true,
+            "CanTouch": false,
+            "Neutral": true,
+            "Enabled": true,
+            "Duration": 0,
+            "AllowTeamChangeOnTouch": false,
+            "Transparency": 0.4,
+            "Material": "Neon",
+            "Color": [
+              0.33725490196078434,
+              0.8392156862745098,
+              0.48627450980392156
+            ],
+            "Size": [
+              12,
+              1,
+              12
+            ],
+            "Position": [
+              24,
+              1.6,
+              0
+            ]
+          }
+        },
+        "LobbySpawn3": {
+          "$className": "SpawnLocation",
+          "$properties": {
+            "Anchored": true,
+            "CanCollide": true,
+            "CanTouch": false,
+            "Neutral": true,
+            "Enabled": true,
+            "Duration": 0,
+            "AllowTeamChangeOnTouch": false,
+            "Transparency": 0.4,
+            "Material": "Neon",
+            "Color": [
+              0.33725490196078434,
+              0.8392156862745098,
+              0.48627450980392156
+            ],
+            "Size": [
+              12,
+              1,
+              12
+            ],
+            "Position": [
+              0,
+              1.6,
+              24
+            ]
+          }
+        },
+        "LobbySpawn4": {
+          "$className": "SpawnLocation",
+          "$properties": {
+            "Anchored": true,
+            "CanCollide": true,
+            "CanTouch": false,
+            "Neutral": true,
+            "Enabled": true,
+            "Duration": 0,
+            "AllowTeamChangeOnTouch": false,
+            "Transparency": 0.4,
+            "Material": "Neon",
+            "Color": [
+              0.33725490196078434,
+              0.8392156862745098,
+              0.48627450980392156
+            ],
+            "Size": [
+              12,
+              1,
+              12
+            ],
+            "Position": [
+              -24,
+              1.6,
+              0
+            ]
+          }
+        },
+        "LobbySpawn5": {
+          "$className": "SpawnLocation",
+          "$properties": {
+            "Anchored": true,
+            "CanCollide": true,
+            "CanTouch": false,
+            "Neutral": true,
+            "Enabled": true,
+            "Duration": 0,
+            "AllowTeamChangeOnTouch": false,
+            "Transparency": 0.4,
+            "Material": "Neon",
+            "Color": [
+              0.33725490196078434,
+              0.8392156862745098,
+              0.48627450980392156
+            ],
+            "Size": [
+              12,
+              1,
+              12
+            ],
+            "Position": [
+              40,
+              1.6,
+              -40
+            ]
+          }
+        },
+        "LobbySpawn6": {
+          "$className": "SpawnLocation",
+          "$properties": {
+            "Anchored": true,
+            "CanCollide": true,
+            "CanTouch": false,
+            "Neutral": true,
+            "Enabled": true,
+            "Duration": 0,
+            "AllowTeamChangeOnTouch": false,
+            "Transparency": 0.4,
+            "Material": "Neon",
+            "Color": [
+              0.33725490196078434,
+              0.8392156862745098,
+              0.48627450980392156
+            ],
+            "Size": [
+              12,
+              1,
+              12
+            ],
+            "Position": [
+              -40,
+              1.6,
+              40
+            ]
+          }
+        }
+      },
+      "Lobby": {
+        "$className": "Folder",
+        "LobbyFloor": {
+          "$className": "Part",
+          "$properties": {
+            "Anchored": true,
+            "CanCollide": true,
+            "CanTouch": false,
+            "TopSurface": "Smooth",
+            "BottomSurface": "Smooth",
+            "Material": "Concrete",
+            "Color": [
+              0.48627450980392156,
+              0.5254901960784314,
+              0.5725490196078431
+            ],
+            "Size": [
+              140,
+              2,
+              140
+            ],
+            "Position": [
+              0,
+              -1,
+              0
+            ]
+          }
+        },
+        "LobbyCenter": {
+          "$className": "Part",
+          "$properties": {
+            "Anchored": true,
+            "CanCollide": false,
+            "CanTouch": false,
+            "TopSurface": "Smooth",
+            "BottomSurface": "Smooth",
+            "Material": "Neon",
+            "Color": [
+              0.7843137254901961,
+              0.8627450980392157,
+              1
+            ],
+            "Size": [
+              12,
+              0.2,
+              12
+            ],
+            "Position": [
+              0,
+              0.2,
+              0
+            ],
+            "Transparency": 0.4
+          }
+        },
+        "LobbyNorth": {
+          "$className": "Part",
+          "$properties": {
+            "Anchored": true,
+            "CanCollide": false,
+            "CanTouch": false,
+            "TopSurface": "Smooth",
+            "BottomSurface": "Smooth",
+            "Material": "Neon",
+            "Color": [
+              0.6274509803921569,
+              0.7843137254901961,
+              1
+            ],
+            "Size": [
+              12,
+              0.2,
+              12
+            ],
+            "Position": [
+              0,
+              0.2,
+              -40
+            ],
+            "Transparency": 0.4
+          }
+        },
+        "LobbySouth": {
+          "$className": "Part",
+          "$properties": {
+            "Anchored": true,
+            "CanCollide": false,
+            "CanTouch": false,
+            "TopSurface": "Smooth",
+            "BottomSurface": "Smooth",
+            "Material": "Neon",
+            "Color": [
+              0.6274509803921569,
+              0.7843137254901961,
+              1
+            ],
+            "Size": [
+              12,
+              0.2,
+              12
+            ],
+            "Position": [
+              0,
+              0.2,
+              40
+            ],
+            "Transparency": 0.4
+          }
+        },
+        "LobbyWall_N": {
+          "$className": "Part",
+          "$properties": {
+            "Anchored": true,
+            "CanCollide": true,
+            "CanTouch": false,
+            "TopSurface": "Smooth",
+            "BottomSurface": "Smooth",
+            "Material": "SmoothPlastic",
+            "Color": [
+              0.3607843137254902,
+              0.4,
+              0.4627450980392157
+            ],
+            "Size": [
+              142,
+              14,
+              2
+            ],
+            "Position": [
+              0,
+              7,
+              -70
+            ]
+          }
+        },
+        "LobbyWall_S": {
+          "$className": "Part",
+          "$properties": {
+            "Anchored": true,
+            "CanCollide": true,
+            "CanTouch": false,
+            "TopSurface": "Smooth",
+            "BottomSurface": "Smooth",
+            "Material": "SmoothPlastic",
+            "Color": [
+              0.3607843137254902,
+              0.4,
+              0.4627450980392157
+            ],
+            "Size": [
+              142,
+              14,
+              2
+            ],
+            "Position": [
+              0,
+              7,
+              70
+            ]
+          }
+        },
+        "LobbyWall_W": {
+          "$className": "Part",
+          "$properties": {
+            "Anchored": true,
+            "CanCollide": true,
+            "CanTouch": false,
+            "TopSurface": "Smooth",
+            "BottomSurface": "Smooth",
+            "Material": "SmoothPlastic",
+            "Color": [
+              0.3607843137254902,
+              0.4,
+              0.4627450980392157
+            ],
+            "Size": [
+              2,
+              14,
+              142
+            ],
+            "Position": [
+              -70,
+              7,
+              0
+            ]
+          }
+        },
+        "LobbyWall_E": {
+          "$className": "Part",
+          "$properties": {
+            "Anchored": true,
+            "CanCollide": true,
+            "CanTouch": false,
+            "TopSurface": "Smooth",
+            "BottomSurface": "Smooth",
+            "Material": "SmoothPlastic",
+            "Color": [
+              0.3607843137254902,
+              0.4,
+              0.4627450980392157
+            ],
+            "Size": [
+              2,
+              14,
+              142
+            ],
+            "Position": [
+              70,
+              7,
+              0
+            ]
+          }
+        }
+      },
+      "Worlds": {
+        "$className": "Folder",
+        "Forest": {
+          "$className": "Folder",
+          "ArenaFloor": {
+            "$className": "Part",
+            "$properties": {
+              "Anchored": true,
+              "CanCollide": true,
+              "CanTouch": false,
+              "TopSurface": "Smooth",
+              "BottomSurface": "Smooth",
+              "Material": "Concrete",
+              "Color": [
+                0.3764705882352941,
+                0.41568627450980394,
+                0.3764705882352941
+              ],
+              "Size": [
+                180,
+                2,
+                180
+              ],
+              "Position": [
+                500,
+                -1,
+                0
+              ]
+            }
+          },
+          "ArenaCenter": {
+            "$className": "Part",
+            "$properties": {
+              "Anchored": true,
+              "CanCollide": false,
+              "CanTouch": false,
+              "TopSurface": "Smooth",
+              "BottomSurface": "Smooth",
+              "Material": "Neon",
+              "Color": [
+                1,
+                0.7450980392156863,
+                0.43137254901960786
+              ],
+              "Size": [
+                12,
+                0.2,
+                12
+              ],
+              "Position": [
+                500,
+                0.2,
+                0
+              ],
+              "Transparency": 0.4
+            }
+          },
+          "ArenaNorth": {
+            "$className": "Part",
+            "$properties": {
+              "Anchored": true,
+              "CanCollide": false,
+              "CanTouch": false,
+              "TopSurface": "Smooth",
+              "BottomSurface": "Smooth",
+              "Material": "Neon",
+              "Color": [
+                1,
+                0.6274509803921569,
+                0.35294117647058826
+              ],
+              "Size": [
+                12,
+                0.2,
+                12
+              ],
+              "Position": [
+                500,
+                0.2,
+                -60
+              ],
+              "Transparency": 0.4
+            }
+          },
+          "ArenaSouth": {
+            "$className": "Part",
+            "$properties": {
+              "Anchored": true,
+              "CanCollide": false,
+              "CanTouch": false,
+              "TopSurface": "Smooth",
+              "BottomSurface": "Smooth",
+              "Material": "Neon",
+              "Color": [
+                1,
+                0.6274509803921569,
+                0.35294117647058826
+              ],
+              "Size": [
+                12,
+                0.2,
+                12
+              ],
+              "Position": [
+                500,
+                0.2,
+                60
+              ],
+              "Transparency": 0.4
+            }
+          },
+          "ArenaEast": {
+            "$className": "Part",
+            "$properties": {
+              "Anchored": true,
+              "CanCollide": false,
+              "CanTouch": false,
+              "TopSurface": "Smooth",
+              "BottomSurface": "Smooth",
+              "Material": "Neon",
+              "Color": [
+                1,
+                0.6274509803921569,
+                0.35294117647058826
+              ],
+              "Size": [
+                12,
+                0.2,
+                12
+              ],
+              "Position": [
+                560,
+                0.2,
+                0
+              ],
+              "Transparency": 0.4
+            }
+          },
+          "ArenaWest": {
+            "$className": "Part",
+            "$properties": {
+              "Anchored": true,
+              "CanCollide": false,
+              "CanTouch": false,
+              "TopSurface": "Smooth",
+              "BottomSurface": "Smooth",
+              "Material": "Neon",
+              "Color": [
+                1,
+                0.6274509803921569,
+                0.35294117647058826
+              ],
+              "Size": [
+                12,
+                0.2,
+                12
+              ],
+              "Position": [
+                440,
+                0.2,
+                0
+              ],
+              "Transparency": 0.4
+            }
+          },
+          "ArenaWall_N": {
+            "$className": "Part",
+            "$properties": {
+              "Anchored": true,
+              "CanCollide": true,
+              "CanTouch": false,
+              "TopSurface": "Smooth",
+              "BottomSurface": "Smooth",
+              "Material": "SmoothPlastic",
+              "Color": [
+                0.2901960784313726,
+                0.3215686274509804,
+                0.2901960784313726
+              ],
+              "Size": [
+                182,
+                26,
+                2
+              ],
+              "Position": [
+                500,
+                13,
+                -90
+              ]
+            }
+          },
+          "ArenaWall_S": {
+            "$className": "Part",
+            "$properties": {
+              "Anchored": true,
+              "CanCollide": true,
+              "CanTouch": false,
+              "TopSurface": "Smooth",
+              "BottomSurface": "Smooth",
+              "Material": "SmoothPlastic",
+              "Color": [
+                0.2901960784313726,
+                0.3215686274509804,
+                0.2901960784313726
+              ],
+              "Size": [
+                182,
+                26,
+                2
+              ],
+              "Position": [
+                500,
+                13,
+                90
+              ]
+            }
+          },
+          "ArenaWall_W": {
+            "$className": "Part",
+            "$properties": {
+              "Anchored": true,
+              "CanCollide": true,
+              "CanTouch": false,
+              "TopSurface": "Smooth",
+              "BottomSurface": "Smooth",
+              "Material": "SmoothPlastic",
+              "Color": [
+                0.2901960784313726,
+                0.3215686274509804,
+                0.2901960784313726
+              ],
+              "Size": [
+                2,
+                26,
+                182
+              ],
+              "Position": [
+                410,
+                13,
+                0
+              ]
+            }
+          },
+          "ArenaWall_E": {
+            "$className": "Part",
+            "$properties": {
+              "Anchored": true,
+              "CanCollide": true,
+              "CanTouch": false,
+              "TopSurface": "Smooth",
+              "BottomSurface": "Smooth",
+              "Material": "SmoothPlastic",
+              "Color": [
+                0.2901960784313726,
+                0.3215686274509804,
+                0.2901960784313726
+              ],
+              "Size": [
+                2,
+                26,
+                182
+              ],
+              "Position": [
+                590,
+                13,
+                0
+              ]
+            }
+          },
+          "Blocks": {
+            "$className": "Folder",
+            "Block_0": {
+              "$className": "Part",
+              "$properties": {
+                "Anchored": true,
+                "CanCollide": true,
+                "CanTouch": false,
+                "TopSurface": "Smooth",
+                "BottomSurface": "Smooth",
+                "Material": "WoodPlanks",
+                "Color": [
+                  0.5176470588235295,
+                  0.6274509803921569,
+                  0.39215686274509803
+                ],
+                "Size": [
+                  8,
+                  8,
+                  8
+                ],
+                "Position": [
+                  477.5,
+                  4,
+                  -45
+                ]
+              }
+            },
+            "Block_1": {
+              "$className": "Part",
+              "$properties": {
+                "Anchored": true,
+                "CanCollide": true,
+                "CanTouch": false,
+                "TopSurface": "Smooth",
+                "BottomSurface": "Smooth",
+                "Material": "WoodPlanks",
+                "Color": [
+                  0.40784313725490196,
+                  0.5568627450980392,
+                  0.7607843137254902
+                ],
+                "Size": [
+                  8,
+                  8,
+                  8
+                ],
+                "Position": [
+                  477.5,
+                  4,
+                  45
+                ]
+              }
+            },
+            "Block_2": {
+              "$className": "Part",
+              "$properties": {
+                "Anchored": true,
+                "CanCollide": true,
+                "CanTouch": false,
+                "TopSurface": "Smooth",
+                "BottomSurface": "Smooth",
+                "Material": "WoodPlanks",
+                "Color": [
+                  0.6980392156862745,
+                  0.596078431372549,
+                  0.3764705882352941
+                ],
+                "Size": [
+                  8,
+                  8,
+                  8
+                ],
+                "Position": [
+                  455,
+                  4,
+                  -22.5
+                ]
+              }
+            },
+            "Block_3": {
+              "$className": "Part",
+              "$properties": {
+                "Anchored": true,
+                "CanCollide": true,
+                "CanTouch": false,
+                "TopSurface": "Smooth",
+                "BottomSurface": "Smooth",
+                "Material": "WoodPlanks",
+                "Color": [
+                  0.7294117647058823,
+                  0.47843137254901963,
+                  0.3058823529411765
+                ],
+                "Size": [
+                  8,
+                  8,
+                  8
+                ],
+                "Position": [
+                  545,
+                  4,
+                  -22.5
+                ]
+              }
+            },
+            "Block_4": {
+              "$className": "Part",
+              "$properties": {
+                "Anchored": true,
+                "CanCollide": true,
+                "CanTouch": false,
+                "TopSurface": "Smooth",
+                "BottomSurface": "Smooth",
+                "Material": "WoodPlanks",
+                "Color": [
+                  0.5176470588235295,
+                  0.6274509803921569,
+                  0.39215686274509803
+                ],
+                "Size": [
+                  8,
+                  8,
+                  8
+                ],
+                "Position": [
+                  477.5,
+                  12.25,
+                  -45
+                ]
+              }
+            },
+            "Block_5": {
+              "$className": "Part",
+              "$properties": {
+                "Anchored": true,
+                "CanCollide": true,
+                "CanTouch": false,
+                "TopSurface": "Smooth",
+                "BottomSurface": "Smooth",
+                "Material": "WoodPlanks",
+                "Color": [
+                  0.40784313725490196,
+                  0.5568627450980392,
+                  0.7607843137254902
+                ],
+                "Size": [
+                  8,
+                  8,
+                  8
+                ],
+                "Position": [
+                  477.5,
+                  12.25,
+                  45
+                ]
+              }
+            },
+            "Block_6": {
+              "$className": "Part",
+              "$properties": {
+                "Anchored": true,
+                "CanCollide": true,
+                "CanTouch": false,
+                "TopSurface": "Smooth",
+                "BottomSurface": "Smooth",
+                "Material": "WoodPlanks",
+                "Color": [
+                  0.6980392156862745,
+                  0.596078431372549,
+                  0.3764705882352941
+                ],
+                "Size": [
+                  8,
+                  8,
+                  8
+                ],
+                "Position": [
+                  455,
+                  12.25,
+                  -22.5
+                ]
+              }
+            },
+            "Block_7": {
+              "$className": "Part",
+              "$properties": {
+                "Anchored": true,
+                "CanCollide": true,
+                "CanTouch": false,
+                "TopSurface": "Smooth",
+                "BottomSurface": "Smooth",
+                "Material": "WoodPlanks",
+                "Color": [
+                  0.7294117647058823,
+                  0.47843137254901963,
+                  0.3058823529411765
+                ],
+                "Size": [
+                  8,
+                  8,
+                  8
+                ],
+                "Position": [
+                  545,
+                  12.25,
+                  -22.5
+                ]
+              }
+            },
+            "Block_8": {
+              "$className": "Part",
+              "$properties": {
+                "Anchored": true,
+                "CanCollide": true,
+                "CanTouch": false,
+                "TopSurface": "Smooth",
+                "BottomSurface": "Smooth",
+                "Material": "WoodPlanks",
+                "Color": [
+                  0.5176470588235295,
+                  0.6274509803921569,
+                  0.39215686274509803
+                ],
+                "Size": [
+                  8,
+                  8,
+                  8
+                ],
+                "Position": [
+                  486.5,
+                  4,
+                  -45
+                ]
+              }
+            },
+            "Block_9": {
+              "$className": "Part",
+              "$properties": {
+                "Anchored": true,
+                "CanCollide": true,
+                "CanTouch": false,
+                "TopSurface": "Smooth",
+                "BottomSurface": "Smooth",
+                "Material": "WoodPlanks",
+                "Color": [
+                  0.40784313725490196,
+                  0.5568627450980392,
+                  0.7607843137254902
+                ],
+                "Size": [
+                  8,
+                  8,
+                  8
+                ],
+                "Position": [
+                  486.5,
+                  4,
+                  45
+                ]
+              }
+            },
+            "Block_10": {
+              "$className": "Part",
+              "$properties": {
+                "Anchored": true,
+                "CanCollide": true,
+                "CanTouch": false,
+                "TopSurface": "Smooth",
+                "BottomSurface": "Smooth",
+                "Material": "WoodPlanks",
+                "Color": [
+                  0.6980392156862745,
+                  0.596078431372549,
+                  0.3764705882352941
+                ],
+                "Size": [
+                  8,
+                  8,
+                  8
+                ],
+                "Position": [
+                  455,
+                  4,
+                  -13.5
+                ]
+              }
+            },
+            "Block_11": {
+              "$className": "Part",
+              "$properties": {
+                "Anchored": true,
+                "CanCollide": true,
+                "CanTouch": false,
+                "TopSurface": "Smooth",
+                "BottomSurface": "Smooth",
+                "Material": "WoodPlanks",
+                "Color": [
+                  0.7294117647058823,
+                  0.47843137254901963,
+                  0.3058823529411765
+                ],
+                "Size": [
+                  8,
+                  8,
+                  8
+                ],
+                "Position": [
+                  545,
+                  4,
+                  -13.5
+                ]
+              }
+            },
+            "Block_12": {
+              "$className": "Part",
+              "$properties": {
+                "Anchored": true,
+                "CanCollide": true,
+                "CanTouch": false,
+                "TopSurface": "Smooth",
+                "BottomSurface": "Smooth",
+                "Material": "WoodPlanks",
+                "Color": [
+                  0.5176470588235295,
+                  0.6274509803921569,
+                  0.39215686274509803
+                ],
+                "Size": [
+                  8,
+                  8,
+                  8
+                ],
+                "Position": [
+                  455,
+                  4,
+                  -4.5
+                ]
+              }
+            },
+            "Block_13": {
+              "$className": "Part",
+              "$properties": {
+                "Anchored": true,
+                "CanCollide": true,
+                "CanTouch": false,
+                "TopSurface": "Smooth",
+                "BottomSurface": "Smooth",
+                "Material": "WoodPlanks",
+                "Color": [
+                  0.40784313725490196,
+                  0.5568627450980392,
+                  0.7607843137254902
+                ],
+                "Size": [
+                  8,
+                  8,
+                  8
+                ],
+                "Position": [
+                  545,
+                  4,
+                  -4.5
+                ]
+              }
+            },
+            "Block_14": {
+              "$className": "Part",
+              "$properties": {
+                "Anchored": true,
+                "CanCollide": true,
+                "CanTouch": false,
+                "TopSurface": "Smooth",
+                "BottomSurface": "Smooth",
+                "Material": "WoodPlanks",
+                "Color": [
+                  0.6980392156862745,
+                  0.596078431372549,
+                  0.3764705882352941
+                ],
+                "Size": [
+                  8,
+                  8,
+                  8
+                ],
+                "Position": [
+                  455,
+                  4,
+                  4.5
+                ]
+              }
+            },
+            "Block_15": {
+              "$className": "Part",
+              "$properties": {
+                "Anchored": true,
+                "CanCollide": true,
+                "CanTouch": false,
+                "TopSurface": "Smooth",
+                "BottomSurface": "Smooth",
+                "Material": "WoodPlanks",
+                "Color": [
+                  0.7294117647058823,
+                  0.47843137254901963,
+                  0.3058823529411765
+                ],
+                "Size": [
+                  8,
+                  8,
+                  8
+                ],
+                "Position": [
+                  545,
+                  4,
+                  4.5
+                ]
+              }
+            },
+            "Block_16": {
+              "$className": "Part",
+              "$properties": {
+                "Anchored": true,
+                "CanCollide": true,
+                "CanTouch": false,
+                "TopSurface": "Smooth",
+                "BottomSurface": "Smooth",
+                "Material": "WoodPlanks",
+                "Color": [
+                  0.5176470588235295,
+                  0.6274509803921569,
+                  0.39215686274509803
+                ],
+                "Size": [
+                  8,
+                  8,
+                  8
+                ],
+                "Position": [
+                  513.5,
+                  4,
+                  -45
+                ]
+              }
+            },
+            "Block_17": {
+              "$className": "Part",
+              "$properties": {
+                "Anchored": true,
+                "CanCollide": true,
+                "CanTouch": false,
+                "TopSurface": "Smooth",
+                "BottomSurface": "Smooth",
+                "Material": "WoodPlanks",
+                "Color": [
+                  0.40784313725490196,
+                  0.5568627450980392,
+                  0.7607843137254902
+                ],
+                "Size": [
+                  8,
+                  8,
+                  8
+                ],
+                "Position": [
+                  513.5,
+                  4,
+                  45
+                ]
+              }
+            },
+            "Block_18": {
+              "$className": "Part",
+              "$properties": {
+                "Anchored": true,
+                "CanCollide": true,
+                "CanTouch": false,
+                "TopSurface": "Smooth",
+                "BottomSurface": "Smooth",
+                "Material": "WoodPlanks",
+                "Color": [
+                  0.6980392156862745,
+                  0.596078431372549,
+                  0.3764705882352941
+                ],
+                "Size": [
+                  8,
+                  8,
+                  8
+                ],
+                "Position": [
+                  455,
+                  4,
+                  13.5
+                ]
+              }
+            },
+            "Block_19": {
+              "$className": "Part",
+              "$properties": {
+                "Anchored": true,
+                "CanCollide": true,
+                "CanTouch": false,
+                "TopSurface": "Smooth",
+                "BottomSurface": "Smooth",
+                "Material": "WoodPlanks",
+                "Color": [
+                  0.7294117647058823,
+                  0.47843137254901963,
+                  0.3058823529411765
+                ],
+                "Size": [
+                  8,
+                  8,
+                  8
+                ],
+                "Position": [
+                  545,
+                  4,
+                  13.5
+                ]
+              }
+            },
+            "Block_20": {
+              "$className": "Part",
+              "$properties": {
+                "Anchored": true,
+                "CanCollide": true,
+                "CanTouch": false,
+                "TopSurface": "Smooth",
+                "BottomSurface": "Smooth",
+                "Material": "WoodPlanks",
+                "Color": [
+                  0.5176470588235295,
+                  0.6274509803921569,
+                  0.39215686274509803
+                ],
+                "Size": [
+                  8,
+                  8,
+                  8
+                ],
+                "Position": [
+                  522.5,
+                  4,
+                  -45
+                ]
+              }
+            },
+            "Block_21": {
+              "$className": "Part",
+              "$properties": {
+                "Anchored": true,
+                "CanCollide": true,
+                "CanTouch": false,
+                "TopSurface": "Smooth",
+                "BottomSurface": "Smooth",
+                "Material": "WoodPlanks",
+                "Color": [
+                  0.40784313725490196,
+                  0.5568627450980392,
+                  0.7607843137254902
+                ],
+                "Size": [
+                  8,
+                  8,
+                  8
+                ],
+                "Position": [
+                  522.5,
+                  4,
+                  45
+                ]
+              }
+            },
+            "Block_22": {
+              "$className": "Part",
+              "$properties": {
+                "Anchored": true,
+                "CanCollide": true,
+                "CanTouch": false,
+                "TopSurface": "Smooth",
+                "BottomSurface": "Smooth",
+                "Material": "WoodPlanks",
+                "Color": [
+                  0.6980392156862745,
+                  0.596078431372549,
+                  0.3764705882352941
+                ],
+                "Size": [
+                  8,
+                  8,
+                  8
+                ],
+                "Position": [
+                  455,
+                  4,
+                  22.5
+                ]
+              }
+            },
+            "Block_23": {
+              "$className": "Part",
+              "$properties": {
+                "Anchored": true,
+                "CanCollide": true,
+                "CanTouch": false,
+                "TopSurface": "Smooth",
+                "BottomSurface": "Smooth",
+                "Material": "WoodPlanks",
+                "Color": [
+                  0.7294117647058823,
+                  0.47843137254901963,
+                  0.3058823529411765
+                ],
+                "Size": [
+                  8,
+                  8,
+                  8
+                ],
+                "Position": [
+                  545,
+                  4,
+                  22.5
+                ]
+              }
+            },
+            "Block_24": {
+              "$className": "Part",
+              "$properties": {
+                "Anchored": true,
+                "CanCollide": true,
+                "CanTouch": false,
+                "TopSurface": "Smooth",
+                "BottomSurface": "Smooth",
+                "Material": "WoodPlanks",
+                "Color": [
+                  0.5176470588235295,
+                  0.6274509803921569,
+                  0.39215686274509803
+                ],
+                "Size": [
+                  8,
+                  8,
+                  8
+                ],
+                "Position": [
+                  522.5,
+                  12.25,
+                  -45
+                ]
+              }
+            },
+            "Block_25": {
+              "$className": "Part",
+              "$properties": {
+                "Anchored": true,
+                "CanCollide": true,
+                "CanTouch": false,
+                "TopSurface": "Smooth",
+                "BottomSurface": "Smooth",
+                "Material": "WoodPlanks",
+                "Color": [
+                  0.40784313725490196,
+                  0.5568627450980392,
+                  0.7607843137254902
+                ],
+                "Size": [
+                  8,
+                  8,
+                  8
+                ],
+                "Position": [
+                  522.5,
+                  12.25,
+                  45
+                ]
+              }
+            },
+            "Block_26": {
+              "$className": "Part",
+              "$properties": {
+                "Anchored": true,
+                "CanCollide": true,
+                "CanTouch": false,
+                "TopSurface": "Smooth",
+                "BottomSurface": "Smooth",
+                "Material": "WoodPlanks",
+                "Color": [
+                  0.6980392156862745,
+                  0.596078431372549,
+                  0.3764705882352941
+                ],
+                "Size": [
+                  8,
+                  8,
+                  8
+                ],
+                "Position": [
+                  455,
+                  12.25,
+                  22.5
+                ]
+              }
+            },
+            "Block_27": {
+              "$className": "Part",
+              "$properties": {
+                "Anchored": true,
+                "CanCollide": true,
+                "CanTouch": false,
+                "TopSurface": "Smooth",
+                "BottomSurface": "Smooth",
+                "Material": "WoodPlanks",
+                "Color": [
+                  0.7294117647058823,
+                  0.47843137254901963,
+                  0.3058823529411765
+                ],
+                "Size": [
+                  8,
+                  8,
+                  8
+                ],
+                "Position": [
+                  545,
+                  12.25,
+                  22.5
+                ]
+              }
+            }
+          },
+          "CentralStructure": {
+            "$className": "Folder",
+            "Block_28": {
+              "$className": "Part",
+              "$properties": {
+                "Anchored": true,
+                "CanCollide": true,
+                "CanTouch": false,
+                "TopSurface": "Smooth",
+                "BottomSurface": "Smooth",
+                "Material": "WoodPlanks",
+                "Color": [
+                  0.5176470588235295,
+                  0.6274509803921569,
+                  0.39215686274509803
+                ],
+                "Size": [
+                  8,
+                  8,
+                  8
+                ],
+                "Position": [
+                  491.75,
+                  4,
+                  -8.25
+                ]
+              }
+            },
+            "Block_29": {
+              "$className": "Part",
+              "$properties": {
+                "Anchored": true,
+                "CanCollide": true,
+                "CanTouch": false,
+                "TopSurface": "Smooth",
+                "BottomSurface": "Smooth",
+                "Material": "WoodPlanks",
+                "Color": [
+                  0.40784313725490196,
+                  0.5568627450980392,
+                  0.7607843137254902
+                ],
+                "Size": [
+                  8,
+                  8,
+                  8
+                ],
+                "Position": [
+                  491.75,
+                  4,
+                  0
+                ]
+              }
+            },
+            "Block_30": {
+              "$className": "Part",
+              "$properties": {
+                "Anchored": true,
+                "CanCollide": true,
+                "CanTouch": false,
+                "TopSurface": "Smooth",
+                "BottomSurface": "Smooth",
+                "Material": "WoodPlanks",
+                "Color": [
+                  0.6980392156862745,
+                  0.596078431372549,
+                  0.3764705882352941
+                ],
+                "Size": [
+                  8,
+                  8,
+                  8
+                ],
+                "Position": [
+                  491.75,
+                  4,
+                  8.25
+                ]
+              }
+            },
+            "Block_31": {
+              "$className": "Part",
+              "$properties": {
+                "Anchored": true,
+                "CanCollide": true,
+                "CanTouch": false,
+                "TopSurface": "Smooth",
+                "BottomSurface": "Smooth",
+                "Material": "WoodPlanks",
+                "Color": [
+                  0.7294117647058823,
+                  0.47843137254901963,
+                  0.3058823529411765
+                ],
+                "Size": [
+                  8,
+                  8,
+                  8
+                ],
+                "Position": [
+                  491.75,
+                  12.25,
+                  -8.25
+                ]
+              }
+            },
+            "Block_32": {
+              "$className": "Part",
+              "$properties": {
+                "Anchored": true,
+                "CanCollide": true,
+                "CanTouch": false,
+                "TopSurface": "Smooth",
+                "BottomSurface": "Smooth",
+                "Material": "WoodPlanks",
+                "Color": [
+                  0.5176470588235295,
+                  0.6274509803921569,
+                  0.39215686274509803
+                ],
+                "Size": [
+                  8,
+                  8,
+                  8
+                ],
+                "Position": [
+                  491.75,
+                  12.25,
+                  8.25
+                ]
+              }
+            },
+            "Block_33": {
+              "$className": "Part",
+              "$properties": {
+                "Anchored": true,
+                "CanCollide": true,
+                "CanTouch": false,
+                "TopSurface": "Smooth",
+                "BottomSurface": "Smooth",
+                "Material": "WoodPlanks",
+                "Color": [
+                  0.40784313725490196,
+                  0.5568627450980392,
+                  0.7607843137254902
+                ],
+                "Size": [
+                  8,
+                  8,
+                  8
+                ],
+                "Position": [
+                  491.75,
+                  20.5,
+                  -8.25
+                ]
+              }
+            },
+            "Block_34": {
+              "$className": "Part",
+              "$properties": {
+                "Anchored": true,
+                "CanCollide": true,
+                "CanTouch": false,
+                "TopSurface": "Smooth",
+                "BottomSurface": "Smooth",
+                "Material": "WoodPlanks",
+                "Color": [
+                  0.6980392156862745,
+                  0.596078431372549,
+                  0.3764705882352941
+                ],
+                "Size": [
+                  8,
+                  8,
+                  8
+                ],
+                "Position": [
+                  491.75,
+                  20.5,
+                  0
+                ]
+              }
+            },
+            "Block_35": {
+              "$className": "Part",
+              "$properties": {
+                "Anchored": true,
+                "CanCollide": true,
+                "CanTouch": false,
+                "TopSurface": "Smooth",
+                "BottomSurface": "Smooth",
+                "Material": "WoodPlanks",
+                "Color": [
+                  0.7294117647058823,
+                  0.47843137254901963,
+                  0.3058823529411765
+                ],
+                "Size": [
+                  8,
+                  8,
+                  8
+                ],
+                "Position": [
+                  491.75,
+                  20.5,
+                  8.25
+                ]
+              }
+            },
+            "Block_36": {
+              "$className": "Part",
+              "$properties": {
+                "Anchored": true,
+                "CanCollide": true,
+                "CanTouch": false,
+                "TopSurface": "Smooth",
+                "BottomSurface": "Smooth",
+                "Material": "WoodPlanks",
+                "Color": [
+                  0.5176470588235295,
+                  0.6274509803921569,
+                  0.39215686274509803
+                ],
+                "Size": [
+                  8,
+                  8,
+                  8
+                ],
+                "Position": [
+                  500,
+                  4,
+                  -8.25
+                ]
+              }
+            },
+            "Block_37": {
+              "$className": "Part",
+              "$properties": {
+                "Anchored": true,
+                "CanCollide": true,
+                "CanTouch": false,
+                "TopSurface": "Smooth",
+                "BottomSurface": "Smooth",
+                "Material": "WoodPlanks",
+                "Color": [
+                  0.40784313725490196,
+                  0.5568627450980392,
+                  0.7607843137254902
+                ],
+                "Size": [
+                  8,
+                  8,
+                  8
+                ],
+                "Position": [
+                  500,
+                  4,
+                  8.25
+                ]
+              }
+            },
+            "Block_38": {
+              "$className": "Part",
+              "$properties": {
+                "Anchored": true,
+                "CanCollide": true,
+                "CanTouch": false,
+                "TopSurface": "Smooth",
+                "BottomSurface": "Smooth",
+                "Material": "WoodPlanks",
+                "Color": [
+                  0.6980392156862745,
+                  0.596078431372549,
+                  0.3764705882352941
+                ],
+                "Size": [
+                  8,
+                  8,
+                  8
+                ],
+                "Position": [
+                  500,
+                  20.5,
+                  -8.25
+                ]
+              }
+            },
+            "Block_39": {
+              "$className": "Part",
+              "$properties": {
+                "Anchored": true,
+                "CanCollide": true,
+                "CanTouch": false,
+                "TopSurface": "Smooth",
+                "BottomSurface": "Smooth",
+                "Material": "WoodPlanks",
+                "Color": [
+                  0.7294117647058823,
+                  0.47843137254901963,
+                  0.3058823529411765
+                ],
+                "Size": [
+                  8,
+                  8,
+                  8
+                ],
+                "Position": [
+                  500,
+                  20.5,
+                  8.25
+                ]
+              }
+            },
+            "Block_40": {
+              "$className": "Part",
+              "$properties": {
+                "Anchored": true,
+                "CanCollide": true,
+                "CanTouch": false,
+                "TopSurface": "Smooth",
+                "BottomSurface": "Smooth",
+                "Material": "WoodPlanks",
+                "Color": [
+                  0.5176470588235295,
+                  0.6274509803921569,
+                  0.39215686274509803
+                ],
+                "Size": [
+                  8,
+                  8,
+                  8
+                ],
+                "Position": [
+                  508.25,
+                  4,
+                  -8.25
+                ]
+              }
+            },
+            "Block_41": {
+              "$className": "Part",
+              "$properties": {
+                "Anchored": true,
+                "CanCollide": true,
+                "CanTouch": false,
+                "TopSurface": "Smooth",
+                "BottomSurface": "Smooth",
+                "Material": "WoodPlanks",
+                "Color": [
+                  0.40784313725490196,
+                  0.5568627450980392,
+                  0.7607843137254902
+                ],
+                "Size": [
+                  8,
+                  8,
+                  8
+                ],
+                "Position": [
+                  508.25,
+                  4,
+                  0
+                ]
+              }
+            },
+            "Block_42": {
+              "$className": "Part",
+              "$properties": {
+                "Anchored": true,
+                "CanCollide": true,
+                "CanTouch": false,
+                "TopSurface": "Smooth",
+                "BottomSurface": "Smooth",
+                "Material": "WoodPlanks",
+                "Color": [
+                  0.6980392156862745,
+                  0.596078431372549,
+                  0.3764705882352941
+                ],
+                "Size": [
+                  8,
+                  8,
+                  8
+                ],
+                "Position": [
+                  508.25,
+                  4,
+                  8.25
+                ]
+              }
+            },
+            "Block_43": {
+              "$className": "Part",
+              "$properties": {
+                "Anchored": true,
+                "CanCollide": true,
+                "CanTouch": false,
+                "TopSurface": "Smooth",
+                "BottomSurface": "Smooth",
+                "Material": "WoodPlanks",
+                "Color": [
+                  0.7294117647058823,
+                  0.47843137254901963,
+                  0.3058823529411765
+                ],
+                "Size": [
+                  8,
+                  8,
+                  8
+                ],
+                "Position": [
+                  508.25,
+                  12.25,
+                  -8.25
+                ]
+              }
+            },
+            "Block_44": {
+              "$className": "Part",
+              "$properties": {
+                "Anchored": true,
+                "CanCollide": true,
+                "CanTouch": false,
+                "TopSurface": "Smooth",
+                "BottomSurface": "Smooth",
+                "Material": "WoodPlanks",
+                "Color": [
+                  0.5176470588235295,
+                  0.6274509803921569,
+                  0.39215686274509803
+                ],
+                "Size": [
+                  8,
+                  8,
+                  8
+                ],
+                "Position": [
+                  508.25,
+                  12.25,
+                  8.25
+                ]
+              }
+            },
+            "Block_45": {
+              "$className": "Part",
+              "$properties": {
+                "Anchored": true,
+                "CanCollide": true,
+                "CanTouch": false,
+                "TopSurface": "Smooth",
+                "BottomSurface": "Smooth",
+                "Material": "WoodPlanks",
+                "Color": [
+                  0.40784313725490196,
+                  0.5568627450980392,
+                  0.7607843137254902
+                ],
+                "Size": [
+                  8,
+                  8,
+                  8
+                ],
+                "Position": [
+                  508.25,
+                  20.5,
+                  -8.25
+                ]
+              }
+            },
+            "Block_46": {
+              "$className": "Part",
+              "$properties": {
+                "Anchored": true,
+                "CanCollide": true,
+                "CanTouch": false,
+                "TopSurface": "Smooth",
+                "BottomSurface": "Smooth",
+                "Material": "WoodPlanks",
+                "Color": [
+                  0.6980392156862745,
+                  0.596078431372549,
+                  0.3764705882352941
+                ],
+                "Size": [
+                  8,
+                  8,
+                  8
+                ],
+                "Position": [
+                  508.25,
+                  20.5,
+                  0
+                ]
+              }
+            },
+            "Block_47": {
+              "$className": "Part",
+              "$properties": {
+                "Anchored": true,
+                "CanCollide": true,
+                "CanTouch": false,
+                "TopSurface": "Smooth",
+                "BottomSurface": "Smooth",
+                "Material": "WoodPlanks",
+                "Color": [
+                  0.7294117647058823,
+                  0.47843137254901963,
+                  0.3058823529411765
+                ],
+                "Size": [
+                  8,
+                  8,
+                  8
+                ],
+                "Position": [
+                  508.25,
+                  20.5,
+                  8.25
+                ]
+              }
+            }
+          }
+        }
+      }
     }
   }
 }

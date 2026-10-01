@@ -26,7 +26,7 @@ local SHARED = ReplicatedStorage:WaitForChild("Shared")
 local CONFIG = SHARED:WaitForChild("Config")
 local UTILS = SHARED:WaitForChild("Utils")
 
-local GameConfig = require(CONFIG:WaitForChild("GameConfig"))
+local PerformanceConfig = require(CONFIG:WaitForChild("PerformanceConfig"))
 local GameConstants = require(SHARED:WaitForChild("Constants"):WaitForChild("GameConstants"))
 local Logger = require(UTILS:WaitForChild("Logger"))
 local Maid = require(SHARED:WaitForChild("Libraries"):WaitForChild("Maid"))
@@ -238,8 +238,17 @@ function Registry:_InitService(name: string): boolean
 		return false
 	end
 
-	if elapsed > GameConfig.Performance.WarnThreshold.ServiceInit then
-		Logger.Warn(("Init de '%s' tardo %.3fs"):format(name, elapsed))
+	-- Antes leia `GameConfig.Performance.WarnThreshold`, pero Performance
+	-- vive en su propio modulo (GameConfig no lo expone). Ese acceso
+	-- devolvia nil y rompia aqui el arranque de TODO el registro.
+	local serviceInitThreshold = PerformanceConfig.WarnThreshold.ServiceInit
+
+	if elapsed > serviceInitThreshold then
+		Logger.Warn(("Init de '%s' tardo %.3fs (umbral %.3fs)"):format(
+			name,
+			elapsed,
+			serviceInitThreshold
+		))
 	end
 
 	return true

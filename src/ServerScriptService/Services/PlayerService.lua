@@ -20,17 +20,27 @@ local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local SHARED = ReplicatedStorage:WaitForChild("Shared")
+local CONFIG = SHARED:WaitForChild("Config")
 local CONSTANTS = SHARED:WaitForChild("Constants")
 local UTILS = SHARED:WaitForChild("Utils")
 
+local GameConfig = require(CONFIG:WaitForChild("GameConfig"))
 local GameConstants = require(CONSTANTS:WaitForChild("GameConstants"))
 local Logger = require(UTILS:WaitForChild("Logger"))
 
 local PlayerState = GameConstants.PlayerState
 
+-- XP necesaria para subir de nivel. Se declara aqui (antes de usarse)
+-- porque `AddRewards` la consulta al calcular el nivel.
+local XP_PER_LEVEL = 100
+
 local Service = {}
 
 Service.IsInitialized = false
+
+--- Servicios inyectados por ServerMain.
+Service._roundService = nil
+Service._explosionService = nil
 
 -- UserId -> estado de sesion.
 Service._sessions = {}
@@ -146,6 +156,82 @@ function Service.SetReady(player: Player, isReady: boolean): boolean
 	return true
 end
 
+--- Inyecta las dependencias del servicio.
+--- @param roundService any
+function Service.SetDependencies(roundService: any)
+	Service._roundService = roundService
+end
+
+--- Suma experiencia y monedas a la sesion del jugador.
+--- @param player Player
+--- @param xp number
+--- @param coins number
+--- @return boolean applied
+function Service.AddRewards(player: Player, xp: number, coins: number): boolean
+	local session = Service._sessions[player.UserId]
+	if not session then
+		return false
+	end
+
+	session.XP += math.floor(xp * GameConfig.XPMultiplier)
+	session.Coins += math.floor(coins * GameConfig.CoinMultiplier)
+	session.Level = 1 + math.floor(session.XP / XP_PER_LEVEL)
+
+	publishAttributes(player, session)
+	return true
+end
+
+--- Gestiona la muerte de un jugador durante la ronda.
+---
+--- La muerte la decide el servidor (ExplosionService), y aqui se
+--- traducen sus consecuencias: marcar al jugador y premiar a quien
+--- sigue vivo. No se reproduce desde el cliente.
+--- @param player Player
+function Service.OnPlayerDied(player: Player)
+	Service.SetPlayerState(player, PlayerState.Dead)
+	Logger.Info(("%s ha muerto"):format(player.Name))
+
+	-- Si no queda nadie vivo, la ronda debe terminar. MatchService se
+	-- encarga del traslado al terminar.
+	if Service._roundService and Service._roundService.IsPlaying() then
+		local alive = 0
+		for _, other in ipairs(Players:GetPlayers()) do
+			if Service.IsAlive(other) then
+				alive += 1
+			end
+		end
+
+		if alive == 0 then
+			Service._roundService.Transition(GameConstants.RoundState.RoundEnding)
+		end
+	end
+end
+
+--- Conecta el ciclo de vida del personaje de un jugador.
+--- @param player Player
+local function bindCharacter(player: Player)
+	local function onCharacter(character: Model)
+		local humanoid = character:WaitForChild("Humanoid", 10)
+		if not humanoid then
+			Logger.Error(("%s: el personaje no tiene Humanoid"):format(player.Name))
+			return
+		end
+
+		Service.SetPlayerState(player, PlayerState.Alive)
+
+		humanoid.Died:Connect(function()
+			Service.OnPlayerDied(player)
+		end)
+	end
+
+	-- CharacterAdded puede haberse fired antes de que nos conectemos.
+	if player.Character then
+		task.spawn(onCharacter, player.Character)
+	end
+
+	player.CharacterAdded:Connect(onCharacter)
+end
+
 --- Gestiona la entrada de un jugador.
 --- @param player Player
 function Service.OnPlayerAdded(player: Player)
@@ -157,6 +243,10 @@ function Service.OnPlayerAdded(player: Player)
 	local session = createSession(player)
 	Service._sessions[player.UserId] = session
 	publishAttributes(player, session)
+
+	-- El ciclo del personaje (nacimiento y muerte) se conecta aqui: sin
+	-- esto el servidor no se entera de las muertes por bomba.
+	bindCharacter(player)
 
 	Logger.Info(("#%d %s conectado. Sesiones activas: %d"):format(
 		player.UserId,
@@ -226,6 +316,8 @@ end
 function Service.Destroy(): boolean
 	Service._sessions = {}
 	MaidRef = nil
+	Service._roundService = nil
+	Service._explosionService = nil
 	Service.IsInitialized = false
 	return true
 end

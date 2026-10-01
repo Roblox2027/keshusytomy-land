@@ -18,9 +18,29 @@ Desde la raiz del repositorio, con el interprete de Luau:
 luau.exe tests/RunTests.lua
 ```
 
-Estado actual: **56 pruebas, 0 fallos**. El proceso devuelve codigo
-de salida 0 cuando todo pasa, lo que permite usarlo en integracion
-continua.
+Estado real: **FASE 0 y FASE 1 implementadas e integradas**, mas un
+**vertical slice jugable** (lobby -> arena -> bomba -> explosion ->
+destruccion -> dano -> muerte -> resultado -> lobby). Las fases 2–64
+estan preparadas o NO IMPLEMENTED; ver `docs/audit.md`.
+
+## Estado real (no optimista)
+
+| Parte | Estado |
+| ----- | ------ |
+| Spawn / mapa | PASS - hay suelo y SpawnLocations reales |
+| Boot del servidor | PASS - los 8 servicios arrancan |
+| Remotos | PASS en 2 canales; 6 validados sin handler |
+| Monstruos, boss, XP persistente, tienda | NOT IMPLEMENTED |
+| Pruebas dentro de Studio | BLOCKED - Studio no se puede automatizar aqui |
+
+## Estado actual de las pruebas
+
+**74 pruebas, 0 fallos**. El proceso devuelve codigo de salida 0
+cuando todo pasa, lo que permite usarlo en integracion continua.
+
+Las pruebas cubren la logica pura compartida: `Maid`, `RateLimiter`,
+`StateMachine`, `RemoteSchema`, las configuraciones y la formula de
+dano y las duraciones de ronda (`Gameplay.spec`).
 
 ## Como funciona
 
