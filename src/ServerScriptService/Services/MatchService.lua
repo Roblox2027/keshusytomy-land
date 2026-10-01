@@ -138,31 +138,57 @@ end
 --- @return number rewarded cantidad de jugadores pagados
 function Service.GrantRoundRewards()
 	local rewarded = 0
+	local roundId = 0
+
+	if Service._roundService then
+		roundId = Service._roundService.GetRoundNumber()
+	end
+
+	-- Sin numero de ronda no se puede garantizar idempotencia: es
+	-- preferible NO pagar a pagar dos veces.
+	if roundId <= 0 then
+		Logger.Warn("GrantRoundRewards: sin numero de ronda; no se paga.")
+		return 0
+	end
 
 	for _, player in ipairs(Players:GetPlayers()) do
-		-- Quien muere NO recibe la recompensa de supervivencia.
 		local alive = not Service._playerService or Service._playerService.IsAlive(player)
 
 		if alive then
+			-- IDEMPOTENCIA: la ronda se marca como pagada ANTES de
+			-- entregar nada. Si el estado `Rewards` se visitase dos
+			-- veces, la segunda no paga. La marca se escribe primero a
+			-- proposito: si el proceso se cortara a mitad, es preferible
+			-- perder una recompensa que duplicarla.
+			local newlyMarked = false
+
 			if Service._playerService then
-				Service._playerService.AddRewards(
-					player,
-					GameConfig.XPPerRound,
-					GameConfig.CoinsPerRound
-				)
+				newlyMarked = Service._playerService.MarkRoundRewarded(player.UserId, roundId)
+			else
+				newlyMarked = true
 			end
 
-			player:SetAttribute(
-				"RoundResult",
-				("Ronda completada: +%d XP, +%d monedas"):format(GameConfig.XPPerRound, GameConfig.CoinsPerRound)
-			)
-			rewarded += 1
+			if newlyMarked then
+				if Service._playerService then
+					Service._playerService.AddRewards(
+						player,
+						GameConfig.XPPerRound,
+						GameConfig.CoinsPerRound
+					)
+				end
+
+				player:SetAttribute(
+					"RoundResult",
+					("Ronda completada: +%d XP, +%d monedas"):format(GameConfig.XPPerRound, GameConfig.CoinsPerRound)
+				)
+				rewarded += 1
+			end
 		else
 			player:SetAttribute("RoundResult", "Ronda perdida")
 		end
 	end
 
-	Logger.Info(("%d jugador(es) recibieron recompensa"):format(rewarded))
+	Logger.Info(("%d jugador(es) recibieron recompensa de la ronda %d"):format(rewarded, roundId))
 	return rewarded
 end
 

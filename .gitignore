@@ -11,6 +11,10 @@ Desktop.ini
 *.rbxmx
 *.rbxl.lock
 *.rbxlx.lock
+# El sourcemap se regenera con `rojo sourcemap` en cada build: es un
+# artefacto, no fuente. Versionarlo haria que cada build del servidor
+# generase un diff de un archivo que nadie lee.
+sourcemap.json
 redist/
 rojo.zip
 

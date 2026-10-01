@@ -1,19 +1,26 @@
 --!strict
 --[[
 	BombService
-	Autoridad de creacion, colocacion, cuenta regresiva y explosion de
-	bombas.
+	Autoridad de creacion, colocacion, cuenta regresiva, cadena y
+	explosion de bombas (FASES 4 y 5).
 
 	El cliente NUNCA coloca una bomba por su cuenta: pide una posicion y
 	este servicio valida en el servidor:
 
 		1. Que la ronda este en curso.
 		2. Que el jugador este vivo y tenga personaje.
-		3. Que la posicion este dentro del rango permitido.
+		3. Que la posicion sea finita y este DENTRO de la arena.
 		4. Que el jugador no este en cooldown.
+		5. Que el jugador no supere su tope de bombas.
 
 	El radio, el dano y la mecha salen SIEMPRE de GameConfig. Un cliente
-	que manipule su payload no puede cambiar ninguno de los tres.
+	que manipule su payload no puede cambiar ninguno.
+
+	Cadena de reaccion:
+	Cuando una bomba explota, las bombas cercanas (dentro de
+	`ChainReactionRadius`) explotan a su vez con un retardo proporcional
+	a la distancia. El limite `MaxChainDepth` evita que un jugador que
+	llene la arena genere miles de detonaciones.
 ]]
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -24,6 +31,8 @@ local CONFIG = SHARED:WaitForChild("Config")
 local UTILS = SHARED:WaitForChild("Utils")
 
 local GameConfig = require(CONFIG:WaitForChild("GameConfig"))
+local PerformanceConfig = require(CONFIG:WaitForChild("PerformanceConfig"))
+local CombatMath = require(SHARED:WaitForChild("Libraries"):WaitForChild("CombatMath"))
 local Logger = require(UTILS:WaitForChild("Logger"))
 
 local Service = {}
@@ -36,30 +45,132 @@ Service._explosionService = nil
 
 -- UserId -> momento (os.clock) en que puede volver a colocar.
 Service._cooldowns = {}
--- Bombas activas: id -> parte.
+-- BombId -> { Part: Part, OwnerUserId: number?, Position: Vector3, Depth: number }
 Service._activeBombs = {}
 Service._nextBombId = 0
 -- Carpeta donde se crean las bombas visibles.
 Service._bombFolder = nil
 
-local function isFiniteVector3(value: any): boolean
-	return typeof(value) == "Vector3"
-		and value.X == value.X
-		and value.Y == value.Y
-		and value.Z == value.Z
+-- Limites del mapa, learned del suelo de la arena. Se calculan al
+-- arrancar para no escribir numeros magicos ni depender del generador.
+Service._arenaBounds = nil
+
+--- Rectangulo que ocupa la arena, en el plano XZ.
+---
+--- Sin esto, un cliente podria colocar una bomba en (999999, 0, 0):
+-- pasaria la distancia al personaje si el personaje estuviera ahi, y
+-- explotaria fuera del mapa.
+--- @param bounds { MinX: number, MaxX: number, MinZ: number, MaxZ: number }
+--- @return Vector3 centro
+function Service.SetArenaBounds(bounds: { MinX: number, MaxX: number, MinZ: number, MaxZ: number }): Vector3
+	Service._arenaBounds = bounds
+	return Vector3.new((bounds.MinX + bounds.MaxX) / 2, 0, (bounds.MinZ + bounds.MaxZ) / 2)
 end
 
---- Inyecta las dependencias del servicio.
---- @param roundService any
---- @param explosionService any
-function Service.SetDependencies(roundService: any, explosionService: any)
-	Service._roundService = roundService
-	Service._explosionService = explosionService
+--- Indica si una posicion esta dentro de los limites del mapa.
+--- @param position Vector3
+--- @return boolean inside
+function Service.IsInsideArena(position: Vector3): boolean
+	local bounds = Service._arenaBounds
+
+	-- Sin limites conocidos se acepta: el mapa puede no tener suelo de
+	-- arena y el juego debe seguir siendo jugable.
+	if not bounds then
+		return true
+	end
+
+	return position.X >= bounds.MinX
+		and position.X <= bounds.MaxX
+		and position.Z >= bounds.MinZ
+		and position.Z <= bounds.MaxZ
 end
+
+--- Valida que las componentes del payload sean utilizables.
+--- @param position any
+--- @return boolean valid
+--- @return string? reason
+local function isValidPosition(position: any): (boolean, string?)
+	if typeof(position) ~= "Vector3" then
+		return false, "no es Vector3"
+	end
+
+	return CombatMath.ValidatePosition(position.X, position.Y, position.Z)
+end
+
+
+--- Detona una bomba concreta y programa la cadena de reaccion.
+---
+--- @param bombId number
+--- @param depth number profundidad en la cadena (0 = explosion original)
+local function detonateBomb(bombId: number, depth: number)
+	local record = Service._activeBombs[bombId]
+
+	if not record then
+		return
+	end
+
+	local part = record.Part
+	local position = record.Position
+	local ownerId = record.OwnerUserId
+
+	-- Se borra ANTES de resolver la explosion: si la cadena vuelve a
+	-- mirar esta bomba, ya no la encontrara y no habra recursion.
+	Service._activeBombs[bombId] = nil
+
+	if part and part.Parent then
+		part:Destroy()
+	end
+
+	if Service._explosionService then
+		Service._explosionService.Detonate(position, GameConfig.DefaultBombRadius, ownerId)
+	end
+
+	-- La cadena se limita en profundidad: sin este tope, un jugador que
+	-- llene la arena de bombas genera miles de detonaciones.
+	if depth >= GameConfig.MaxChainDepth then
+		return
+	end
+
+	local entries = {}
+
+	for id, other in pairs(Service._activeBombs) do
+		-- Una bomba ya alcanzada por la cadena no vuelve a encolarse:
+		-- su Depth actua como marca de "visitada".
+		if other.Depth < depth + 1 then
+			table.insert(entries, {
+				X = other.Position.X,
+				Z = other.Position.Z,
+				Id = id,
+			})
+		end
+	end
+
+	local chain = CombatMath.BuildChain(
+		entries,
+		position.X,
+		position.Z,
+		GameConfig.ChainReactionRadius,
+		GameConfig.ChainReactionDelayPerStud
+	)
+
+	if #chain > 0 then
+		Logger.Debug(("cadena desde la bomba %d: %d eslabones"):format(bombId, #chain))
+	end
+
+	for _, link in ipairs(chain) do
+		local nextId = link.Id
+		local nextDepth = depth + 1
+		local nextRecord = Service._activeBombs[nextId]
+
+		if nextRecord then
+			nextRecord.Depth = nextDepth
+
+
 --- Crea la bomba fisica y programa su cuenta regresiva en el servidor.
 --- @param ownerId number?
 --- @param position Vector3
-local function spawnBomb(ownerId: number?, position: Vector3)
+--- @return number bombId
+local function spawnBomb(ownerId: number?, position: Vector3): number
 	local bomb = Instance.new("Part")
 	bomb.Name = "Bomb"
 	bomb.Shape = Enum.PartType.Ball
@@ -67,58 +178,96 @@ local function spawnBomb(ownerId: number?, position: Vector3)
 	bomb.Position = position
 	bomb.Anchored = true
 	bomb.CanCollide = false
+	bomb.CanTouch = false
+	bomb.CanQuery = false
 	bomb.Material = Enum.Material.Neon
 	bomb.Color = Color3.fromRGB(220, 60, 60)
 
 	Service._nextBombId += 1
 	local bombId = Service._nextBombId
 	bomb:SetAttribute("BombId", bombId)
+	bomb:SetAttribute("OwnerUserId", ownerId)
 
 	Service._bombFolder:AddChild(bomb)
-	Service._activeBombs[bombId] = bomb
+	Service._activeBombs[bombId] = {
+		Part = bomb,
+		OwnerUserId = ownerId,
+		Position = position,
+		Depth = 0,
+	}
 
-	Logger.Debug(("bomba %d colocada en (%.0f, %.0f, %.0f)"):format(
+	Logger.Debug(("bomba %d colocada en (%.0f, %.0f, %.0f) por %s"):format(
 		bombId,
 		position.X,
 		position.Y,
-		position.Z
+		position.Z,
+		tostring(ownerId)
 	))
 
-	-- La cuenta regresiva la lleva el SERVIDOR. El cliente solo ve la
-	-- bomba porque la creamos aqui, no porque el la haya creado.
-	task.delay(GameConfig.DefaultBombFuseTime, function()
-		local current = Service._activeBombs[bombId]
-		if not current then
-			return
-		end
+	-- Indicador de cuenta atras: el cliente ve la bomba GROWING para
+	-- saber cuanto le queda. Solo es visual; el tiempo real lo lleva el
+	-- servidor con este `task.delay`.
+	task.spawn(function()
+		local steps = 6
 
-		Service._activeBombs[bombId] = nil
-		local detonationPosition = current.Position
-		current:Destroy()
+		for step = 1, steps do
+			local alive = Service._activeBombs[bombId]
 
-		if Service._explosionService then
-			Service._explosionService.Detonate(detonationPosition, GameConfig.DefaultBombRadius)
+			if not alive or not alive.Part or not alive.Part.Parent then
+				return
+			end
+
+			local scale = 1 + (step * 0.12)
+			alive.Part.Size = Vector3.new(2 * scale, 2 * scale, 2 * scale)
+			task.wait(GameConfig.DefaultBombFuseTime / steps)
 		end
 	end)
+
+	-- La cuenta regresiva la lleva el SERVIDOR. El cliente solo ve la
+	-- bomba porque se crea aqui, no porque el la haya creado.
+	task.delay(GameConfig.DefaultBombFuseTime, function()
+		detonateBomb(bombId, 0)
+	end)
+
+	return bombId
+end
+
+			-- El retardo se aplica con `task.delay`, no con un bucle de
+			-- espera: el hilo de la bomba original queda libre.
+			task.delay(link.Delay, function()
+
+--- Numero de bombas vivas de un jugador.
+--- @param userId number
+--- @return number
+function Service.GetPlayerBombCount(userId: number): number
+	local count = 0
+
+	for _, record in pairs(Service._activeBombs) do
+		if record.OwnerUserId == userId then
+			count += 1
+		end
+	end
+
+	return count
 end
 
 --- Valida y coloca una bomba solicitada por un jugador.
+---
 --- @param player Player
 --- @param position any posicion pedida por el cliente
 --- @return boolean placed
 --- @return string? reason motivo del rechazo
 function Service.TryPlaceBomb(player: Player, position: any): (boolean, string?)
-	if not Service.IsInitialized then
-		return false, "servicio no inicializado"
+	-- 1. La ronda debe estar en curso. En el lobby no se coloca nada.
+	if not Service._roundService then
+		return false, "servicio de ronda no disponible"
 	end
 
-	-- 1. La ronda debe estar en curso. Colocar bombas en el lobby
-	--    permitiria destruir el mapa antes de empezar.
-	if Service._roundService and not Service._roundService.IsPlaying() then
+	if not Service._roundService.IsPlaying() then
 		return false, "no hay ronda en curso"
 	end
 
-	-- 2. El jugador debe estar vivo y tener personaje.
+	-- 2. Personaje jugable.
 	local character = player.Character
 	local humanoid = character and character:FindFirstChildOfClass("Humanoid")
 	local rootPart = character and character:FindFirstChild("HumanoidRootPart")
@@ -127,22 +276,44 @@ function Service.TryPlaceBomb(player: Player, position: any): (boolean, string?)
 		return false, "personaje no jugable"
 	end
 
-	-- 3. La posicion debe ser un Vector3 finito. El gateway ya valida el
-	--    tipo, pero el servicio no confía en una sola comprobacion.
-	if not isFiniteVector3(position) then
-		return false, "posicion invalida"
+	-- 3. Posicion finita. El gateway ya valida el tipo, pero el servicio
+	--    no confía en una sola comprobacion.
+	local validPosition, positionReason = isValidPosition(position)
+
+	if not validPosition then
+		return false, positionReason or "posicion invalida"
 	end
 
-	-- 4. Distancia al personaje. Sin esto, un cliente colocaria bombas
+	-- 4. Limites del mapa. Sin esto se puede explotar fuera del mapa.
+	if not Service.IsInsideArena(position) then
+		return false, "fuera de la arena"
+	end
+
+	-- 5. Distancia al personaje. Sin esto, un cliente colocaria bombas
 	--    a distancia sin moverse.
 	local distance = (rootPart.Position - position).Magnitude
+
 	if distance > GameConfig.BombPlacementRange then
 		return false, ("fuera de rango (%.0f studs)"):format(distance)
 	end
 
-	-- 5. Cooldown por jugador. Se consume ANTES de colocar, para que un
+	-- 6. Tope de bombas por jugador. El cooldown (1.5 s) con.mecha
+	--    (3 s) permitiria 2 bombas, pero un jugador que entre y salga
+	--    de ronda acumularia mas. El limite es explicito.
+	local limits = PerformanceConfig.Limits
+
+	if Service.GetPlayerBombCount(player.UserId) >= limits.MaxBombsPerPlayer then
+		return false, "limite de bombas alcanzado"
+	end
+
+	if Service.GetActiveBombCount() >= limits.MaxBombsPerWorld then
+		return false, "limite de bombas del mundo alcanzado"
+	end
+
+	-- 7. Cooldown por jugador. Se consume ANTES de colocar, para que un
 	--    rechazo posterior no devuelva el tiempo al cliente.
 	local now = os.clock()
+
 	if now < (Service._cooldowns[player.UserId] or 0) then
 		return false, "en cooldown"
 	end
@@ -158,14 +329,19 @@ function Service.TryPlaceBomb(player: Player, position: any): (boolean, string?)
 	return true, nil
 end
 
+				detonateBomb(nextId, nextDepth)
+			end)
+		end
+	end
+
 --- Destruye todas las bombas activas (fin de ronda).
 --- @return number removed
 function Service.ClearBombs(): number
 	local removed = 0
 
-	for bombId, bomb in pairs(Service._activeBombs) do
-		if bomb and bomb.Parent then
-			bomb:Destroy()
+	for bombId, record in pairs(Service._activeBombs) do
+		if record and record.Part and record.Part.Parent then
+			record.Part:Destroy()
 			removed += 1
 		end
 		Service._activeBombs[bombId] = nil
@@ -184,7 +360,36 @@ function Service.GetActiveBombCount(): number
 	return count
 end
 
---- Inicializacion del servicio. Idempotente.
+--- Detecta los limites de la arena a partir del suelo del mapa.
+---
+--- Se lee del mapa, no del generador: asi el servicio funciona con
+--- cualquier arena que tenga un suelo con nombre reconocible.
+local function detectArenaBounds()
+	local worlds = Workspace:FindFirstChild("Worlds")
+
+	if not worlds then
+		return nil
+	end
+
+	for _, world in ipairs(worlds:GetChildren()) do
+		local floor = world:FindFirstChild("ArenaFloor")
+
+		if floor and floor:IsA("BasePart") then
+			local part = floor :: BasePart
+			local half = part.Size / 2
+
+			return {
+				MinX = part.Position.X - half.X,
+				MaxX = part.Position.X + half.X,
+				MinZ = part.Position.Z - half.Z,
+				MaxZ = part.Position.Z + half.Z,
+			}
+		end
+	end
+
+	return nil
+end
+
 --- @param maid any?
 --- @return boolean success
 function Service.Init(maid: any?): boolean
@@ -199,10 +404,28 @@ function Service.Init(maid: any?): boolean
 	-- Las bombas se crean en una carpeta propia. El cliente puede verla
 	-- (tiene que verlas para que la cuenta regresiva sea visible) pero
 	-- nunca es una fuente de confianza.
+	if Service._bombFolder and Service._bombFolder.Parent then
+		Service._bombFolder:Destroy()
+	end
+
 	Service._bombFolder = Instance.new("Folder")
 	Service._bombFolder.Name = "Bombs"
 	Service._bombFolder:SetAttribute("IsBombFolder", true)
 	Service._bombFolder.Parent = Workspace
+
+	local bounds = detectArenaBounds()
+
+	if bounds then
+		Service.SetArenaBounds(bounds)
+		Logger.Debug(("BombService: limites de arena X[%.0f, %.0f] Z[%.0f, %.0f]"):format(
+			bounds.MinX,
+			bounds.MaxX,
+			bounds.MinZ,
+			bounds.MaxZ
+		))
+	else
+		Logger.Warn("BombService: no se encontro ArenaFloor; no habra limite de mapa.")
+	end
 
 	Service.IsInitialized = true
 	Logger.Info("BombService listo.")
@@ -221,6 +444,10 @@ function Service.Start(): boolean
 		Logger.Warn("BombService: sin ExplosionService; las bombas no explotaran.")
 	end
 
+	if not Service._roundService then
+		Logger.Warn("BombService: sin RoundService; no se podran colocar bombas.")
+	end
+
 	return true
 end
 
@@ -235,6 +462,7 @@ function Service.Destroy(): boolean
 	end
 
 	Service._cooldowns = {}
+	Service._arenaBounds = nil
 	Service._roundService = nil
 	Service._explosionService = nil
 	Service.IsInitialized = false
@@ -243,3 +471,5 @@ function Service.Destroy(): boolean
 end
 
 return Service
+
+end

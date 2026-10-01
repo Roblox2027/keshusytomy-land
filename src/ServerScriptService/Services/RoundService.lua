@@ -75,6 +75,38 @@ function Service.IsPlaying(): boolean
 	return state == RoundState.Playing or state == RoundState.SuddenDeath
 end
 
+--- Jugadores conectados que siguen VIVOS en la ronda actual.
+---
+--- Se cuenta por el Humanoid, no por el estado de sesion: el estado
+--- lo cambia PlayerService, y depender de el aqui crearia un ciclo
+--- RoundService -> PlayerService -> RoundService. El Humanoid es la
+--- fuente de verdad del motor y no depende de nuestro codigo.
+---
+--- @return number alive
+function Service.GetAliveCount(): number
+	local alive = 0
+
+	for _, player in ipairs(Players:GetPlayers()) do
+		local character = player.Character
+
+		if character then
+			local humanoid = character:FindFirstChildOfClass("Humanoid")
+
+			if humanoid and humanoid.Health > 0 then
+				alive += 1
+			end
+		end
+	end
+
+	return alive
+end
+
+--- Indica si queda al menos un jugador con vida en la ronda.
+--- @return boolean
+function Service.HasAlivePlayers(): boolean
+	return Service.GetAliveCount() > 0
+end
+
 --- Indica si se acepta nueva participacion.
 --- @return boolean
 function Service.IsAcceptingPlayers(): boolean
@@ -258,6 +290,20 @@ local function decideNextState(current: string): string?
 	end
 
 	if current == RoundState.Playing then
+		-- Si solo queda un jugador (o nadie), la ronda se decide ya: la
+		-- muerte subita no aportaria nada con un unico sobreviviente.
+		if Service.GetAliveCount() <= 1 then
+			return RoundState.RoundEnding
+		end
+
+		-- MUERTE SUBITA (FASE 7): se entra cuando queda poco tiempo. Antes
+		-- este estado existia en el diagrama pero NUNCA se alcanzaba,
+		-- asi que era decorativo: el multiplicador de dano nunca se
+		-- aplicaba. Ahora es alcanzable y consequences reales.
+		if Service.GetTimeRemaining() <= GameConfig.SuddenDeathTime then
+			return RoundState.SuddenDeath
+		end
+
 		return RoundState.RoundEnding
 	end
 

@@ -58,6 +58,16 @@ return {
 	-- Distancia maxima entre el personaje y la bomba. Evita colocar
 	-- bombas a distancia desde cualquier punto del mapa.
 	BombPlacementRange = 18,
+	-- Radio dentro del cual una explosion hace detonar las bombas
+	-- cercanas. Es lo que convierte una bomba en una cadena.
+	ChainReactionRadius = 12,
+	-- Segundos que tarda la bomba en detonar por distancia respecto a
+	-- la bomba que la disparo. Evita que la cadena sea instantanea.
+	ChainReactionDelayPerStud = 0.012,
+	-- Tope de eslabones de una misma cadena. Sin este limite, un
+	-- jugador que llene la arena de bombas genera miles de detonaciones
+	-- y tumba el servidor.
+	MaxChainDepth = 6,
 
 	-- ---------------------------------------------------------------
 	-- Destruccion
@@ -65,7 +75,16 @@ return {
 	-- Los bloques destructibles se identifican por el prefijo de nombre
 	-- `Block_` (contrato con tools/generate-project.js). Cada explosion
 	-- aplica este dano por bloque dentro del radio.
-	BlockHealth = 60,
+	--
+	-- Vida de un bloque. DEBE ser mayor que el dano de una sola bomba
+	-- (`DefaultBombDamage * BlockDamageScale`), o una unica explosion
+	-- borraria el bloque entero. Con 60 el calculo daba 60 y la arena
+	-- desaparecia de un solo impacto: lo detecto `Destruction.spec`.
+	-- Con 100 hacen falta 2 bombas, que es lo que hace el mapa jugable.
+	BlockHealth = 100,
+	-- Fraccion del dano de la explosion que recibe cada bloque. Por
+	-- debajo de 1, una bomba no borra la estructura entera de un golpe.
+	BlockDamageScale = 0.5,
 	-- Altura por debajo de la cual se considera caida al vacio. El
 	-- servidor reubica al jugador en vez de dejar que muera sin control.
 	VoidKillY = -50,
@@ -77,6 +96,30 @@ return {
 	-- espera en `Waiting`. Es 1 para que el vertical slice sea jugable en
 	-- solitario desde Studio.
 	MinPlayersToStart = 1,
+
+	-- ---------------------------------------------------------------
+	-- Ciclo de vida del jugador
+	-- ---------------------------------------------------------------
+	-- Tiempo que tarda Roblox en reponer el personaje tras morir.
+	RespawnTime = 3,
+	-- Invulnerabilidad al entrar en la arena: sin esto, una bomba que
+	-- explota en el instante del teletransporte mata al jugador antes
+	-- de que pueda moverse.
+	SpawnProtectionTime = 2.5,
+	-- El dano se multiplica en muerte subita. Es el unico multiplicador
+	-- de combate: la muerte subita tiene que HERIR de verdad.
+	SuddenDeathDamageMultiplier = 1.5,
+
+	-- ---------------------------------------------------------------
+	-- Progresion
+	-- ---------------------------------------------------------------
+	-- XP necesaria por nivel. El nivel NO tiene tope artificial:
+	-- la curva es `XP_PER_LEVEL * (nivel - 1)^LevelCurveExponent`.
+	XPPerLevel = 100,
+	LevelCurveExponent = 1.35,
+	-- Limite duro solo para evitar que un valor corrupto (por ejemplo
+	-- de una migracion) produzca un nivel de billions y rompa la UI.
+	MaxLevel = 9999,
 
 	-- ---------------------------------------------------------------
 	-- Economia (sesion; la persistencia llega en la FASE 15)

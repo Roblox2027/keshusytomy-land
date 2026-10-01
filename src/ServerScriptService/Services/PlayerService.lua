@@ -1,10 +1,11 @@
 --!strict
 --[[
 	PlayerService
-	Ciclo de vida de jugadores y estado de sesion en memoria (FASE 1).
+	Ciclo de vida de jugadores y estado de sesion en memoria (FASE 2).
 
-	Responsabilidad en esta fase:
+	Responsabilidad:
 	- Detectar entrada y salida de jugadores con handlers unicos.
+	- Conectar el ciclo del personaje: nacimiento, reaparicion y muerte.
 	- Mantener el estado temporal de sesion (nivel, mundo, vivo/muerto).
 	- Publicar atributos basicos para la interfaz.
 
@@ -12,8 +13,13 @@
 	llega en la FASE 15. El estado de aqui es de sesion y se pierde al
 	salir, lo cual es intencional y esta documentado.
 
-	Regla: nada de lo que llegue del cliente decide el estado. El
-	servidor es la unica autoridad sobre el estado de un jugador.
+	Reglas que este servicio garantiza:
+	- La MUERTE la decide el servidor (CombatService), nunca el cliente.
+	- Un jugador MUERTO no vuelve a `Alive` por reaparecer: si lo
+	  hiciera, cobraria dos veces la recompensa de ronda. Por eso el
+	  reaparicion respeta el estado de la ronda.
+	- Las recompensas son IDEMPOTENTES por ronda (`RewardedRounds`).
+	- Nada de lo que llegue del cliente decide el estado.
 ]]
 
 local Players = game:GetService("Players")
@@ -26,21 +32,20 @@ local UTILS = SHARED:WaitForChild("Utils")
 
 local GameConfig = require(CONFIG:WaitForChild("GameConfig"))
 local GameConstants = require(CONSTANTS:WaitForChild("GameConstants"))
+local CombatMath = require(SHARED:WaitForChild("Libraries"):WaitForChild("CombatMath"))
 local Logger = require(UTILS:WaitForChild("Logger"))
 
 local PlayerState = GameConstants.PlayerState
-
--- XP necesaria para subir de nivel. Se declara aqui (antes de usarse)
--- porque `AddRewards` la consulta al calcular el nivel.
-local XP_PER_LEVEL = 100
+local RoundState = GameConstants.RoundState
 
 local Service = {}
 
 Service.IsInitialized = false
 
---- Servicios inyectados por ServerMain.
+-- Servicios inyectados por ServerMain.
 Service._roundService = nil
-Service._explosionService = nil
+Service._combatService = nil
+Service._matchService = nil
 
 -- UserId -> estado de sesion.
 Service._sessions = {}
@@ -62,12 +67,22 @@ local function createSession(player: Player)
 		Coins = 0,
 		Gems = 0,
 
+		-- Contadores de la ronda actual.
+		Kills = 0,
+		Deaths = 0,
+
 		WorldId = nil,
 		TeamId = nil,
 		JoinedAt = os.time(),
 		IsReady = false,
+
+		-- Ids de ronda ya pagados. Es la garantia de IDEMPOTENCIA: si
+		-- el estado `Rewards` se visitase dos veces (por un reload o
+		-- un listener duplicado), la segunda vez no volveria a pagar.
+		RewardedRounds = {},
 	}
 end
+
 
 --- Estado de sesion de un jugador, o nil.
 --- @param userId number
@@ -102,6 +117,7 @@ end
 --- @return boolean success
 function Service.SetPlayerState(player: Player, newState: string): boolean
 	local session = Service._sessions[player.UserId]
+
 	if not session then
 		return false
 	end
@@ -129,6 +145,7 @@ function Service.IsAlive(player: Player?): boolean
 	local session = Service.GetSessionFromPlayer(player)
 	return session ~= nil and session.State == PlayerState.Alive
 end
+
 --- Publica los atributos que la interfaz necesita.
 --- @param player Player
 --- @param session any
@@ -139,6 +156,8 @@ local function publishAttributes(player: Player, session: any)
 	player:SetAttribute("Gems", session.Gems)
 	player:SetAttribute("PlayerState", session.State)
 	player:SetAttribute("IsReady", session.IsReady)
+	player:SetAttribute("Kills", session.Kills)
+	player:SetAttribute("Deaths", session.Deaths)
 end
 
 --- Marca al jugador como listo para jugar.
@@ -147,6 +166,7 @@ end
 --- @return boolean success
 function Service.SetReady(player: Player, isReady: boolean): boolean
 	local session = Service._sessions[player.UserId]
+
 	if not session then
 		return false
 	end
@@ -158,78 +178,256 @@ end
 
 --- Inyecta las dependencias del servicio.
 --- @param roundService any
-function Service.SetDependencies(roundService: any)
+--- @param combatService any
+--- @param matchService any?
+function Service.SetDependencies(roundService: any, combatService: any, matchService: any?)
 	Service._roundService = roundService
+	Service._combatService = combatService
+	Service._matchService = matchService
+end
+
+--- Recalcula el nivel a partir del XP acumulado y notifica la subida.
+---
+--- El nivel NO tiene tope artificial: la curva es una potencia
+--- fraccionaria que crece sin limite. `GameConfig.MaxLevel` existe solo
+--- como red de seguridad ante un XP corrupto.
+--- @param player Player
+--- @param session any
+local function refreshLevel(player: Player, session: any)
+	local previousLevel = session.Level
+
+	session.Level = CombatMath.LevelForXp(
+		session.XP,
+		GameConfig.XPPerLevel,
+		GameConfig.LevelCurveExponent,
+		GameConfig.MaxLevel
+	)
+
+	if session.Level > previousLevel then
+		-- Se avisa con un atributo, no con un remoto: el cliente decide
+		-- COMO celebrarlo, nunca SI se celebra.
+		player:SetAttribute("LeveledUpTo", session.Level)
+		Logger.Info(("%s alcanzo el nivel %d"):format(player.Name, session.Level))
+	end
 end
 
 --- Suma experiencia y monedas a la sesion del jugador.
+---
+--- Los valores se filtran con `CombatMath.SafeRewardAmount`: un NaN o
+--- un infinito dejarian el perfil corrupto de forma permanente.
 --- @param player Player
 --- @param xp number
 --- @param coins number
 --- @return boolean applied
 function Service.AddRewards(player: Player, xp: number, coins: number): boolean
 	local session = Service._sessions[player.UserId]
+
 	if not session then
 		return false
 	end
 
-	session.XP += math.floor(xp * GameConfig.XPMultiplier)
-	session.Coins += math.floor(coins * GameConfig.CoinMultiplier)
-	session.Level = 1 + math.floor(session.XP / XP_PER_LEVEL)
+	local appliedXp = CombatMath.SafeRewardAmount(xp * GameConfig.XPMultiplier, session.XP)
+	local appliedCoins = CombatMath.SafeRewardAmount(coins * GameConfig.CoinMultiplier, session.Coins)
 
+	if appliedXp == 0 and appliedCoins == 0 then
+		return false
+	end
+
+	session.XP += appliedXp
+	session.Coins += appliedCoins
+
+	refreshLevel(player, session)
 	publishAttributes(player, session)
+
 	return true
+end
+
+--- Indica si una ronda ya fue pagada a este jugador.
+--- @param userId number
+--- @param roundId number
+--- @return boolean
+function Service.HasRoundReward(userId: number, roundId: number): boolean
+	local session = Service._sessions[userId]
+
+	if not session then
+		return false
+	end
+
+	return session.RewardedRounds[roundId] == true
+end
+
+--- Marca una ronda como pagada. Devuelve false si ya lo estaba.
+--- @param userId number
+--- @param roundId number
+--- @return boolean newlyMarked
+function Service.MarkRoundRewarded(userId: number, roundId: number): boolean
+	local session = Service._sessions[userId]
+
+	if not session then
+		return false
+	end
+
+	if session.RewardedRounds[roundId] then
+		return false
+	end
+
+	session.RewardedRounds[roundId] = true
+	return true
+end
+
+--- Reinicia los contadores de ronda.
+--- @param player Player
+function Service.ResetRoundCounters(player: Player)
+	local session = Service._sessions[player.UserId]
+
+	if not session then
+		return
+	end
+
+	session.Kills = 0
+	session.Deaths = 0
+	publishAttributes(player, session)
 end
 
 --- Gestiona la muerte de un jugador durante la ronda.
 ---
---- La muerte la decide el servidor (ExplosionService), y aqui se
---- traducen sus consecuencias: marcar al jugador y premiar a quien
---- sigue vivo. No se reproduce desde el cliente.
---- @param player Player
-function Service.OnPlayerDied(player: Player)
+--- La muerte la decide el servidor (CombatService) y aqui se traducen
+--- sus consecuencias: marcar al jugador, premiar a quien lo mato y
+--- terminar la ronda si no queda nadie.
+--- @param player Player la victima
+--- @param killer Player? quien la mato (puede ser nil)
+function Service.OnPlayerDied(player: Player, killer: Player?)
+	local session = Service._sessions[player.UserId]
+
+	if not session then
+		return
+	end
+
+	-- Idempotencia de la muerte: si `Died` se disparase dos veces (por
+	-- una conexion duplicada), no se contaria dos veces ni se pagaria
+	-- dos veces al asesino.
+	if session.State == PlayerState.Dead then
+		return
+	end
+
+	session.Deaths += 1
 	Service.SetPlayerState(player, PlayerState.Dead)
-	Logger.Info(("%s ha muerto"):format(player.Name))
+	publishAttributes(player, session)
+
+	Logger.Info(("%s ha muerto%s"):format(
+		player.Name,
+		killer and (" por " .. killer.Name) or ""
+	))
+
+	-- Recompensa por eliminacion. La concede el servidor y se marca la
+	-- ronda como pagada para que `GrantRoundRewards` no la duplice.
+	if killer and Service._roundService then
+		local roundId = Service._roundService.GetRoundNumber()
+
+		if roundId > 0 and Service.MarkRoundRewarded(killer.UserId, -roundId) then
+			Service.AddRewards(killer, GameConfig.XPPerKill, GameConfig.CoinsPerKill)
+			killer:SetAttribute("LastKillVictim", player.Name)
+		end
+	end
 
 	-- Si no queda nadie vivo, la ronda debe terminar. MatchService se
 	-- encarga del traslado al terminar.
 	if Service._roundService and Service._roundService.IsPlaying() then
 		local alive = 0
+
 		for _, other in ipairs(Players:GetPlayers()) do
 			if Service.IsAlive(other) then
 				alive += 1
 			end
 		end
+		Logger.Debug(("vivos tras la muerte de %s: %d"):format(player.Name, alive))
 
-		if alive == 0 then
-			Service._roundService.Transition(GameConstants.RoundState.RoundEnding)
+		-- `GetAliveCount` mira el Humanoid, que es la fuente de verdad
+		-- del motor. La cuenta local sirve para el log; la decision la
+		-- toma el servicio de ronda para no depender de dos fuentes.
+		if Service._roundService.GetAliveCount() <= 1 then
+			Service._roundService.Transition(RoundState.RoundEnding)
 		end
 	end
 end
 
 --- Conecta el ciclo de vida del personaje de un jugador.
+---
+--- BUG CORREGIDO AQUI (FASE 2):
+--- La version anterior llamaba a `SetPlayerState(Alive)` en CADA
+--- `CharacterAdded`. Como Roblox reaparece al jugador automaticamente
+--- tras morir, un muerto volvia a `Alive` a los pocos segundos: podia
+--- cobrar la recompensa de ronda Y hacia que la ronda nunca terminara
+--- (el recuento de vivos nunca llegaba a cero).
+---
+--- Ahora el reaparicion respeta la ronda:
+---   - Con ronda en curso -> vuelve a la arena, `Alive`, con
+---     invulnerabilidad breve.
+---   - Sin ronda en curso -> al lobby, `Alive`.
+---   - Si la ronda ya termino para el -> se queda `Dead` y no cobra.
+---
 --- @param player Player
 local function bindCharacter(player: Player)
-	local function onCharacter(character: Model)
-		local humanoid = character:WaitForChild("Humanoid", 10)
-		if not humanoid then
-			Logger.Error(("%s: el personaje no tiene Humanoid"):format(player.Name))
+	local function onCharacter(_character: Model)
+		local session = Service._sessions[player.UserId]
+
+		if not session then
 			return
 		end
 
-		Service.SetPlayerState(player, PlayerState.Alive)
+		-- CombatService es el que conecta `Died`. Si no esta inyectado,
+		-- el servidor no se enteraria de las muertes y el PvP no
+		-- terminaria: es un fallo real, no un aviso.
+		if Service._combatService then
+			Service._combatService.BindCharacter(player)
+		else
+			Logger.Error(("CombatService no inyectado: %s no tendra ciclo de muerte"):format(player.Name))
+		end
 
-		humanoid.Died:Connect(function()
-			Service.OnPlayerDied(player)
-		end)
+		local roundService = Service._roundService
+		local playing = roundService ~= nil and roundService.IsPlaying()
+
+		if playing then
+			Service.SetPlayerState(player, PlayerState.Alive)
+
+			-- Invulnerabilidad breve: sin ella, una bomba que explota en
+			-- el instante del teletransporte mata al jugador.
+			if Service._combatService then
+				Service._combatService.GrantInvulnerability(player, GameConfig.SpawnProtectionTime)
+			end
+
+			if Service._matchService then
+				Service._matchService.MovePlayer(player, "Arena")
+			end
+
+			Logger.Debug(("%s reaparecio en la arena"):format(player.Name))
+		elseif session.State == PlayerState.Dead and roundService then
+			-- La ronda termino mientras estaba muerto: se queda fuera y
+			-- NO cobra la recompensa de supervivencia.
+			Service.SetPlayerState(player, PlayerState.Dead)
+		else
+			Service.SetPlayerState(player, PlayerState.Alive)
+
+			if Service._matchService then
+				Service._matchService.MovePlayer(player, "Lobby")
+			end
+		end
+
+		publishAttributes(player, session)
 	end
 
-	-- CharacterAdded puede haberse fired antes de que nos conectemos.
+	-- `CharacterAdded` puede haberse disparado antes de que nos
+	-- conectemos: sin esta comprobacion, un jugador que entra rapido se
+	-- queda sin ciclo de vida en absoluto.
 	if player.Character then
 		task.spawn(onCharacter, player.Character)
 	end
 
-	player.CharacterAdded:Connect(onCharacter)
+	local connection = player.CharacterAdded:Connect(onCharacter)
+
+	if MaidRef then
+		MaidRef:Add(connection)
+	end
 end
 
 --- Gestiona la entrada de un jugador.
@@ -243,6 +441,10 @@ function Service.OnPlayerAdded(player: Player)
 	local session = createSession(player)
 	Service._sessions[player.UserId] = session
 	publishAttributes(player, session)
+
+	-- Tiempo de reaparicion desde la configuracion: sin esto se usa el
+	-- valor por defecto de Roblox y el PvP se siente lento.
+	player.RespawnTime = GameConfig.RespawnTime
 
 	-- El ciclo del personaje (nacimiento y muerte) se conecta aqui: sin
 	-- esto el servidor no se entera de las muertes por bomba.
@@ -265,7 +467,6 @@ function Service.OnPlayerRemoving(player: Player)
 	Logger.Info(("#%d %s desconectado"):format(player.UserId, player.Name))
 end
 
---- Inicializacion del servicio. Idempotente.
 --- @param maid any?
 --- @return boolean success
 function Service.Init(maid: any?): boolean
@@ -280,7 +481,6 @@ function Service.Init(maid: any?): boolean
 	return true
 end
 
---- Arranca el servicio y engancha el ciclo de vida de jugadores.
 --- @return boolean success
 function Service.Start(): boolean
 	if not Service.IsInitialized then
@@ -288,7 +488,6 @@ function Service.Start(): boolean
 		return false
 	end
 
-	-- Conexiones registradas en el Maid del servicio: se limpian solas.
 	if MaidRef then
 		MaidRef:Connect(Players.PlayerAdded, Service.OnPlayerAdded)
 		MaidRef:Connect(Players.PlayerRemoving, Service.OnPlayerRemoving)
@@ -302,8 +501,6 @@ function Service.Start(): boolean
 	local connected = #Players:GetPlayers()
 	Logger.Info(("PlayerService listo. Jugadores conectados: %d"):format(connected))
 
-	-- Limite de jugadores: se avisa, no se bloquea. El matchmaking
-	-- de la FASE 20 sera quien decida a quien acepta.
 	if connected > Players.MaxPlayers then
 		Logger.Warn(("hay mas jugadores que el maximo permitido (%d)"):format(Players.MaxPlayers))
 	end
@@ -311,13 +508,13 @@ function Service.Start(): boolean
 	return true
 end
 
---- Limpieza del servicio.
 --- @return boolean success
 function Service.Destroy(): boolean
 	Service._sessions = {}
 	MaidRef = nil
 	Service._roundService = nil
-	Service._explosionService = nil
+	Service._combatService = nil
+	Service._matchService = nil
 	Service.IsInitialized = false
 	return true
 end

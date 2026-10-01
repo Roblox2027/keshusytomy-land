@@ -55,8 +55,11 @@ local SERVICES = {
 	{ name = "SpawnService", module = SERVER.Services.SpawnService, dependencies = { "WorldService" } },
 	{ name = "DestructionService", module = SERVER.Services.DestructionService, dependencies = { "WorldService" } },
 	{ name = "RoundService", module = SERVER.Services.RoundService, dependencies = { "WorldService" } },
-	{ name = "PlayerService", module = SERVER.Services.PlayerService, dependencies = { "RoundService" } },
-	{ name = "ExplosionService", module = SERVER.Services.ExplosionService, dependencies = { "DestructionService" } },
+	-- CombatService depende de RoundService: sin el estado de ronda no
+	-- puede decidir si el dano es legal (el lobby es zona segura).
+	{ name = "CombatService", module = SERVER.Services.CombatService, dependencies = { "RoundService" } },
+	{ name = "PlayerService", module = SERVER.Services.PlayerService, dependencies = { "RoundService", "CombatService" } },
+	{ name = "ExplosionService", module = SERVER.Services.ExplosionService, dependencies = { "DestructionService", "CombatService" } },
 	{ name = "BombService", module = SERVER.Services.BombService, dependencies = { "RoundService", "ExplosionService" } },
 	{ name = "MatchService", module = SERVER.Services.MatchService, dependencies = { "RoundService", "PlayerService", "BombService", "DestructionService" } },
 }
@@ -70,21 +73,31 @@ local function wireDependencies(registry: any)
 	local worldService = registry:Get("WorldService")
 	local roundService = registry:Get("RoundService")
 	local playerService = registry:Get("PlayerService")
+	local combatService = registry:Get("CombatService")
 	local explosionService = registry:Get("ExplosionService")
 	local bombService = registry:Get("BombService")
 	local destructionService = registry:Get("DestructionService")
 	local matchService = registry:Get("MatchService")
 
-	if explosionService and destructionService then
-		explosionService.SetDestructionService(destructionService)
+	-- ExplosionService necesita a CombatService: TODOS los danos pasan
+	-- por ahi (invulnerabilidad, ronda, atribucion). Si falta, la
+	-- explosion no puede danar a nadie.
+	if explosionService and destructionService and combatService then
+		explosionService.SetDependencies(destructionService, combatService)
+	end
+
+	-- CombatService notifica las muertes a PlayerService, que es quien
+	-- mantiene el estado de sesion y paga al asesino.
+	if combatService and roundService and playerService then
+		combatService.SetDependencies(roundService, playerService)
 	end
 
 	if bombService then
 		bombService.SetDependencies(roundService, explosionService)
 	end
 
-	if playerService and roundService then
-		playerService.SetDependencies(roundService)
+	if playerService and roundService and combatService then
+		playerService.SetDependencies(roundService, combatService, matchService)
 	end
 
 	if matchService then
