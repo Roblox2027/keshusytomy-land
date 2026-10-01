@@ -3,36 +3,50 @@
 	ClientMain
 	Punto de entrada del cliente de KeshusyTomy-LanD.
 
-	Responsabilidad actual (FASE 0 - Bootstrap):
-	- Confirmar el arranque del cliente.
-	- Preparar el registro de Controllers.
-	- Mostrar logs solo cuando GameConfig.DebugMode esta activo.
+	Responsabilidad (FASE 1 - Foundation):
+	- Construir el ControllerRegistry.
+	- Registrar y arrancar los controllers que existen en la carpeta.
+	- Detenerlos de forma ordenada al salir.
+
+	Flujo:
+		ClientMain
+		  -> ControllerRegistry
+		    -> Controllers
 
 	No debe crecer hasta contener UI ni logica de gameplay:
 	esa responsabilidad pertenece a los Controllers.
 ]]
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local StarterPlayerScripts = game:GetService("StarterPlayer"):WaitForChild("StarterPlayerScripts")
+local StarterPlayer = game:GetService("StarterPlayer"):WaitForChild("StarterPlayerScripts")
 
 local SHARED = ReplicatedStorage:WaitForChild("Shared")
-local GameConfig = require(SHARED:WaitForChild("Config"):WaitForChild("GameConfig"))
-local Logger = require(SHARED:WaitForChild("Utils"):WaitForChild("Logger"))
+local UTILS = SHARED:WaitForChild("Utils")
 
-local CONTROLLERS_FOLDER = StarterPlayerScripts:WaitForChild("Controllers")
+local Logger = require(UTILS:WaitForChild("Logger"))
+local ControllerRegistry = require(
+	StarterPlayer:WaitForChild("Controllers"):WaitForChild("ControllerRegistry")
+)
 
--- Registro de controllers. El nombre es la clave de activacion.
 local ClientMain = {}
 
-ClientMain.Controllers = {}
+--- Registro de controllers del cliente.
+ClientMain.Registry = nil
 
---- Carga un controller de forma segura.
+--- Carga un controller de forma explicita y lo registra.
+---
+--- La FASE 1 usa RegisterAll, pero este metodo sigue siendo util
+--- para registrar un controller puntual.
 --- @param controllerName string
 --- @return boolean loaded
 function ClientMain.LoadController(controllerName: string): boolean
-	local script = CONTROLLERS_FOLDER:FindFirstChild(controllerName)
+	if not ClientMain.Registry then
+		return false
+	end
+
+	local script = StarterPlayer:WaitForChild("Controllers"):FindFirstChild(controllerName)
 	if not script then
-		Logger.Debug(("Controller not found yet: %s"):format(controllerName))
+		Logger.Debug(("Controller not found: %s"):format(controllerName))
 		return false
 	end
 
@@ -42,28 +56,40 @@ function ClientMain.LoadController(controllerName: string): boolean
 		return false
 	end
 
-	ClientMain.Controllers[controllerName] = controller
-	return true
+	local registered = ClientMain.Registry:Register(controllerName, controller)
+	return registered
 end
 
---- Carga todos los controllers presentes en la carpeta Controllers.
-function ClientMain.LoadControllers()
-	if not GameConfig.DebugMode then
-		return
-	end
-
-	for _, entry in ipairs(CONTROLLERS_FOLDER:GetChildren()) do
-		if entry:IsA("ModuleScript") then
-			ClientMain.LoadController(entry.Name)
-		end
-	end
-end
-
-function ClientMain.Start()
+--- Registra y arranca todos los controllers disponibles.
+--- @return boolean success
+function ClientMain.Start(): boolean
 	Logger.Info("Client starting...")
-	ClientMain.LoadControllers()
+
+	local registry = ControllerRegistry.new()
+	ClientMain.Registry = registry
+
+	local registered = registry:RegisterAll()
+	if #registered == 0 then
+		-- Sin controllers no hay fallo: la FASE 1 aun no tiene
+		-- logica de cliente, las siguientes la anaden.
+		Logger.Info("ClientMain: no hay controllers todavia.")
+		return true
+	end
+
+	local started = registry:StartAll()
 	Logger.Info("Foundation initialized.")
+
+	return started
 end
+
+--- Detiene todos los controllers de forma ordenada.
+function ClientMain.Shutdown()
+	if ClientMain.Registry then
+		ClientMain.Registry:StopAll()
+	end
+end
+
+ClientMain.Registry = nil
 
 ClientMain.Start()
 

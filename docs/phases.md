@@ -50,6 +50,16 @@ Nunca "casi terminado", "deberia funcionar" ni "probablemente funciona".
 | 39   | Beta            | 38         |
 | 40   | Release         | 39         |
 
+## Fases completadas
+
+| Fase | Nombre     | Estado | Documento               |
+| ---- | ---------- | ------ | ----------------------- |
+| 0    | Bootstrap  | PASS   | `phase-00-bootstrap.md` |
+| 1    | Foundation | PASS\* | `phase-01-foundation.md` |
+
+\* PASS sobre logica pura, build de Rojo y sintaxis. La verificacion
+en Roblox Studio sigue `BLOCKED` hasta que se ejecute manualmente.
+
 ## Formato de reporte de fase
 
 ```text

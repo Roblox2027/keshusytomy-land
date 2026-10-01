@@ -4,7 +4,26 @@ Juego de bombas y destruccion en Roblox. Este repositorio contiene
 **la fuente de verdad del codigo**: todo el codigo permanente se escribe
 aqui como archivos Luau y llega a Roblox Studio mediante Rojo.
 
-Estado actual: **FASE 0 - Bootstrap**. Todavia no hay juego implementado.
+Estado actual: **FASE 1 - Foundation**. La fundacion (registros,
+ciclo de vida, validacion de remotos y limpieza) esta implementada y
+probada. El juego en si todavia no es jugable: eso llega en las fases
+de contenido.
+
+## Pruebas
+
+La suite se ejecuta con el interprete de Luau, sin necesidad de abrir
+Roblox Studio:
+
+```text
+luau.exe tests/RunTests.lua
+```
+
+Estado actual: **56 pruebas, 0 fallos**.
+
+Las pruebas cubren solo la logica pura compartida. Lo que depende del
+motor (Workspace, Players, fisica, DataStore) se verifica
+manualmente en Studio y se marca `BLOCKED` hasta entonces; nunca se
+declara PASS sin haberlo comprobado.
 
 ## Tecnologia
 
@@ -154,6 +173,11 @@ El plan completo de fases vive en `docs/phases.md`.
 | Fase | Nombre    | Estado |
 | ---- | --------- | ------ |
 | 0    | Bootstrap | PASS   |
+| 1    | Foundation | PASS*  |
+
+`*` PASS sobre logica pura, build de Rojo y sintaxis. La verificacion
+en Roblox Studio sigue `BLOCKED` hasta que se ejecute manualmente; los
+detalles estan en `docs/phase-01-foundation.md`.
 
 Solo se marca PASS una fase cuando fue implementada, integrada, probada,
 corregida, documentada y confirmada con commit.

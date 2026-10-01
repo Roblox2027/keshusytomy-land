@@ -25,6 +25,26 @@ return {
 		Spectating = "Spectating",
 	},
 
+	-- Estados del ciclo de vida del SERVIDOR (distintos de la ronda).
+	-- Un unico lugar define cuando se acepta trabajo nuevo.
+	ServerState = {
+		Starting = "Starting",
+		Running = "Running",
+		ShuttingDown = "ShuttingDown",
+		Stopped = "Stopped",
+	},
+
+	-- Estados de un servicio dentro del ciclo de vida del servidor.
+	ServiceState = {
+		Unregistered = "Unregistered",
+		Registered = "Registered",
+		Initialized = "Initialized",
+		Started = "Started",
+		Stopping = "Stopping",
+		Stopped = "Stopped",
+		Failed = "Failed",
+	},
+
 	-- Canales remotos centralizados: el cliente NUNCA es autoridad.
 	RemoteAction = {
 		Player = "PlayerAction",
