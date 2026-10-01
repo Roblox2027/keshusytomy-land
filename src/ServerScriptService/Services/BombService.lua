@@ -165,6 +165,14 @@ local function detonateBomb(bombId: number, depth: number)
 		if nextRecord then
 			nextRecord.Depth = nextDepth
 
+			-- El retardo se aplica con `task.delay`, no con un bucle de
+			-- espera: el hilo de la bomba original queda libre.
+			task.delay(link.Delay, function()
+				detonateBomb(nextId, nextDepth)
+			end)
+		end
+	end
+end
 
 --- Crea la bomba fisica y programa su cuenta regresiva en el servidor.
 --- @param ownerId number?
@@ -231,10 +239,6 @@ local function spawnBomb(ownerId: number?, position: Vector3): number
 
 	return bombId
 end
-
-			-- El retardo se aplica con `task.delay`, no con un bucle de
-			-- espera: el hilo de la bomba original queda libre.
-			task.delay(link.Delay, function()
 
 --- Numero de bombas vivas de un jugador.
 --- @param userId number
@@ -328,11 +332,6 @@ function Service.TryPlaceBomb(player: Player, position: any): (boolean, string?)
 
 	return true, nil
 end
-
-				detonateBomb(nextId, nextDepth)
-			end)
-		end
-	end
 
 --- Destruye todas las bombas activas (fin de ronda).
 --- @return number removed
@@ -471,5 +470,3 @@ function Service.Destroy(): boolean
 end
 
 return Service
-
-end

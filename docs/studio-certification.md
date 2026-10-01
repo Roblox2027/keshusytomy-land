@@ -506,3 +506,45 @@ o por pruebas unitarias, **no** por ejecucion en Studio.
 6. Actualizar la matriz de la seccion 8 y `docs/audit.md`.
 
 **Nunca escribir PASS sin evidencia pegada en este archivo.**
+---
+
+##Nota previa importante (auditoria final)
+
+Antes de ejecutar S01-S15, se corrigio un bug CRITICO en
+`BombService.lua`: las funciones `TryPlaceBomb`, `GetPlayerBombCount`,
+`ClearBombs`, `Init`, `Start` y `Destroy` estaban empalmadas dentro del
+bucle de `detonateBomb` y nunca se definian en el nivel superior.
+
+**Consecuencia que se veria en Studio:** sin `Service.Start`,
+`BombService` no arrancaba; sin `Service.TryPlaceBomb`, el remoto de
+bomba no hacia nada. Es decir, **S06 (bomb input) habria fallado con
+cooldown, MaxCount y mecha sin funcionar**, y S01 habria mostrado el
+error de servicio.
+
+Si al ejecutar ves que la bomba no aparece, comprueba primero que
+`BombService: listo.` aparece en el Output. Sin esa linea, el
+registro recibio `nil`.
+
+Comprobacion automatica equivalente, antes de abrir Studio:
+
+```powershell
+node tools/verify-structure.js
+```
+
+Debe imprimir `RESULTADO: PASS` y salir con codigo 0. Si marca un
+servicio, el juego NO arrancara aunque el archivo compile.
+
+### Nota sobre el numero de bloques
+
+El mapa tiene **28 bloques** en `Workspace.Worlds.Forest.Blocks`, con
+prefijo `Block_`. No existen carpetas `DestructibleBlocks` ni
+`IndestructibleBlocks`: la distincion entre bloque destruible e
+indestructible es el prefijo de nombre, y la aplicacion la hace
+`DestructionService`.
+
+### Nota sobre S12 (muerte subita)
+
+`SuddenDeath` solo se alcanza si `GetAliveCount() > 1`. Con un unico
+jugador, `Playing` pasa directamente a `RoundEnding`. **S12 no se puede
+marcar PASS en una sesion de un solo jugador**: hay que ejecutarlo en
+`Test -> Server & Clients` con 2 jugadores.

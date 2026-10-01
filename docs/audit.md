@@ -175,3 +175,126 @@ Resumen del recorrido esperado:
 Monstruos, boss, XP persistente (DataStore), inventario, tienda,
 portales a otros mundos, matchmaking real, y todo el bloque de
 moderación y live-ops. Está detallado en `docs/phases.md`.
+---
+
+## 9. AUDITORIA FINAL (cierre de FASES 0-8 y del vertical slice)
+
+### 9.1 Bug CRITICO encontrado: `BombService.lua` estaba empalmado
+
+**Severidad: CRITICA. Habria hecho fallar S06 (bomba) y S01 (arranque).**
+
+`src/ServerScriptService/BombService.lua` salio del commit `b63c5e2` con
+trozos de codigo PEGADOS en el sitio equivocado:
+
+- Las definiciones de `spawnBomb`, `Service.GetPlayerBombCount` y
+  `Service.TryPlaceBomb` estaban **dentro del bucle de cadena de
+  `detonateBomb`**, no en el nivel superior del archivo.
+- El final del bucle (`detonateBomb(nextId, nextDepth)`) aparecia
+  DESPUES de esas definiciones.
+- El archivo terminaba con un `end` huerfano.
+
+**Por que NO lo detectaron ni el compilador ni los tests:**
+
+El empalmento seguia siendo Luau sintacticamente valido, asi que
+`luau-compile --null` devolvia **EXIT 0** (comprobado sobre el archivo
+roto extraido de `HEAD`). Los tests unitarios tampoco lo veian: solo
+ejercitan logica pura.
+
+**Impacto en ejecucion:** `Service.TryPlaceBomb`, `Service.Init`,
+`Service.Start`, `Service.Destroy` y `Service.ClearBombs` nunca se
+definían en el nivel superior. `ServerMain` los recibia como `nil`,
+`BombService` no arrancaba y **ninguna bomba podia colocarse nunca**.
+El juego no era jugable.
+
+**Correccion:** se recompuso el archivo. `detonateBomb` vuelve a cerrar
+su bucle de cadena en el sitio correcto (`task.delay` -> `detonateBomb`
+-> tres `end`), las funciones vuelven a estar en el nivel superior y se
+elimina el `end` huerfano. No se cambio ni una linea de logica.
+
+### 9.2 El detector que faltaba
+
+El fallo era invisible para las dos herramientas que se usaban como
+puerta de calidad. Se anaden dos, porque cada una cubre un hueco que la
+otra no cubre:
+
+| Herramienta | Que cubre | Por que hace falta |
+|---|---|---|
+| `tests/shared/ServiceStructure.spec.lua` | El DETECTOR, con ejemplos | `luau.exe` no expone `io`: desde la suite no se pueden leer los fuentes de `src/` |
+| `tools/verify-structure.js` | Los ARCHIVOS REALES | Node si puede leerlos y devolver un codigo de salida distinto de cero para CI |
+
+La regla es la misma en ambos: toda `function Service.X` debe estar en
+profundidad 0, la profundidad total debe ser 0 y el ultimo codigo debe
+ser `return Service`.
+
+**Validacion del detector (no es un test decorativo):**
+
+| Escenario | Resultado esperado | Resultado obtenido |
+|---|---|---|
+| `BombService.lua` roto (de `HEAD`) | FAIL | **FAIL** (decl. en profundidad 4, ultimo codigo `end`) |
+| `BombService.lua` corregido | PASS | **PASS** |
+| Otros 8 servicios | PASS | **PASS**, sin falsos positivos |
+
+Durante el desarrollo del propio detector aparecieron tres falsos
+positivos que hubo que corregir antes de poder confiar en el:
+
+1. Los ancladores `^` / `$` no funcionan dentro de `gmatch` en este
+   Luau: un `(^|x)` al principio de linea no casa nunca y el recuento
+   salia **0** para todas las palabras clave, dando por sano cualquier
+   archivo. Se sustituyeron por relleno con espacios.
+2. `for ... do` y `while ... do` en fin de linea no tenian caracter
+   detras del `do`, asi que el `do` se contaba como bloque abierto.
+3. Las expresiones `if ... then ... else ...` de Luau no llevan `end`.
+   Sin descontarlas, `CombatService`, `MatchService` y demas se
+   declaraban corruptos.
+
+### 9.3 Comprobaciones de la lista de auditoria
+
+| Punto | Estado | Evidencia |
+|---|---|---|
+| `refreshLevel` existe antes de `AddRewards` | OK | `PlayerService.lua:196` frente a `:222` |
+| `GetAliveCount` existe | OK | `RoundService.lua:86`, cuenta por `Humanoid` |
+| `SuddenDeath` alcanzable | OK | `RoundService.lua:306`, con `GetAliveCount() > 1` |
+| `CombatService` registrado | OK | `ServerMain.server.lua:60` |
+| `MarkRoundRewarded` ANTES de pagar | OK | `MatchService.lua:177` precede a `AddRewards` en `:184` |
+| `FalloffDamage` rechaza NaN / Infinity | OK | `CombatMath.lua:81`, filtra distancia, radio y dano |
+| `BlockHealth` conserva el valor corregido | OK | `CombatMath.ApplyBlockDamage` nunca baja de 0 |
+| `rescueFromVoid` distingue LOBBY / ARENA | OK | `SpawnService.resolveRescueTarget`: arena si `IsPlaying()`, lobby si no |
+| `MovePlayer` protege al entrar | OK | `MatchService.lua:117` concede `SpawnProtectionTime` |
+| `TouchTap` NO coloca bombas globales | OK | `InputController.lua:185` exige el toque dentro del boton |
+| `ResetRoundCounters` al iniciar ronda | OK | `MatchService.OnRoundStateChanged`, rama `RoundStarting` |
+| Sin servicios ni remotos duplicados | OK | 9 servicios, 8 canales = 8 RemoteEvents |
+
+### 9.4 Evidencia de esta ronda
+
+| Comprobacion | Resultado |
+|---|---|
+| `luau.exe tests/RunTests.lua` | **131 pasan, 0 fallan** (9 suites, antes 123 / 8) |
+| `node tools/verify-structure.js` | **PASS**, 9 servicios |
+| `luau-compile --null` (74 archivos) | **EXIT=0**, 0 errores |
+| `rojo build` | **OK** |
+| `rojo sourcemap` | **OK** |
+| Contenido del build | 66 Parts, 6 SpawnLocations, 28 bloques `Block_*`, 8 RemoteEvents |
+
+**Nota sobre los bloques:** el contrato real es
+`Workspace.Worlds.Forest.Blocks` con prefijo `Block_`, y son **28**
+bloques en el build actual (la cifra de 48 del informe anterior no se
+reproduce; se documenta la real, que es la que manda). Las carpetas
+`DestructibleBlocks` / `IndestructibleBlocks` **no existen**: la
+distincion es por prefijo de nombre, no por carpeta.
+
+### 9.5 Lo que sigue BLOCKED
+
+Todo lo que necesita el motor de Roblox. Nada de lo anterior lo
+sustituye:
+
+- S01-S15 (arranque, spawn, ronda, bomba, mecha, explosion,
+  destruccion, dano, muerte, muerte subita, resultados, retorno,
+  segunda ronda)
+- Multijugador (Test -> Server & Clients, 2 jugadores)
+- Seguridad (10 intentos de explotacion desde el cliente)
+- Movil / touch
+
+Las pruebas S01-S15 estan escritas y son reproducibles en
+[`docs/studio-certification.md`](studio-certification.md). Hasta que se
+ejecuten con evidencia real, el vertical slice sigue **BLOCKED** y
+**LAUNCH_READY = FALSE**.

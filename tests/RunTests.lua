@@ -25,6 +25,7 @@ local SUITES = {
 	{ name = "CombatMath", path = "./shared/CombatMath.spec" },
 	{ name = "Destruction", path = "./shared/Destruction.spec" },
 	{ name = "Gameplay", path = "./shared/Gameplay.spec" },
+	{ name = "ServiceStructure", path = "./shared/ServiceStructure.spec" },
 }
 
 local loadedSuites = 0
