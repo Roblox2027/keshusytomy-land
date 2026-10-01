@@ -216,6 +216,9 @@ local function publishRoundState(state: string)
 		player:SetAttribute("RoundState", state)
 		player:SetAttribute("RoundTimeRemaining", math.floor(Service.GetTimeRemaining()))
 		player:SetAttribute("RoundNumber", Service.GetRoundNumber())
+		-- `AliveCount` se publica para que el HUD muestre el marcador
+		-- sin calcularlo en el cliente (el cliente no es autoridad).
+		player:SetAttribute("AliveCount", Service.GetAliveCount())
 	end
 end
 

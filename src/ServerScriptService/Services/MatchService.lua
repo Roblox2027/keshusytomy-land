@@ -37,6 +37,7 @@ Service._roundService = nil
 Service._playerService = nil
 Service._bombService = nil
 Service._destructionService = nil
+Service._combatService = nil
 
 -- Destinos por nombre: "Lobby" / "Arena".
 Service._destinations = {}
@@ -105,6 +106,16 @@ function Service.MovePlayer(player: Player, key: string): boolean
 	local humanoid = character:FindFirstChildOfClass("Humanoid")
 	if humanoid then
 		humanoid.Health = humanoid.MaxHealth
+	end
+
+	-- INVULNERABILIDAD AL ENTRAR EN LA ARENA (FASE 8).
+	-- El teletransporte ocurre en `RoundStarting`, y `Playing` llega
+	-- justo despues. Una bomba ya plantada en la posicion de llegada
+	-- explotaria en ese instante y mataria al jugador antes de que
+	-- pueda moverse: es la misma razon por la que existe
+	-- `SpawnProtectionTime` en el reaparicion.
+	if key == "Arena" and Service._combatService then
+		Service._combatService.GrantInvulnerability(player, GameConfig.SpawnProtectionTime)
 	end
 
 	if Service._playerService then
@@ -197,6 +208,15 @@ end
 --- @param to string
 function Service.OnRoundStateChanged(from: string, to: string)
 	if to == RoundState.RoundStarting then
+		-- Los contadores se reinician ANTES de teletransportar. Si se
+		-- hiciese despues, el HUD del jugador mostraria las kills de la
+		-- ronda anterior sumadas a las de la nueva (bug corregido).
+		if Service._playerService then
+			for _, player in ipairs(Players:GetPlayers()) do
+				Service._playerService.ResetRoundCounters(player)
+			end
+		end
+
 		Service.MoveAllPlayers("Arena")
 
 	elseif to == RoundState.RoundEnding then
@@ -226,16 +246,19 @@ end
 --- @param playerService any
 --- @param bombService any
 --- @param destructionService any
+--- @param combatService any?
 function Service.SetDependencies(
 	roundService: any,
 	playerService: any,
 	bombService: any,
-	destructionService: any
+	destructionService: any,
+	combatService: any?
 )
 	Service._roundService = roundService
 	Service._playerService = playerService
 	Service._bombService = bombService
 	Service._destructionService = destructionService
+	Service._combatService = combatService
 end
 
 --- Inicializacion del servicio. Idempotente.

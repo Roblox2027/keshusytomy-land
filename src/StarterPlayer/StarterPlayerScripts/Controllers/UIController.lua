@@ -53,26 +53,34 @@ local function buildGui()
     gui.IgnoreGuiInset = false
     gui.Parent = playerGui
 
-    local function makeLabel(name, size, position, textColor)
+    local function makeLabel(name, size, position, textColor, textSize)
         local label = Instance.new("TextLabel")
         label.Name = name
         label.Size = size
         label.Position = position
         label.BackgroundTransparency = 1
         label.TextColor3 = textColor
-        label.TextSize = 18
+        -- `TextSize` y `TextScaled` se fijan de forma explicita: por
+        -- defecto una TextLabel ajusta el texto al alto de la caja, y
+        -- con cajas de 12 px el texto se hacia ilegible o se recortaba.
+        label.TextSize = textSize or 18
+        label.TextScaled = false
         label.Font = Enum.Font.GothamBold
         label.TextXAlignment = Enum.TextXAlignment.Left
+        label.TextYAlignment = Enum.TextYAlignment.Center
+        label.TextWrapped = false
         label.Text = ""
         label.Parent = gui
         _labels[name] = label
         return label
     end
 
-    makeLabel("RoundState", UDim2.new(0, 16, 0, 12), UDim2.new(0, 0, 0, 0), Color3.fromRGB(235, 240, 255))
-    makeLabel("RoundInfo", UDim2.new(0, 320, 0, 36), UDim2.new(0, 16, 0, 0), Color3.fromRGB(200, 210, 235))
-    makeLabel("Stats", UDim2.new(0, 320, 1, -44), UDim2.new(0, 16, 1, 0), Color3.fromRGB(255, 214, 120))
-    makeLabel("Results", UDim2.new(0, 420, 0.4, 0), UDim2.new(0.5, -210, 0, 0), Color3.fromRGB(120, 255, 170))
+    -- Alturas de 24 px o mas: con 12 px el texto de 18 se recortaba.
+    makeLabel("RoundState", UDim2.new(0, 320, 0, 24), UDim2.new(0, 16, 0, 8), Color3.fromRGB(235, 240, 255), 20)
+    makeLabel("RoundInfo", UDim2.new(0, 320, 0, 24), UDim2.new(0, 16, 0, 32), Color3.fromRGB(200, 210, 235), 16)
+    makeLabel("Scoreboard", UDim2.new(0, 320, 0, 24), UDim2.new(0, 16, 0, 56), Color3.fromRGB(255, 170, 170), 16)
+    makeLabel("Stats", UDim2.new(0, 360, 0, 24), UDim2.new(0, 16, 1, -56), Color3.fromRGB(255, 214, 120), 16)
+    makeLabel("Results", UDim2.new(0, 460, 0, 44), UDim2.new(0.5, -230, 0.42, 0), Color3.fromRGB(120, 255, 170), 24)
 
     return gui
 end
@@ -86,6 +94,7 @@ local function refresh()
 
     local state = _labels.RoundState
     local info = _labels.RoundInfo
+    local scoreboard = _labels.Scoreboard
     local stats = _labels.Stats
     local results = _labels.Results
 
@@ -95,11 +104,22 @@ local function refresh()
 
     if info then
         local remaining = player:GetAttribute("RoundTimeRemaining")
+
         if type(remaining) == "number" then
-            info.Text = ("Tiempo: %ds"):format(math.ceil(remaining))
+            -- El servidor publica tambien el numero de ronda y los
+            -- vivos: el HUD los muestra, pero NO los calcula.
+            info.Text = ("Ronda %d  |  Tiempo: %ds"):format(
+                player:GetAttribute("RoundNumber") or 0,
+                math.ceil(remaining)
+            )
         else
             info.Text = ""
         end
+    end
+
+    if scoreboard then
+        local alive = player:GetAttribute("AliveCount")
+        scoreboard.Text = if type(alive) == "number" then ("Vivos: %d"):format(alive) else ""
     end
 
     if stats then
@@ -112,7 +132,7 @@ local function refresh()
 
     if results then
         -- El servidor publica el mensaje de resultado; si no hay, se
-        -- oculta. La UI no lo redacta.
+        -- oculta. La UI no lo redacta ni lo decide.
         results.Text = tostring(player:GetAttribute("RoundResult") or "")
     end
 end
@@ -139,7 +159,16 @@ function Controller.Start(maid: any?): boolean
     _maid = maid
 
     -- Escucha SOLO atributos del servidor. Cada cambio refresca el HUD.
-    local watched = { "RoundState", "RoundTimeRemaining", "RoundResult", "Level", "XP", "Coins" }
+    local watched = {
+        "RoundState",
+        "RoundTimeRemaining",
+        "RoundNumber",
+        "AliveCount",
+        "RoundResult",
+        "Level",
+        "XP",
+        "Coins",
+    }
     for _, attribute in ipairs(watched) do
         if _maid then
             _maid:Connect(player:GetAttributeChangedSignal(attribute), refresh)

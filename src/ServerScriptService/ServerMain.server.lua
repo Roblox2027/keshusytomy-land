@@ -100,8 +100,16 @@ local function wireDependencies(registry: any)
 		playerService.SetDependencies(roundService, combatService, matchService)
 	end
 
+	-- SpawnService necesita saber en que zona esta el jugador para
+	-- rescatarlo en el sitio correcto (arena si hay ronda, lobby si no).
+	local spawnService = registry:Get("SpawnService")
+
+	if spawnService and roundService and matchService then
+		spawnService.SetDependencies(roundService, matchService)
+	end
+
 	if matchService then
-		matchService.SetDependencies(roundService, playerService, bombService, destructionService)
+		matchService.SetDependencies(roundService, playerService, bombService, destructionService, combatService)
 	end
 
 	-- MatchService necesita conocer el mundo por defecto para validar

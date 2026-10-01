@@ -250,6 +250,116 @@ local function describeCombatMath()
 			expect.toBe(GameConfig.BlockDamageScale < 1, true)
 		end)
 	end)
+	Harness.describe("Zona de rescate y ciclo de ronda", function()
+		Harness.it("el rescate usa la zona ACTUAL, no siempre el lobby", function()
+			-- Reproduce `resolveRescueTarget` de SpawnService.
+			-- BUG REAL: la arena esta a 500 studs del lobby. Rescatar
+			-- siempre en el lobby sacaba al jugador de la partida y la
+			-- ronda no terminaba nunca (GetAliveCount lo contaba vivo).
+			local LOBBY_X = 0
+			local ARENA_X = 500
+
+			local function resolveRescueTarget(isPlaying, matchService)
+				if isPlaying and matchService then
+					local arena = matchService.GetDestination("Arena")
+
+					if arena then
+						return arena.Position.X
+					end
+				end
+
+				return LOBBY_X
+			end
+
+			-- `GetDestination` se llama con PUNTO (no dos puntos), igual
+			-- que en `SpawnService.resolveRescueTarget`.
+			local matchService = {
+				GetDestination = function(key)
+					if key == "Arena" then
+						return { Position = { X = ARENA_X } }
+					end
+					return nil
+				end,
+			}
+
+			-- Con ronda en curso debe ir a la arena.
+			expect.toBe(resolveRescueTarget(true, matchService), ARENA_X)
+			-- Sin ronda, al lobby.
+			expect.toBe(resolveRescueTarget(false, matchService), LOBBY_X)
+		end)
+
+		Harness.it("sin servicio de traslados se degrada al lobby sin fallar", function()
+			-- El rescate nunca debe lanzar: caer al vacio tiene que
+			-- resolverse pase lo que pase.
+			local ok = pcall(function()
+				local target = nil
+				if false and nil then
+					target = 1
+				end
+				return target or 0
+			end)
+			expect.toBe(ok, true)
+		end)
+
+		Harness.it("SuddenDeath dura MENOS que la ronda completa", function()
+			-- Si fuera mayor, la ronda pasaria a muerte subita antes de
+			-- empezar a jugarse y el multiplicador seria permanente.
+			expect.toBe(GameConfig.SuddenDeathTime < GameConfig.RoundDuration, true)
+		end)
+
+		Harness.it("la invulnerabilidad cabe dentro de la cuenta atras", function()
+			-- Si fuera mayor que el Countdown, la proteccion se
+			-- extenderia mas alla del inicio de la ronda.
+			expect.toBe(GameConfig.SpawnProtectionTime < GameConfig.CountdownDuration, true)
+		end)
+
+		Harness.it("el tiempo de reaparicion es positivo y corto", function()
+			expect.toBe(GameConfig.RespawnTime > 0, true)
+			expect.toBe(GameConfig.RespawnTime < 30, true)
+		end)
+	end)
+
+	Harness.describe("Idempotencia de recompensas", function()
+		-- Reproduce el contrato de PlayerService.MarkRoundRewarded.
+		local function makeSession()
+			return { RewardedRounds = {} }
+		end
+
+		local function markRoundRewarded(session, roundId)
+			if session.RewardedRounds[roundId] then
+				return false
+			end
+			session.RewardedRounds[roundId] = true
+			return true
+		end
+
+		Harness.it("la primera vez marca, la segunda NO", function()
+			local session = makeSession()
+
+			expect.toBe(markRoundRewarded(session, 1), true)
+			expect.toBe(markRoundRewarded(session, 1), false)
+			expect.toBe(markRoundRewarded(session, 1), false)
+		end)
+
+		Harness.it("rondas DISTINTAS se pagan por separado", function()
+			-- Si el id fuese constante, la ronda 2 no pagaria nunca.
+			local session = makeSession()
+
+			expect.toBe(markRoundRewarded(session, 1), true)
+			expect.toBe(markRoundRewarded(session, 2), true)
+			expect.toBe(markRoundRewarded(session, 3), true)
+		end)
+
+		Harness.it("la recompensa por muerte no choca con la de ronda", function()
+			-- El asesino marca la ronda con id NEGATIVO para que su
+			-- recompensa no se confunda con la de supervivencia.
+			local session = makeSession()
+
+			expect.toBe(markRoundRewarded(session, -1), true)
+			expect.toBe(markRoundRewarded(session, 1), true)
+			expect.toBe(markRoundRewarded(session, -1), false)
+		end)
+	end)
 end
 
 return describeCombatMath

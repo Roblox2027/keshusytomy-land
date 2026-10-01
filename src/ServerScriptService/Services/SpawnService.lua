@@ -37,6 +37,10 @@ Service._cursor = 0
 -- Maid recibido en Init (conexiones de Players).
 local MaidRef = nil
 
+-- Servicios inyectados por ServerMain (rescate en la zona correcta).
+Service._roundService = nil
+Service._matchService = nil
+
 --- Busca los SpawnLocation existentes en el Workspace.
 --- @return { Instance } spawnLocations
 function Service.CollectSpawnLocations(): { Instance }
@@ -140,19 +144,54 @@ function Service.Init(maid: any?): boolean
 	return true
 end
 
+--- Destino de rescate: el de la ZONA ACTUAL, no el del lobby.
+---
+--- BUG CORREGIDO: esta funcion usaba siempre `PickSpawnLocation`, que
+--- devuelve puntos del LOBBY. La arena esta a 500 studs de distancia,
+--- asi que un jugador que cayese al vacio durante la ronda era
+--- teletransportado al lobby: se quedaba fuera de la partida, pasaba
+--- a ser "vivo" a ojos de `GetAliveCount` (que mira el Humanoid) y la
+--- ronda NUNCA terminaba, porque siempre quedaba alguien con vida.
+---
+--- Ahora el rescate lleva a la zona que corresponde: arena si hay
+--- ronda en curso, lobby si no.
+--- @param player Player
+--- @return Vector3? target nil si no hay ningun destino valido
+local function resolveRescueTarget(player: Player): Vector3?
+	local roundService = Service._roundService
+
+	if roundService and roundService.IsPlaying() and Service._matchService then
+		local arena = Service._matchService.GetDestination("Arena")
+
+		if arena then
+			return arena.Position + Vector3.new(0, 4, 0)
+		end
+	end
+
+	local spawnLocation = Service.PickSpawnLocation(player)
+
+	if not spawnLocation then
+		return nil
+	end
+
+	return (spawnLocation :: SpawnLocation).Position + Vector3.new(0, 4, 0)
+end
+
 --- Reubica a un jugador que ha caido por debajo del mapa.
 ---
 --- Sin esto, caer fuera del mapa es una muerte injusta y el jugador
---- tiene que esperar el respawn. Se teletransporta al ultimo punto de
---- aparicion valido en vez de matarlo.
+--- tiene que esperar el respawn. Se teletransporta a un punto valido
+--- de la zona actual en vez de matarlo.
 --- @param player Player
 local function rescueFromVoid(player: Player)
 	local character = player.Character
+
 	if not character then
 		return
 	end
 
 	local rootPart = character:FindFirstChild("HumanoidRootPart")
+
 	if not rootPart then
 		return
 	end
@@ -161,18 +200,29 @@ local function rescueFromVoid(player: Player)
 		return
 	end
 
-	local spawnLocation = Service.PickSpawnLocation(player)
-	if not spawnLocation then
+	local target = resolveRescueTarget(player)
+
+	if not target then
+		Logger.Warn(("no hay destino de rescate para %s"):format(player.Name))
 		return
 	end
 
-	local target = (spawnLocation :: SpawnLocation).Position + Vector3.new(0, 4, 0)
 	character:PivotTo(CFrame.new(target))
 
-	Logger.Info(("%s habia caido al vacio; devuelto a %s"):format(
+	Logger.Info(("%s habia caido al vacio; devuelto a (%.0f, %.0f, %.0f)"):format(
 		player.Name,
-		spawnLocation.Name
+		target.X,
+		target.Y,
+		target.Z
 	))
+end
+
+--- Inyecta los servicios necesarios para el rescate.
+--- @param roundService any
+--- @param matchService any
+function Service.SetDependencies(roundService: any, matchService: any)
+	Service._roundService = roundService
+	Service._matchService = matchService
 end
 
 --- @return boolean success
@@ -208,6 +258,8 @@ function Service.Destroy(): boolean
 	Service.IsInitialized = false
 	Service._spawnLocations = {}
 	Service._cursor = 0
+	Service._roundService = nil
+	Service._matchService = nil
 	MaidRef = nil
 	return true
 end
