@@ -1,0 +1,46 @@
+# Entorno y herramientas
+
+# Sistema operativo / editores
+Thumbs.db
+Desktop.ini
+.DS_Store
+
+# Rojo (salidas y datos locales, nunca el binario del proyecto)
+*.rbxl
+*.rbxlx
+*.rbxmx
+*.rbxl.lock
+*.rbxlx.lock
+redist/
+rojo.zip
+
+# Binarios de Rojo locales: son herramientas, nunca codigo del juego
+rojo/
+rojo-*/
+
+# Sistema de control de versiones
+.git/
+.gitattributes.bak
+
+# Editores
+.vscode/
+.idea/
+
+# Herramientas / caches del entorno
+.cache/
+.gradle/
+.android/
+node_modules/
+
+# Artefactos
+dist/
+build/
+out/
+logs/
+*.log
+*.tmp
+*.temp
+*.bak
+*.zip
+*.7z
+*.exe
