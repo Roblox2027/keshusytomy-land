@@ -18,6 +18,9 @@ return {
 	ENABLE_VOLCANO = false,
 	ENABLE_CYBER = false,
 
+	-- Keshusy Core (el corazon del lobby)
+	ENABLE_CORE = true,
+
 	-- Modos de juego
 	ENABLE_CLASSIC_PVP = true,
 	ENABLE_TEAM_BATTLE = false,

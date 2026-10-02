@@ -67,6 +67,13 @@ function Schema.new(remoteAction: { [string]: string })
 		[remoteAction.Portal] = {
 			Enter = PayloadType.String,
 		},
+		[remoteAction.Core] = {
+			-- Sin payload: el nucleo no acepta ninguna cifra del cliente.
+			-- Si se declarara un numero, el cliente podria intentar
+			-- "aportar 9999" y el servidor tendria que fiarse de el.
+			Interact = PayloadType.None,
+			RequestState = PayloadType.None,
+		},
 		[remoteAction.Party] = {
 			Create = PayloadType.None,
 			Invite = PayloadType.Number,

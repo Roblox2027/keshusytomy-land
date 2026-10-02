@@ -20,6 +20,7 @@ local SUITES = {
 	{ name = "Maid", path = "./shared/Maid.spec" },
 	{ name = "RateLimiter", path = "./shared/RateLimiter.spec" },
 	{ name = "StateMachine", path = "./shared/StateMachine.spec" },
+	{ name = "CoreRules", path = "./shared/CoreRules.spec" },
 	{ name = "RemoteSchema", path = "./shared/RemoteSchema.spec" },
 	{ name = "GameConfig", path = "./shared/GameConfig.spec" },
 	{ name = "CombatMath", path = "./shared/CombatMath.spec" },

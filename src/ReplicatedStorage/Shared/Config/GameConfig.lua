@@ -120,6 +120,33 @@ return {
 	MaxLevel = 9999,
 
 	-- ---------------------------------------------------------------
+	-- Keshusy Core (el corazon del lobby)
+	-- --------------------------------------------------------------
+	-- Carga maxima del nucleo, en unidades de energia. Alcanzarla
+	-- dispara la activacion.
+	CoreMaxCharge = 100,
+	-- Cuanta energia aporta cada fragmento. El fragmento lo suelta un
+	-- jugador interactuando con el nucleo; la decision es del servidor.
+	CoreChargePerFragment = 10,
+	-- Segundos que dura la secuencia de activacion. Durante ella el
+	-- nucleo no admite mas fragmentos: evita Carrera entre jugadores.
+	CoreActivationDuration = 6,
+	-- Cada cuanto se actualiza el estado del nucleo hacia los clientes.
+	-- 0.2 s son 5 Hz: suficiente para una barra y muy barato.
+	CoreBroadcastInterval = 0.2,
+	-- Maximo de fragmentos que un mismo jugador puede aportar antes de
+	-- que el nucleo los responda con "ya has AYUDADO lo suficiente".
+	-- Es una proteccion contra el relleno de barraInstantaneo.
+	CoreFragmentsPerPlayer = 20,
+	-- Segundos de recarga para el jugador tras aportar un fragmento.
+	CoreFragmentCooldown = 0.5,
+	-- Sobrepasar la carga maxima NO da unfragmento extra: el nucleo
+	-- entra en sobrecarga y pierde carga hasta volver a estar estable.
+	CoreOverloadDrainPerSecond = 15,
+	-- Drenaje lento del nucleo ya activado. Sin esto se quedaria en
+	-- "Active" para siempre y no podria volver a cargarse.
+	CoreCorePassiveDrainPerSecond = 5,
+	-- ---------------------------------------------------------------
 	-- Economia (sesion; la persistencia llega en la FASE 15)
 	-- ---------------------------------------------------------------
 	XPMultiplier = 1,

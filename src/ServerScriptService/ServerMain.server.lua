@@ -57,6 +57,9 @@ ServerMain.CriticalServices = {
 	"ExplosionService",
 	"BombService",
 	"MatchService",
+	-- El Core es critico: es el corazon del lobby y sin el la pantalla
+	-- de carga no tiene sentido. Si no arranca, el lobby esta degradado.
+	"CoreService",
 }
 
 --- Resultado del cableado de dependencias de la ultima arrancada.
@@ -67,6 +70,7 @@ ServerMain.WiringReport = {}
 local playerService = nil
 local bombService = nil
 local portalService = nil
+local coreService = nil
 
 -- Registro de servicios. Cada entrada declara sus dependencias para
 -- que el orden de arranque sea determinista.
@@ -90,6 +94,10 @@ local SERVICES = {
 	-- falta saber a donde se teletransporta al jugador, y MatchService es el
 	-- unico que tiene los marcadores de traslado del mapa.
 	{ name = "PortalService", module = SERVER.Services.PortalService, dependencies = { "WorldService", "MatchService", "RoundService" } },
+	-- CoreService va al final: no depende de nadie, pero el resto de
+	-- servicios ya estan cableados cuando arranca, y su difusion usa
+	-- el mismo registro.
+	{ name = "CoreService", module = SERVER.Services.CoreService, dependencies = {} },
 }
 
 --- Conecta las dependencias entre servicios.
@@ -283,6 +291,30 @@ local REMOTE_CHANNELS = {
 	[GameConstants.RemoteAction.Inventory] = {},
 	[GameConstants.RemoteAction.Quest] = {},
 
+	-- El canal del Keshusy Core. Sin payload: el cliente solo pide
+	-- aportar un fragmento, nunca dice cuanta carga ni que estado.
+	[GameConstants.RemoteAction.Core] = {
+		Interact = function(player: Player, _payload: any)
+			if not coreService then
+				Logger.Warn("CoreAction.Interact recibido sin CoreService")
+				return
+			end
+
+			coreService.HandleInteract(player, _payload)
+		end,
+
+		RequestState = function(player: Player, _payload: any)
+			if not coreService then
+				return
+			end
+
+			-- Concede NADA: solo publica informacion que el nucleo
+			-- ya decidio en el servidor.
+			player:SetAttribute("CoreState", coreService.GetState().State)
+			player:SetAttribute("CoreCharge", coreService.GetState().Charge)
+		end,
+	},
+
 	-- El canal de portales es la UNICA via de entrada a un mundo. El
 	-- payload es solo el `worldId` pedido: el servidor decide si el viaje
 	-- procede y calcula el destino. Un cliente que invente un `worldId` no
@@ -426,6 +458,27 @@ function ServerMain.Start(): boolean
 	-- El handler de `PortalAction.Enter` vive fuera de `wireDependencies`,
 	-- asi que necesita la misma referencia a nivel de modulo que los demas.
 	portalService = registry:Get("PortalService")
+	-- El nucleo se inyecta igual: su handler necesita el servicio vivo.
+	coreService = registry:Get("CoreService")
+
+	-- El nucleo difunde por el mismo canal bidireccional que usa el
+	-- cliente para pedir fragmentos. Se le da la FUNCION de emision y no
+	-- el remoto entero, para que el servicio no dependa de como esten
+	-- cableados los remotos y se pueda probar aislado.
+	if coreService and coreService.SetBroadcast then
+		local remotes = ReplicatedStorage:FindFirstChild("Remotes")
+		local coreRemote = remotes and remotes:FindFirstChild(GameConstants.RemoteAction.Core)
+
+		if coreRemote and coreRemote:IsA("RemoteEvent") then
+			coreService.SetBroadcast(function(state)
+				coreRemote:FireAllClients(state)
+			end)
+		else
+			-- Sin remoto el nucleo sigue funcionando: solo pierde la
+			-- barra del cliente. Es una degradacion, no un fallo.
+			Logger.Warn("CoreService: sin CoreAction; el nucleo no se difunde.")
+		end
+	end
 
 	local started = registry:StartAll()
 

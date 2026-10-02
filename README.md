@@ -18,7 +18,7 @@ Roblox Studio:
 luau.exe tests/RunTests.lua
 ```
 
-Estado actual: **56 pruebas, 0 fallos**.
+Estado actual: **160 pruebas, 0 fallos** (11 suites).
 
 Las pruebas cubren solo la logica pura compartida. Lo que depende del
 motor (Workspace, Players, fisica, DataStore) se verifica

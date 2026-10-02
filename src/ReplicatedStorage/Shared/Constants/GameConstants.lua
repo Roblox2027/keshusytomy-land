@@ -45,6 +45,23 @@ return {
 		Failed = "Failed",
 	},
 
+	-- Estados del Keshusy Core. Son excluyentes: el nucleo esta en
+	-- exactamente uno en cada momento, y las transiciones validas las
+	-- decide `CoreRules` (logica pura, probada sin motor).
+	CoreState = {
+		-- Inerte: carga por debajo del maximo. Admite fragmentos.
+		Inactive = "Inactive",
+	-- Cargando: se alcanzo el maximo y corre la secuencia. No admite
+	-- mas fragmentos.
+		Activating = "Activating",
+	-- Activado y estable: el mundo siguiente queda desbloqueado.
+		Active = "Active",
+	-- Sobrecargado: se paso del maximo y se drena hasta estabilizarse.
+		Overloaded = "Overloaded",
+	-- Evento: periodo de bonificacion tras activarse.
+		Event = "Event",
+	},
+
 	-- Canales remotos centralizados: el cliente NUNCA es autoridad.
 	RemoteAction = {
 		Player = "PlayerAction",
@@ -53,6 +70,10 @@ return {
 		Inventory = "InventoryAction",
 		Quest = "QuestAction",
 		Portal = "PortalAction",
+		-- El nucleo recibe UNA peticion por fragmento. El payload es
+		-- deliberadamente irrelevante: el cliente no dice cuanta carga
+		-- aporta, solo pide aportar.
+		Core = "CoreAction",
 		Party = "PartyAction",
 		Settings = "SettingsAction",
 	},

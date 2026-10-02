@@ -7,6 +7,7 @@
 { "Name": "InventoryAction", "ClassName": "RemoteEvent" },
 { "Name": "QuestAction", "ClassName": "RemoteEvent" },
 { "Name": "PortalAction", "ClassName": "RemoteEvent" },
+{ "Name": "CoreAction", "ClassName": "RemoteEvent" },
 { "Name": "PartyAction", "ClassName": "RemoteEvent" },
 { "Name": "SettingsAction", "ClassName": "RemoteEvent" }
 ]

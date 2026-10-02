@@ -35,12 +35,17 @@ estan preparadas o NO IMPLEMENTED; ver `docs/audit.md`.
 
 ## Estado actual de las pruebas
 
-**74 pruebas, 0 fallos**. El proceso devuelve codigo de salida 0
+**160 pruebas, 0 fallos**. El proceso devuelve codigo de salida 0
 cuando todo pasa, lo que permite usarlo en integracion continua.
 
 Las pruebas cubren la logica pura compartida: `Maid`, `RateLimiter`,
-`StateMachine`, `RemoteSchema`, las configuraciones y la formula de
-dano y las duraciones de ronda (`Gameplay.spec`).
+`StateMachine`, `RemoteSchema`, `CoreRules`, las configuraciones y la
+formula de dano y las duraciones de ronda (`Gameplay.spec`).
+
+Que estas pruebas sean las que son importa: se comprobo que pueden
+FALLAR. Al quitar el limite de fragmentos por jugador y al quitar la
+recarga de `CoreRules`, las pruebas correspondientes fallaron. Una
+prueba que no puede fallar no sirve como puerta.
 
 ## Como funciona
 
