@@ -225,7 +225,18 @@ local function spawnBomb(ownerId: number?, position: Vector3): number
 	bomb:SetAttribute("BombId", bombId)
 	bomb:SetAttribute("OwnerUserId", ownerId)
 
-	Service._bombFolder:AddChild(bomb)
+	-- `Parent =` y NO `AddChild`.
+	--
+	-- ERROR REAL en runtime (FASE 2.1), reproducido en Studio:
+	--     ERROR: handler BombAction.Place fallo:
+	--            AddChild is not a valid member of Folder "Workspace.Bombs"
+	--
+	-- En esta version de Studio `AddChild` no esta disponible sobre las
+	-- instancias creadas desde codigo, asi que la bomba NUNCA se llegaba a
+	-- colocar: el cliente pedia, el servidor validaba y reventaba al crear el
+	-- cuerpo de la bomba. Medido, no supuesto: `Parent =` si funciona y
+	-- produce exactamente el mismo arbol.
+	bomb.Parent = Service._bombFolder
 	Service._activeBombs[bombId] = {
 		Part = bomb,
 		OwnerUserId = ownerId,

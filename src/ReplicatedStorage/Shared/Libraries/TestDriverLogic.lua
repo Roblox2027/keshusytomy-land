@@ -130,6 +130,25 @@ function Logic.Decode(encoded: any): (string?, string?, string?)
 		action = encoded
 	end
 
+	-- SUFIJO DE SECUENCIA.
+	--
+	-- El servidor anade "#<n>" al final del valor para que el atributo
+	-- SIEMPRE cambie de valor. Sin esto, repetir la misma accion no dispara
+	-- `GetAttributeChangedSignal` y el cliente se queda esperando: la prueba
+	-- parece un fallo del cliente cuando en realidad nadie ha recibido nada.
+	--
+	-- Se recorta en el cliente, que es quien lo recibe. Antes se recortaba en
+	-- la parte que lo envia, y el fallo era peor: `EnterPortal|Forest|2` se
+	-- partia por la barra vertical en un unico destino "Forest|2", con lo que
+	-- el portal parecia no existir y el servidor rechazaba una entrada valida.
+	if action then
+		action = action:gsub("#%d+$", "")
+	end
+
+	if worldId then
+		worldId = worldId:gsub("#%d+$", "")
+	end
+
 	local parsed, reason = Logic.Parse(action)
 
 	if not parsed then

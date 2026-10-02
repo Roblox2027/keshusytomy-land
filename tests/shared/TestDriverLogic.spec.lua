@@ -161,6 +161,42 @@ local function describeTestDriverLogic()
 			expect.toBe(action, "EnterPortal")
 			expect.toBe(worldId, "Desert")
 		end)
+
+		-- REGRESION (FASE 2.1).
+		--
+		-- El servidor anade "#<n>" al valor del atributo para que este
+		-- SIEMPRE cambie: si no cambia, `GetAttributeChangedSignal` no se
+		-- dispara y el cliente nunca ve la instruccion. Ese sufijo tiene que
+		-- recortarse al decodificar, y en AMBOS lados de la barra vertical.
+		-- Una almohadilla pegada al final y NO un separador nuevo: la barra
+		-- vertical es la que separa accion de destino.
+		--
+		-- Antes de arreglarlo, "EnterPortal|Forest#2" devolvia el destino
+		-- "Forest#2", que no es ningun portal, y una entrada perfectamente
+		-- valida se rechazaba por un motivo falso.
+		Harness.it("el sufijo de secuencia no contamina accion ni destino", function()
+			local action, worldId, reason = TestDriverLogic.Decode("EnterPortal|Forest#7")
+
+			expect.toBe(action, "EnterPortal")
+			expect.toBe(worldId, "Forest")
+			expect.toBe(reason, nil)
+		end)
+
+		Harness.it("el sufijo tambien se recorta sin destino", function()
+			local action, worldId = TestDriverLogic.Decode("PlaceBomb#3")
+
+			expect.toBe(action, "PlaceBomb")
+			expect.toBe(worldId, nil)
+		end)
+
+		-- El nombre del portal puede contener digitos: "Ice2#9" debe dejar
+		-- "Ice2" y no "Ice".
+		Harness.it("el sufijo no se come los digitos del nombre del portal", function()
+			local action, worldId = TestDriverLogic.Decode("EnterPortal|Ice2#9")
+
+			expect.toBe(action, "EnterPortal")
+			expect.toBe(worldId, "Ice2")
+		end)
 	end)
 end
 

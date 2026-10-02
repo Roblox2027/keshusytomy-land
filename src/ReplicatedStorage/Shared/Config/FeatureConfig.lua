@@ -57,5 +57,12 @@ return {
 	-- llamar a `BombService`, a `PortalService` o a cualquier servicio.
 	-- Solo invoca controllers del cliente, que a su vez usan los
 	-- remotos reales. Por tanto el camino probado es el del jugador.
-	ENABLE_CLIENT_TEST_DRIVER = false,
+	ENABLE_CLIENT_TEST_DRIVER = true,
+
+	-- Sonda de certificacion del puente cliente (FASE 2.1). NO es una feature.
+	--
+	-- Crea UN RemoteFunction al que responde `ClientBootProbe.client.lua` y
+	-- guarda la identidad de la sesion para que servidor y cliente puedan
+	-- relacionarse. Con la bandera apagada no se crea ningun remoto nuevo.
+	ENABLE_CLIENT_CERT_PROBE = true,
 }

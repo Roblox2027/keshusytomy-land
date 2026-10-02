@@ -116,7 +116,7 @@ local function findThreshold(portal: Model): BasePart?
 	end
 	return nil
 end
--- CONTINUA_EN_PARTE_2
+
 --- Recorre el lobby y cachea los portales para la deteccion por proximidad.
 ---
 --- Solo se usa para SABER que hay ahi y cuanto se esta de lejos. La
@@ -209,6 +209,14 @@ end
 --- @return number
 function Controller.GetDisplayedLevel(): number
 	local player = Players.LocalPlayer
+	if not player then
+		return 1
+	end
+
+	local level = player:GetAttribute("Level")
+	return type(level) == "number" and level or 1
+end
+
 --- Envia la peticion de viaje. Es lo UNICO que el cliente pide.
 --- @param worldId string
 --- @return boolean sent
@@ -530,11 +538,3 @@ function Controller.Destroy(): boolean
 end
 
 return Controller
-	if not player then
-		return 1
-	end
-
-	local level = player:GetAttribute("Level")
-	return type(level) == "number" and level or 1
-end
--- CONTINUA_EN_PARTE_3

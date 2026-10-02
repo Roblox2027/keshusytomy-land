@@ -130,10 +130,25 @@ function Driver.Run(action: string, worldId: string?): (boolean, string)
 			return false, "PortalController no disponible"
 		end
 
-		local ok, verdict = pcall(portal.RequestEnter, worldId)
+		-- BUG CORREGIDO (FASE 2.1): se ignoraba el valor de retorno.
+		--
+		-- `RequestEnter` devuelve `false` cuando no hay canal o el portal no
+		-- existe, y antes esta funcion devolvia `true` en cualquier caso que
+		-- no fuera una excepcion. El log deia "peticion de portal enviada"
+		-- mientras el propio controller registraba "PortalAction no
+		-- disponible": un PASS falso del canal, emitido por el codigo que
+		-- deberia detectarlo. Un informe que certifica lo contrario de lo que
+		-- ocurre es peor que no informar.
+		local ok, sent = pcall(portal.RequestEnter, worldId)
 
 		if not ok then
-			return false, ("PortalController fallo: %s"):format(tostring(verdict))
+			return false, ("PortalController fallo: %s"):format(tostring(sent))
+		end
+
+		if sent ~= true then
+			return false, ("PortalController no envio la peticion a '%s' (canal ausente o portal desconocido)"):format(
+				tostring(worldId)
+			)
 		end
 
 		return true, ("peticion de portal enviada: %s"):format(worldId)
