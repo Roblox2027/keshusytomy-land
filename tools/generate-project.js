@@ -35,6 +35,20 @@ const color = (r, g, b) => [r / 255, g / 255, b / 255];
 function asChildren(list) {
 	const map = {};
 	for (const node of list) {
+		// El mapa esta indexado por nombre: un duplicado SE SOBREESCRIBE en
+		// silencio y la geometria desaparece sin error ni aviso. Eso ya
+		// ocurrio en el arbol de Studio (StarterPlayerScripts con ClientMain
+		// duplicado) y lo oculto un comparador mal escrito. Aqui el
+		// generador falla fuerte en lugar de producir un mapa incompleto:
+		// es la unica linea que convierte "me falta una pared" en un error
+		// de build legible.
+		if (Object.prototype.hasOwnProperty.call(map, node.name)) {
+			throw new Error(
+				"asChildren: nombre duplicado '" + node.name + "'. "
+				+ "Dos instancias homonimas bajo el mismo padre; una "
+				+ "desapareceria del mapa sin error."
+			);
+		}
 		map[node.name] = node.node;
 	}
 	return map;
@@ -70,7 +84,31 @@ function part(name, opts) {
 		Position: v3(...(opts.position || [0, 0, 0])),
 	};
 	if (opts.transparency !== undefined) props.Transparency = opts.transparency;
+
+	// `Shape` + `Material` permiten el vocabulario de formas que usa el
+	// lobby (esferas del Core, cilindros de las columnas). Sin esto el
+	// Keshusy Core tendria que ser un cubo, que es justo lo que el diseño
+	// pide evitar.
+	if (opts.shape) {
+		props.Shape = opts.shape;
+		props.Material = opts.material || "Neon";
+		props.TopSurface = "Smooth";
+		props.BottomSurface = "Smooth";
+	}
+
 	return { name: name, node: { $className: "Part", $properties: props } };
+}
+
+/**
+ * Part SIN colisión, para decoración y VFX.
+ *
+ * Separa "se ve" de "se pisa": los anillos del Core y los aros de los
+ * portales son visibles pero no deben frenar al jugador ni alterar la
+ * fisica. Mezclar ambos roles en `part()` obligaba a recordar el
+ * `canCollide: false` en cada llamada y era facil olvidarlo.
+ */
+function decor(name, opts) {
+	return part(name, Object.assign({}, opts, { canCollide: false }));
 }
 
 function marker(name, position, opts) {
@@ -108,26 +146,219 @@ function spawnLocation(name, position, colorRGB) {
 }
 
 /** Muro perimetral de 4 caras alrededor de un centro. */
+function perimeter(prefix, cx, cz, half, height, colorRGB) {
+	const out = [];
+	out.push(part(prefix + "_N", { position: [cx, height / 2, cz - half], size: [half * 2 + 2, height, 2], color: colorRGB }));
+	out.push(part(prefix + "_S", { position: [cx, height / 2, cz + half], size: [half * 2 + 2, height, 2], color: colorRGB }));
+	out.push(part(prefix + "_W", { position: [cx - half, height / 2, cz], size: [2, height, half * 2 + 2], color: colorRGB }));
+	out.push(part(prefix + "_E", { position: [cx + half, height / 2, cz], size: [2, height, half * 2 + 2], color: colorRGB }));
+	return out;
+}
+
 // ---------------------------------------------------------------- LOBBY
 // Zona segura. Aqui aparece el jugador al entrar al juego.
+//
+// MAPA REAL. Sustituye al placeholder de cuatro sectores por paredes con
+// un layout RADIAL: el Keshusy Core ocupa el centro y todo lo demas se
+// ordena en anillos a su alrededor.
+//
+//     anillo 0  Core        (centro, punto de narrativa)
+//     anillo 1  Portales    (arco al norte, 5 mundos)
+//     anillo 2  Estaciones  (anillo completo de servicios)
+//
+// Se conservan SIEMPRE los contratos que el codigo ya consume:
+// `LobbyCenter` lo lee `MatchService` como destino de traslado y
+// `SpawnService` como punto de reaparicion. Nada se renombra.
+//
 // El suelo arranca en Y = -1 con grosor 2: su cara superior queda
 // exactamente en Y = 0, que es la altura de referencia del mapa.
 const LOBBY_HALF = 70;
+
+// Identidad Keshusy: verde-azulado energetico + acento Tomy naranja.
+const KESHUSY = [86, 214, 124];
+const TOMY = [255, 152, 72];
+const STONE = [124, 134, 146];
+const DEEP = [70, 80, 96];
 
 const lobbyParts = [
 	part("LobbyFloor", {
 		position: [0, -1, 0],
 		size: [LOBBY_HALF * 2, 2, LOBBY_HALF * 2],
 		material: "Concrete",
-		color: [124, 134, 146],
+		color: STONE,
 	}),
 	marker("LobbyCenter", [0, 0.2, 0], { color: [200, 220, 255] }),
 	marker("LobbyNorth", [0, 0.2, -40], { color: [160, 200, 255] }),
 	marker("LobbySouth", [0, 0.2, 40], { color: [160, 200, 255] }),
 ];
 
-for (const p of perimeter("LobbyWall", 0, 0, LOBBY_HALF, 14, [92, 102, 118])) {
+for (const p of perimeter("LobbyWall", 0, 0, LOBBY_HALF, 14, DEEP)) {
 	lobbyParts.push(p);
+}
+
+// ------------------------------------------------------- KESHUSY CORE
+// El Core es el corazon narrativo: una esfera de energia que conecta las
+// dimensiones. Se construye en capas para que de lejos se lea como un
+// nucleo y de cerca tenga detalle.
+//
+// Vive en `lobbyParts` (plano, bajo `Workspace.Lobby`) y no en una
+// subcarpeta porque el diseno y el codigo lo localizan por nombre.
+lobbyParts.push(
+	// Base: tres plataformas escalonadas.
+	part("CoreBase", {
+		position: [0, 0.5, 0], size: [26, 1, 26],
+		material: "Slate", color: DEEP,
+	}),
+	part("CorePlinth", {
+		position: [0, 1.75, 0], size: [18, 1.5, 18],
+		material: "Slate", color: [92, 104, 122],
+	}),
+	part("CoreDais", {
+		position: [0, 3.2, 0], size: [12, 1.4, 12],
+		material: "SmoothPlastic", color: [110, 124, 144],
+	}),
+
+	// Nucleo: esfera de energia. SIN colision para no bloquear el paso.
+	decor("CoreOrb", {
+		position: [0, 8, 0], size: [8, 8, 8],
+		shape: "Ball", color: KESHUSY,
+	}),
+	decor("CoreGlow", {
+		position: [0, 8, 0], size: [11, 11, 11],
+		shape: "Ball", color: [140, 240, 190], transparency: 0.65,
+	}),
+
+	// Anillos orbitales: lectura de "energia girando" sin depender de
+	// scripts. El mapa debe verse bien aunque los servicios fallen.
+	decor("CoreRing_A", {
+		position: [0, 8, 0], size: [16, 0.6, 16],
+		shape: "Cylinder", color: TOMY,
+	}),
+	decor("CoreRing_B", {
+		position: [0, 8, 0], size: [19, 0.5, 19],
+		shape: "Cylinder", color: KESHUSY, transparency: 0.35,
+	})
+);
+
+// Cuatro pilares: dan escala y ancla la composicion.
+[[7, 7], [-7, 7], [7, -7], [-7, -7]].forEach(function (p, i) {
+	lobbyParts.push(part("CorePillar_" + i, {
+		position: [p[0], 4, p[1]], size: [2, 8, 2],
+		shape: "Cylinder", material: "Metal", color: [130, 142, 162],
+	}));
+	lobbyParts.push(decor("CorePillarLight_" + i, {
+		position: [p[0], 8.4, p[1]], size: [1.2, 1.2, 1.2],
+		shape: "Ball", color: KESHUSY,
+	}));
+});
+
+// ------------------------------------------------------------ PORTALES
+// Cinco portales en arco frente al Core, uno por mundo del contrato.
+// Se identifican por nombre: `Portal_<WorldId>`.
+//
+// El panel interior es translucido y SIN colision: se ve el destino y no
+// se choca. El marco SI colisiona y marca el umbral.
+const PORTAL_DEFS = [
+	{ id: "Forest", x: -32, level: 1, color: KESHUSY },
+	{ id: "Desert", x: -16, level: 10, color: TOMY },
+	{ id: "Ice", x: 0, level: 20, color: [140, 214, 245] },
+	{ id: "Volcano", x: 16, level: 35, color: [240, 110, 72] },
+	{ id: "Cyber", x: 32, level: 50, color: [190, 120, 255] },
+];
+
+for (const p of PORTAL_DEFS) {
+	const z = -34;
+	const tag = "Portal_" + p.id;
+	const frame = [86, 96, 114];
+
+	lobbyParts.push(
+		part(tag + "_Base", {
+			position: [p.x, 0.5, z], size: [12, 1, 8],
+			material: "Slate", color: frame,
+		}),
+		part(tag + "_Lintel", {
+			position: [p.x, 9, z], size: [12, 1.2, 8],
+			material: "Slate", color: frame,
+		}),
+		part(tag + "_PostL", {
+			position: [p.x - 5.5, 4.75, z], size: [1.2, 8.5, 8],
+			material: "Slate", color: frame,
+		}),
+		part(tag + "_PostR", {
+			position: [p.x + 5.5, 4.75, z], size: [1.2, 8.5, 8],
+			material: "Slate", color: frame,
+		}),
+
+		// Panel: la puerta en si. Sin colision a proposito.
+		decor(tag + "_Panel", {
+			position: [p.x, 4.75, z], size: [10, 8, 0.4],
+			color: p.color, transparency: 0.55,
+		}),
+		decor(tag + "_Glow", {
+			position: [p.x, 4.75, z], size: [7, 5, 0.3],
+			color: p.color, transparency: 0.3,
+		}),
+
+		// Rotulo del nivel exigido: visible en el cartel, no en un atributo
+		// invisible. `PortalService` lo lee para validar server-side.
+		part(tag + "_Sign", {
+			position: [p.x, 10.6, z], size: [10, 1.6, 0.4],
+			material: "SmoothPlastic", color: p.color,
+		})
+	);
+}
+
+// ---------------------------------------------------------- ESTACIONES
+// Anillo de servicios alrededor del Core. Cada estacion es una placa neon
+// sobre una plataforma, con poste y lampara: se reconoce sin leer texto.
+const STATION_DEFS = [
+	{ id: "Shop", angle: 300, color: TOMY },
+	{ id: "Inventory", angle: 330, color: KESHUSY },
+	{ id: "Missions", angle: 30, color: [255, 226, 120] },
+	{ id: "Season", angle: 60, color: [190, 120, 255] },
+	{ id: "Party", angle: 120, color: [120, 200, 255] },
+	{ id: "Rankings", angle: 150, color: [255, 140, 140] },
+	{ id: "Training", angle: 210, color: [150, 240, 190] },
+	{ id: "Events", angle: 240, color: [255, 190, 90] },
+];
+
+for (const s of STATION_DEFS) {
+	const rad = (s.angle * Math.PI) / 180;
+	const x = Math.round(Math.cos(rad) * 40);
+	const z = Math.round(Math.sin(rad) * 40);
+
+	lobbyParts.push(
+		part("Station_" + s.id + "_Pad", {
+			position: [x, 0.25, z], size: [9, 0.5, 9],
+			material: "SmoothPlastic", color: s.color,
+		}),
+		part("Station_" + s.id + "_Post", {
+			position: [x, 3, z], size: [0.8, 5.5, 0.8],
+			material: "Metal", color: [120, 130, 148],
+		}),
+		decor("Station_" + s.id + "_Lamp", {
+			position: [x, 6, z], size: [2, 2, 2],
+			shape: "Ball", color: s.color,
+		})
+	);
+}
+
+// -------------------------------------------------------- DECORACIONES
+// Farolas perimetrales: dan profundidad y puntos de luz sin depender de
+// un `Lighting` configurado a mano.
+for (let i = 0; i < 8; i++) {
+	const a = (i / 8) * Math.PI * 2;
+	const x = Math.round(Math.cos(a) * 58);
+	const z = Math.round(Math.sin(a) * 58);
+
+	lobbyParts.push(part("Lamp_" + i, {
+		position: [x, 5, z], size: [0.6, 10, 0.6],
+		material: "Metal", color: [96, 106, 124],
+	}));
+	lobbyParts.push(decor("LampGlow_" + i, {
+		position: [x, 10.2, z], size: [2.2, 2.2, 2.2],
+		shape: "Ball", color: KESHUSY,
+	}));
 }
 
 // ---------------------------------------------------------------- ARENA
@@ -154,14 +385,10 @@ const arenaParts = [
 for (const p of perimeter("ArenaWall", ARENA_CX, ARENA_CZ, ARENA_HALF, 26, [74, 82, 74])) {
 	arenaParts.push(p);
 }
-function perimeter(prefix, cx, cz, half, height, colorRGB) {
-	const out = [];
-	out.push(part(prefix + "_N", { position: [cx, height / 2, cz - half], size: [half * 2 + 2, height, 2], color: colorRGB }));
-	out.push(part(prefix + "_S", { position: [cx, height / 2, cz + half], size: [half * 2 + 2, height, 2], color: colorRGB }));
-	out.push(part(prefix + "_W", { position: [cx - half, height / 2, cz], size: [2, height, half * 2 + 2], color: colorRGB }));
-	out.push(part(prefix + "_E", { position: [cx + half, height / 2, cz], size: [2, height, half * 2 + 2], color: colorRGB }));
-	return out;
-}
+
+// (La definicion de `perimeter` vive arriba del bloque LOBBY. Antes vivia
+// aqui, DESPUES de que el lobby ya la usara, y solo funcionaba por el
+// hoisting de `function`. Declararla antes elimina esa dependencia sutil.)
 
 // ------------------------------------------------- BLOQUES DESTRUCTIBLES
 // Estructuras de bloques que las bombas destruyen. Los nombres empiezan
