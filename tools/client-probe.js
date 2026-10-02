@@ -353,9 +353,39 @@ return "movido a " .. best.Name .. ${face ? ' .. ", mirando al Core"' : ""}
 
 	// Puerta honesta: sin camara o sin nada visible, el jugador no esta
 	// viendo el juego por mucho que el servidor diga PASS.
-	const ok = c.hasCamera && c.hasPlayerGui && (c.visibleLobbyParts || 0) > 0;
-	console.log("");
+	//
+	// QUE ZONA MIDE. Antes exigia `visibleLobbyParts > 0` SIEMPRE, y eso
+	// daba FAIL siendo el juego correcto: el ciclo de ronda lleva al
+	// jugador a la Arena (x = 500), a 500 studs del Lobby, asi que alli el
+	// Lobby no tiene por que verse. Medido con `tools/lobby-teleport-check.js`
+	// el teleport al Lobby funciona y a los 500 ms el personaje esta en
+	// (0, 5, -24); lo revierte la ronda despues.
+	//
+	// La puerta ahora pregunta lo que el jugador tiene delante en la zona en
+	// la que esta, y ADEMAS exige que la zona se haya podido determinar: un
+	// `zone` vacio significaria que el cliente no ve el mapa, y eso si es un
+	// fallo. Se sigue exigiendo la camara y el PlayerGui.
+	const inLobby = (c.zone || "").indexOf("Lobby") >= 0;
+	const visibleInZone = inLobby ? (c.visibleLobbyParts || 0) : (c.visibleParts || 0);
+
+	const failures = [];
+	if (!c.hasCamera) failures.push("el cliente no tiene CurrentCamera");
+	if (!c.hasPlayerGui) failures.push("el cliente no tiene PlayerGui");
+	if (!c.zone) failures.push("no se pudo determinar la zona del cliente");
+	if (visibleInZone <= 0) {
+		failures.push(
+			"no ve ninguna Part de la zona en la que esta ("
+			+ c.zone + ", lobby=" + (c.visibleLobbyParts || 0) + ")"
+		);
+	}
+
+	const ok = failures.length === 0;
+	console.log(
+		"Zona medida     : " + c.zone
+		+ (inLobby ? "  (criterio: partes del Lobby)" : "  (criterio: partes de la zona actual)")
+	);
 	console.log(`CLIENTE VISUAL VERIFICATION = ${ok ? "PASS" : "FAIL"}`);
+	for (const f of failures) console.log("  - " + f);
 	if (!ok) process.exitCode = 1;
 }
 

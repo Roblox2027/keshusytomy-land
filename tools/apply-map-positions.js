@@ -44,6 +44,28 @@ const OUT = path.join(ROOT, ".cache", "apply-positions.lua");
 const META_KEYS = new Set(["$className", "$path", "$properties", "$ignoreUnknownInstances", "$hidden"]);
 
 /**
+ * Paths cuya APARIENCIA es propiedad del runtime, no de la fuente.
+ *
+ * `VisualService.DecoratePortals` (VisualService.lua:442) repinta el panel de
+ * los mundos deshabilitados a gris 70/74/86, sin luz y sin chispas. Ese gris
+ * es la senal de juego de "aqui no se entra": depende de `FeatureConfig` en
+ * cada arranque, asi que no puede venir de la fuente.
+ *
+ * Si este script tambien lo pintara, los dos se pelearian: el panel
+ * apareceria con el color del mundo y `portal-source-audit` daria FAIL sobre
+ * un runtime correcto. Medido en las dos direcciones.
+ *
+ * La GEOMETRIA de esas piezas (posicion, tamano, orientacion) si se sigue
+ * aplicando: de eso si responde la fuente.
+ */
+const RUNTIME_OWNED_APPEARANCE = new Set([
+	"Lobby.Portals.Portal_Desert.PortalPanel",
+	"Lobby.Portals.Portal_Ice.PortalPanel",
+	"Lobby.Portals.Portal_Volcano.PortalPanel",
+	"Lobby.Portals.Portal_Cyber.PortalPanel",
+]);
+
+/**
  * Recorre el mapa declarado y devuelve una entrada por Part.
  *
  * Se recorren en ORDEN y sin filtrar por clase: cualquier hoja que declare
@@ -76,6 +98,35 @@ function collectEntries(node, prefix, out) {
 				orientation: Array.isArray(props.Orientation) && props.Orientation.length === 3
 					? props.Orientation.map((n) => Math.round(n * 1000) / 1000)
 					: null,
+
+				// ------------------------------------------------ APARIENCIA
+				//
+				// Color, Material, Transparency, CanCollide y CanTouch tambien
+				// viajan aqui, y existen por un defecto MEDIDO.
+				//
+				// `import_rbxm` no actualiza las propiedades de una instancia
+				// que ya existe (ver `tools/import-update-probe.js`), asi que
+				// cambiar un color en el generador NO llegaba a Studio: la
+				// pieza conservaba la que tenia. El sintoma era desconcertante
+				// porque el recuento de instancias daba PASS y los nombres
+				// coincidian: cuatro de los cinco portales llegaban con el
+				// panel en gris (70/74/86) en vez del color de su mundo,
+				// porque ese gris era el color que tenian antes.
+				//
+				// El fallo solo se ve comparando el color pieza a pieza, que
+				// es lo que hace `tools/portal-source-audit.js`.
+				color: Array.isArray(props.Color) && props.Color.length === 3
+					? props.Color.map((n) => Math.round(n * 10000) / 10000)
+					: null,
+				material: typeof props.Material === "string" ? props.Material : null,
+				transparency: typeof props.Transparency === "number" ? props.Transparency : null,
+				canCollide: typeof props.CanCollide === "boolean" ? props.CanCollide : null,
+				canTouch: typeof props.CanTouch === "boolean" ? props.CanTouch : null,
+				shape: typeof props.Shape === "string" ? props.Shape : null,
+
+				// Marca de propiedad del runtime. Se calcula aqui porque es
+				// el unico punto donde existe el path completo.
+				runtimeOwns: RUNTIME_OWNED_APPEARANCE.has(here.join(".")),
 			});
 		}
 
@@ -132,6 +183,20 @@ function main() {
 	const sizes = entries.map((e) => e.size);
 	const rotations = entries.map((e) => e.orientation);
 
+	// Apariencia. Viaja en arrays paralelos como la geometria, y por el mismo
+	// motivo: una tabla mixta de objetos no es un literal valido en Luau.
+	// Los booleanos viajan como 1/0 porque `true` es una palabra clave, no un
+	// literal de dato.
+	// Las piezas cuya apariencia manda el runtime se marcan con `runtimeOwns`:
+	// el Luau recibe `nil` y por tanto las omite. La geometria sigue
+	// saliendo entera, que es lo que si responde a la fuente.
+	const colors = entries.map((e) => (e.runtimeOwns ? null : e.color));
+	const materials = entries.map((e) => (e.runtimeOwns ? null : e.material));
+	const transparencies = entries.map((e) => (e.runtimeOwns ? null : e.transparency));
+	const canCollides = entries.map((e) => (e.canCollide === null ? null : e.canCollide ? 1 : 0));
+	const canTouches = entries.map((e) => (e.canTouch === null ? null : e.canTouch ? 1 : 0));
+	const shapes = entries.map((e) => e.shape);
+
 	/**
 	 * Convierte un array JSON a literal de tabla de Luau.
 	 *
@@ -160,6 +225,12 @@ local PATHS = ${toLuauArray(paths)}
 local POSITIONS = ${toLuauArray(positions)}
 local SIZES = ${toLuauArray(sizes)}
 local ROTATIONS = ${toLuauArray(rotations)}
+local COLORS = ${toLuauArray(colors)}
+local MATERIALS = ${toLuauArray(materials)}
+local TRANSPARENCIES = ${toLuauArray(transparencies)}
+local CAN_COLLIDES = ${toLuauArray(canCollides)}
+local CAN_TOUCHES = ${toLuauArray(canTouches)}
+local SHAPES = ${toLuauArray(shapes)}
 
 local Workspace = game:GetService("Workspace")
 
@@ -209,6 +280,10 @@ end
 local fixedPosition = 0
 local fixedSize = 0
 local fixedRotation = 0
+local fixedColor = 0
+local fixedMaterial = 0
+local fixedTransparency = 0
+local fixedCollision = 0
 local alreadyCorrect = 0
 local missing = 0
 local examples = {}
@@ -217,6 +292,11 @@ for index, dotted in ipairs(PATHS) do
 	local coords = POSITIONS[index]
 	local dims = SIZES[index]
 	local rot = ROTATIONS[index]
+	local rgb = COLORS[index]
+	local material = MATERIALS[index]
+	local transparency = TRANSPARENCIES[index]
+	local canCollide = CAN_COLLIDES[index]
+	local canTouch = CAN_TOUCHES[index]
 	local node = resolve(dotted)
 
 	if node == nil or not node:IsA("BasePart") then
@@ -282,6 +362,74 @@ for index, dotted in ipairs(PATHS) do
 				touched = true
 			end
 		end
+-- 4. APARIENCIA: color, material, transparencia y colision.
+		--
+		-- Sin esto, cambiar el color de una pieza en el generador no
+		-- llegaba NUNCA a Studio (ver la nota de "collectEntries").
+		-- Se compara antes de escribir, por el mismo motivo que la
+		-- posicion: asignar una propiedad sin necesidad replica a todos
+		-- los clientes y es trafico puro.
+		if rgb then
+			local targetColor = Color3.new(rgb[1], rgb[2], rgb[3])
+			-- Tolerancia de 1/255: los canales llegan con precision de
+			-- coma flotante y comparar con == marcaria como distinta una
+			-- pieza que ya tiene el color correcto.
+			local delta =
+				math.abs(node.Color.R - targetColor.R)
+				+ math.abs(node.Color.G - targetColor.G)
+				+ math.abs(node.Color.B - targetColor.B)
+			-- Tolerancia de 3/255, NO de 1.
+			--
+			-- Roblox guarda "Color" en coma flotante de 32 bits y al
+			-- releerla un canal escrito como 70/255 puede volver como 69.
+			-- Con una tolerancia de 1/255 la comprobacion lo consideraba
+			-- distinto, reescribia el color en cada pasada y el script
+			-- NUNCA llegaba a idempotencia: informaba de 36 colores
+			-- "arreglados" una y otra vez sin que nada cambiara. Se
+			-- acumulan los tres canales, asi que el margen total es 3/255.
+			if delta > 0.012 then
+				node.Color = targetColor
+				fixedColor += 1
+				touched = true
+			end
+		end
+
+		if material then
+			-- "Material" es un enum: un nombre invalido lanzaria error y
+			-- abortaria TODO el script, dejando la mitad del mapa a medio
+			-- colocar. Se protege el caso con pcall.
+			local okEnum, resolved = pcall(function()
+				return Enum.Material[material]
+			end)
+			if okEnum and resolved and node.Material ~= resolved then
+				node.Material = resolved
+				fixedMaterial += 1
+				touched = true
+			end
+		end
+
+		if transparency and math.abs(node.Transparency - transparency) > 0.004 then
+			node.Transparency = transparency
+			fixedTransparency += 1
+			touched = true
+		end
+
+		-- CanCollide se restaura SIEMPRE, tambien a false.
+		--
+		-- No es cosmetico: un "Block_" con la colision desactivada deja de
+		-- ser un obstaculo y el contrato de destruccion se rompe sin que
+		-- ninguna comprobacion de recuento lo note.
+		if canCollide ~= nil and node.CanCollide ~= (canCollide == 1) then
+			node.CanCollide = canCollide == 1
+			fixedCollision += 1
+			touched = true
+		end
+
+		if canTouch ~= nil and node.CanTouch ~= (canTouch == 1) then
+			node.CanTouch = canTouch == 1
+			fixedCollision += 1
+			touched = true
+		end
 
 		if touched then
 			if #examples < 5 then
@@ -298,6 +446,10 @@ return {
 	fixedPosition = fixedPosition,
 	fixedSize = fixedSize,
 	fixedRotation = fixedRotation,
+	fixedColor = fixedColor,
+	fixedMaterial = fixedMaterial,
+	fixedTransparency = fixedTransparency,
+	fixedCollision = fixedCollision,
 	alreadyCorrect = alreadyCorrect,
 	missingFromRuntime = missing,
 	examples = examples,

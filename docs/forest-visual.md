@@ -102,6 +102,46 @@ corrige al entrar, el primer fotograma del juego ya es el equivocado.
 Todas dan PASS. **Ninguna comprueba que el bosque se vea bien**: eso
 sigue sin poder verificarse sin una captura.
 
+## Reconciliacion del bloque visual (HEAD 320cd08)
+
+Lo anterior ya estaba hecho y commiteado. Este bloque NO reconstruyo el
+bosque: lo **reconcilio**, porque el informe previo no se puede dar por
+cierto y habia que volver a medir antes de tocar nada.
+
+### Lo que se midio de nuevo, en runtime
+
+| Medida | Valor |
+|---|---|
+| Partes totales en Workspace | 1245 |
+| Colisionables | 124 |
+| Neon | 299 |
+| Translucidas | 105 |
+| Bloques `Block_` | 48 |
+| SpawnLocations | 6 |
+| Tamanos distintos | 434 |
+| Piezas inclinadas | 93 |
+| SOURCE vs RUNTIME | 0 ausentes, 0 sobrantes |
+
+El bosque ya no es la rejilla: 434 tamanos distintos, 93 piezas
+inclinadas, 4 variantes deterministas y 1227 Partes declaradas.
+
+### Lo que estaba MAL y se corrigio
+
+`apply-map-positions.js` no escribia ninguna propiedad de apariencia. Sobre
+una sesion de Play limpia se midieron **50 posiciones, 49 tamanos, 62
+colores y 49 materiales** que no estaban donde decia la fuente. Ninguna de
+las comprobaciones existentes lo veian, porque todas comparaban recuento y
+nombre de instancias. Detalle completo, con los dos errores que cometi al
+arreglarlo, en `docs/sync-defects.md` seccion 7.
+
+### Lo que se comprobo que NO era un fallo
+
+- Los cuatro portales con panel gris **no** estaban rotos:
+  `VisualService` los apaga a proposito (`VisualService.lua:442`).
+- `client-probe.js` dando FAIL con `Lobby 0/98` **no** era un fallo del
+  cliente: el jugador esta legitimamente en la Arena a 500 studs.
+  La puerta ahora mide la zona en la que esta.
+
 ## Lo que NO se puede verificar aqui
 
 `capture_screenshot` sigue dando `request_timeout`. La comprobacion

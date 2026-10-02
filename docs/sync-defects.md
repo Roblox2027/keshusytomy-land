@@ -131,6 +131,190 @@ La comparacion tiene que tratar esos dos valores como iguales.
 
 ---
 
+## 7. `apply-map-positions.js` NO aplicaba NINGUNA propiedad de apariencia
+
+**Medido por:** `tools/portal-source-audit.js` (nuevo)
+
+`apply-map-positions.js` colocaba `Position`, `Size` y `Orientation`.
+**No escribia `Color`, `Material`, `Transparency` ni `CanCollide`.**
+
+Por si sola no seria un fallo: Rojo deberia aplicar el resto al importar.
+Lo es en combinacion con el defecto 1 (`import_rbxm` no actualiza lo que ya
+existe), y produce un sintoma muy dificil de leer:
+
+```text
+Portal_Ice    panel declarado 140/214/245  ->  runtime 70/74/86
+Portal_Desert panel declarado 255/152/72   ->  runtime 70/74/86
+Portal_Volcano panel declarado 240/110/72  ->  runtime 70/74/86
+Portal_Cyber  panel declarado 190/120/255  ->  runtime 70/74/86
+```
+
+Cuatro portales con el color que tenian **antes** de este bloque. El gris
+`70/74/86` NO era un color equivocado: es el que `VisualService.lua:442`
+pone a proposito en los mundos deshabilitados. El sintoma parecia "el mapa
+no llega" y en parte era cierto, pero la causa de fondo era que **nunca se
+escribieron propiedades de apariencia**.
+
+Medido sobre una sesion de Play recien arrancada, la colocacion encontro
+**50 posiciones, 49 tamanos, 62 colores y 49 materiales** que no estaban
+donde decia la fuente.
+
+**Correccion:** `apply-map-positions.js` escribe tambien la apariencia, con
+las mismas comparaciones previas que ya usaba para no generar trafico
+inutil. `CanCollide` se restaura SIEMPRE, tambien a `false`: un `Block_` sin
+colision deja de ser obstaculo y rompe el contrato de destruccion sin que
+ninguna comprobacion de recuento lo note.
+
+### 7.1 Dos errores QUE PRODUJE AL ARREGLARLO
+
+Se documentan porque el estado final no los explica y volver a hacerlos
+seria facil.
+
+**La tolerancia de color de 1/255 hacia el script NO idempotente.**
+Roblox guarda `Color` en coma flotante de 32 bits: un canal escrito como
+`70/255` se relee como `69`. Con un margen de 1/255 la comprobacion lo
+daba por distinto, reescribia el color en cada pasada e informaba de 36
+colores "arreglados" una y otra vez sin que nada cambiara. El margen son
+3/255, que es lo que suman los tres canales.
+
+**El bloque de apariencia quedo insertado dentro de la contabilidad de
+ejemplos.** Se coloco dentro de `if touched then / if #examples < 5 then`, que
+solo se ejecuta si algo cambio, asi que la apariencia no se aplicaba a las
+piezas que ya estaban bien. El sintoma era desconcertante: el script
+informaba `alreadyCorrect` para justo las piezas que queria corregir.
+`node -c` no lo detecta. Solo se ve leyendo donde termino el bloque.
+
+### 7.2 Propiedad compartida: el panel de los portales bloqueados
+
+Al arreglar 7, `apply-map-positions` empezo a repintar los cuatro paneles
+bloqueados con el color de su mundo, **`VisualService` los volvio a poner
+gris, y el verificador dio FAIL sobre un runtime correcto**.
+
+El gris no es decoracion: es la senal de juego de "aqui no se entra", y
+depende de `FeatureConfig` en cada arranque, asi que no puede vivir en la
+fuente. Dos sistemas no pueden ser duenos de la misma propiedad, y el
+conflicto se manifesto en las dos direcciones:
+
+- aplicando el color de la fuente: el verificador daba 4 discrepancias;
+- sin aplicarlo: `apply` y `VisualService` se peleaban cada arranque.
+
+**Correccion:** la propiedad se declara explicitamente.
+`RUNTIME_OWNED_APPEARANCE` lista los paths cuya apariencia manda el
+runtime, y a esas piezas el manifiesto les pasa `nil` en color y material.
+Su GEOMETRIA se sigue aplicando, porque de esa si responde la fuente.
+`portal-source-audit.js` comprueba el gris como valor ESPERADO en los
+cuatro mundos deshabilitados, y el color de la fuente en Forest.
+
+No es un caso particular: es la regla general. Un mapa tiene dos duenos de
+la verdad, la fuente para lo declarado y el runtime para lo que depende del
+estado de la partida. Lo que no se puede es que los dos escriban la misma
+propiedad sin que nadie lo haya declarado.
+
+---
+
+## 8. La puerta del cliente media la zona equivocada
+
+**Medido por:** `tools/client-probe.js` + `tools/lobby-teleport-check.js`
+
+`client-probe.js` cerraba con:
+
+```lua
+local ok = c.hasCamera and c.hasPlayerGui and (c.visibleLobbyParts or 0) > 0
+```
+
+Exigia ver Partes **del Lobby**, siempre. Daba FAIL con el juego
+correcto: el ciclo de ronda lleva al jugador a la Arena (`x = 500`), a 500
+studs del Lobby, asi que alli el Lobby no tiene por que verse. Era un fallo
+de la sonda, no del juego, y se estaba reportando como lo segundo.
+
+`lobby-teleport-check.js` mide el paso intermedio, que es el que decide:
+
+```text
+ANTES   : 499,3,-59
+SALIDA  : movido a LobbySpawn1
++500ms  : 0,5,-24     <- el teleport FUNCIONA
++1500ms : -13,3,-18
++3000ms : -23,5,-2
++5000ms : -0,5,25     <- la ronda lo revierte
+```
+
+El teleport al Lobby funciona y el jugador esta alli a los 500 ms. Lo que
+sigue es la ronda revirtiendolo, que es su comportamiento previsto. Con
+`facelobby` el cliente llega a mostrar `Lobby 11/98` y despues `Lobby 0/98`
+en dos ejecuciones seguidas con el mismo mapa.
+
+La camara no era el problema: en PLAY esta a 5.3 de altura con el personaje
+en 3.0, unos 2.3 studs por encima, lo normal en `CameraType.Custom`.
+
+**Correccion:** la puerta pregunta lo que el jugador tiene delante **en la
+zona en la que esta**, y ademas exige que la zona se haya podido
+determinar: un `zone` vacio si significaria que el cliente no ve el mapa, y
+eso si es un fallo. Se siguen exigiendo camara y `PlayerGui`. Los motivos se
+imprimen uno a uno en vez de un `FAIL` sin explicar.
+
+---
+
+## 9. `IsVisibleFrom` en el cliente agota el puente MCP
+
+**Medido por:** `tools/client-camera-sample.lua`
+
+La primera version de la sonda de camara recorria
+`Lobby:GetDescendants()` llamando a `IsVisibleFrom` en cada Part. Las cuatro
+muestras consecutivas dieron `request_timeout` a los 30 s, y el cliente
+siguio sin responder a eval incluso triviales hasta reiniciar Play.
+
+`IsVisibleFrom` es una prueba de oclusion REAL, no una comparacion de
+distancia: su coste crece rapido y cuatro veces seguidas en el mismo ciclo
+desbordan el puente. El recuento por region de `client-probe.js` ya cubre
+la visibilidad, asi que la sonda se quedo en lo que si hacia falta: donde
+estan la camara y el personaje, medidos en el MISMO instante.
+
+La leccion: `IsVisibleFrom` no se usa para medir "cuantas partes hay cerca".
+Ya hay una comprobacion mas barata para eso.
+
+---
+
+## 10. Carrera entre `apply-map-positions` y la carga del servidor
+
+**Medido por:** `play.js restart` seguido de `verify-geometry.js`
+
+`play.js` anuncia `SERVIDOR LISTO` cuando el servidor existe, **no** cuando
+ha terminado de cargar. Play arranca desde una copia en disco
+(defecto 5), y esa copia se replica al servidor durante unos segundos mas.
+
+Si `apply-map-positions.js --run-server` se ejecuta en esa ventana, mide el
+estado a medio cargar y por eso informa de que **todo esta correcto**:
+
+```text
+# servidor recien arrancado, aplicar demasiado pronto
+"alreadyCorrect": 1226,  "fixedPosition": 0,  "fixedSize": 0
+```
+
+Un minuto despues, sobre ese mismo servidor:
+
+```text
+GEOMETRIA: FAIL
+Worlds.Forest.Blocks.Block_0: mide 8.0x8.0x8.0, deberia medir 6x11x6
+(tamano incorrecto: 48, descolocadas: 40)
+```
+
+Los dos resultados son del mismo servidor y del mismo mapa, y no se
+contradicen: la medicion se hizo antes de que llegara la copia.
+
+Con **25 s de espera** entre `restart` y `apply`, la colocacion encuentra lo
+que hay de verdad (`fixedPosition: 50`, `fixedSize: 49`) y todo lo que sigue
+da PASS.
+
+Peor: `apply` devolviendo `alreadyCorrect` sobre un mapa que en realidad
+esta roto es el peor resultado posible, porque **desaparece el sintoma sin
+haber arreglado nada**. Sin este aviso, el siguiente paso natural ("ya esta
+bien, sigamos") deja el mapa viejo en el servidor.
+
+**Regla:** despues de `play.js restart`, esperar antes de aplicar o medir.
+`play.js status` informa de que el servidor EXISTE, no de que este LISTO.
+
+---
+
 ## Falso positivo conocido
 
 `tools/verify-wiring.js` falla con:
