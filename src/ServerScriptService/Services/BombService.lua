@@ -113,6 +113,14 @@ local function detonateBomb(bombId: number, depth: number)
 	local position = record.Position
 	local ownerId = record.OwnerUserId
 
+	Logger.Debug(("[BOMB] detonate id=%d en (%.0f, %.0f, %.0f) por %s"):format(
+		bombId,
+		position.X,
+		position.Y,
+		position.Z,
+		tostring(ownerId)
+	))
+
 	-- Se borra ANTES de resolver la explosion: si la cadena vuelve a
 	-- mirar esta bomba, ya no la encontrara y no habra recursion.
 	Service._activeBombs[bombId] = nil
@@ -234,6 +242,7 @@ local function spawnBomb(ownerId: number?, position: Vector3): number
 	-- La cuenta regresiva la lleva el SERVIDOR. El cliente solo ve la
 	-- bomba porque se crea aqui, no porque el la haya creado.
 	task.delay(GameConfig.DefaultBombFuseTime, function()
+		Logger.Debug(("[BOMB] fuse agotada, detona la bomba %d"):format(bombId))
 		detonateBomb(bombId, 0)
 	end)
 
@@ -262,12 +271,26 @@ end
 --- @return boolean placed
 --- @return string? reason motivo del rechazo
 function Service.TryPlaceBomb(player: Player, position: any): (boolean, string?)
+	-- Traza del camino de la bomba. Solo con DEBUG: asi se puede ver en
+	-- el Output si el request LLEGA, si pasa la VALIDACION y si la bomba
+	-- se CREO, sin tener que instrumentar el motor a mano.
+	Logger.Debug(("[BOMB] request de %s en (%.1f, %.1f, %.1f)"):format(
+		player and player.Name or "?",
+		type(position) == "Vector3" and position.X or 0,
+		type(position) == "Vector3" and position.Y or 0,
+		type(position) == "Vector3" and position.Z or 0
+	))
+
 	-- 1. La ronda debe estar en curso. En el lobby no se coloca nada.
 	if not Service._roundService then
+		Logger.Debug("[BOMB] validation fallo: sin RoundService")
 		return false, "servicio de ronda no disponible"
 	end
 
 	if not Service._roundService.IsPlaying() then
+		Logger.Debug(("[BOMB] validation fallo: no hay ronda en curso (estado=%s)"):format(
+			Service._roundService.GetState()
+		))
 		return false, "no hay ronda en curso"
 	end
 
@@ -277,6 +300,7 @@ function Service.TryPlaceBomb(player: Player, position: any): (boolean, string?)
 	local rootPart = character and character:FindFirstChild("HumanoidRootPart")
 
 	if not humanoid or humanoid.Health <= 0 or not rootPart then
+		Logger.Debug("[BOMB] validation fallo: personaje no jugable")
 		return false, "personaje no jugable"
 	end
 
@@ -285,11 +309,22 @@ function Service.TryPlaceBomb(player: Player, position: any): (boolean, string?)
 	local validPosition, positionReason = isValidPosition(position)
 
 	if not validPosition then
+		Logger.Debug(("[BOMB] validation fallo: %s"):format(positionReason or "posicion invalida"))
 		return false, positionReason or "posicion invalida"
 	end
 
 	-- 4. Limites del mapa. Sin esto se puede explotar fuera del mapa.
 	if not Service.IsInsideArena(position) then
+		local bounds = Service._arenaBounds
+
+		if bounds then
+			Logger.Debug(("[BOMB] validation fallo: fuera de la arena X[%.0f, %.0f] Z[%.0f, %.0f]"):format(
+				bounds.MinX, bounds.MaxX, bounds.MinZ, bounds.MaxZ
+			))
+		else
+			Logger.Debug("[BOMB] validation fallo: sin limites de arena conocidos")
+		end
+
 		return false, "fuera de la arena"
 	end
 
@@ -298,6 +333,10 @@ function Service.TryPlaceBomb(player: Player, position: any): (boolean, string?)
 	local distance = (rootPart.Position - position).Magnitude
 
 	if distance > GameConfig.BombPlacementRange then
+		Logger.Debug(("[BOMB] validation fallo: fuera de rango (%.0f studs, max %.0f)"):format(
+			distance,
+			GameConfig.BombPlacementRange
+		))
 		return false, ("fuera de rango (%.0f studs)"):format(distance)
 	end
 
@@ -307,10 +346,12 @@ function Service.TryPlaceBomb(player: Player, position: any): (boolean, string?)
 	local limits = PerformanceConfig.Limits
 
 	if Service.GetPlayerBombCount(player.UserId) >= limits.MaxBombsPerPlayer then
+		Logger.Debug("[BOMB] validation fallo: limite de bombas del jugador")
 		return false, "limite de bombas alcanzado"
 	end
 
 	if Service.GetActiveBombCount() >= limits.MaxBombsPerWorld then
+		Logger.Debug("[BOMB] validation fallo: limite de bombas del mundo")
 		return false, "limite de bombas del mundo alcanzado"
 	end
 
@@ -319,6 +360,7 @@ function Service.TryPlaceBomb(player: Player, position: any): (boolean, string?)
 	local now = os.clock()
 
 	if now < (Service._cooldowns[player.UserId] or 0) then
+		Logger.Debug("[BOMB] validation fallo: en cooldown")
 		return false, "en cooldown"
 	end
 	Service._cooldowns[player.UserId] = now + GameConfig.BombCooldown
@@ -328,7 +370,13 @@ function Service.TryPlaceBomb(player: Player, position: any): (boolean, string?)
 		return false, "sin servicio de explosiones"
 	end
 
-	spawnBomb(player.UserId, position)
+	local bombId = spawnBomb(player.UserId, position)
+
+	Logger.Debug(("[BOMB] created id=%d por %s (mecha %.1fs)"):format(
+		bombId,
+		player.Name,
+		GameConfig.DefaultBombFuseTime
+	))
 
 	return true, nil
 end
@@ -440,13 +488,14 @@ function Service.Start(): boolean
 	end
 
 	if not Service._explosionService then
-		Logger.Warn("BombService: sin ExplosionService; las bombas no explotaran.")
+		Logger.Error("BombService: sin ExplosionService; las bombas NO explotaran.")
 	end
 
 	if not Service._roundService then
-		Logger.Warn("BombService: sin RoundService; no se podran colocar bombas.")
+		Logger.Error("BombService: sin RoundService; no se podran colocar bombas.")
 	end
 
+	Logger.Info("BombService listo.")
 	return true
 end
 

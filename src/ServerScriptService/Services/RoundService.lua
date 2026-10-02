@@ -132,6 +132,17 @@ function Service.OnStateChanged(listener: (string, string) -> ()): () -> ()
 	end
 end
 
+--- Numero de listeners registrados en los cambios de estado.
+---
+--- Lo usa `MatchService` para PROBAR que su suscripcion quedo
+--- registrada de verdad: que la llamada no lance error no significa que
+--- el listener se vaya a invocar. Es una lectura pura, no altera el
+--- ciclo de ronda.
+--- @return number count
+function Service.GetListenerCount(): number
+	return #Service._listeners
+end
+
 --- Numero de ronda en curso (0 antes de la primera).
 --- @return number
 function Service.GetRoundNumber(): number

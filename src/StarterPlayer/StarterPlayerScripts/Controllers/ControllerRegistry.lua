@@ -51,8 +51,21 @@ Registry._entries = {}
 Registry._order = {}
 Registry._isRunning = false
 
+--- Crea el registro de controllers.
+---
+--- BUG CORREGIDO (auditoria de integracion): `new()` devolvia
+--- `setmetatable({}, Registry)`, de modo que `self._entries` se resolvia
+--- por `__index` hasta la tabla de clase. EsCRIBir en `self._entries`
+--- mutaba la tabla COMPARTIDA entre todos los registros. Con un solo
+--- registro no se notaba; con dos (o con un test) el estado se
+--- contaminaba. Ahora cada registro nace con su propia tabla.
+--- @return table
 function Registry.new()
-	return setmetatable({}, Registry)
+	return setmetatable({
+		_entries = {},
+		_order = {},
+		_isRunning = false,
+	}, Registry)
 end
 
 --- Registra un controller. No lo arranca todavia.

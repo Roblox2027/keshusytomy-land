@@ -39,6 +39,29 @@ local RemoteGateway = require(SERVER:WaitForChild("Systems"):WaitForChild("Remot
 
 local ServerMain = {}
 
+-- Prefijo de los fallos de cableado. Se compara con `#PREFIX` y no con
+-- un numero fijo: un conteo mal puesto hacia que los fallos se
+-- imprimieran como INFO y volvieran a ser invisibles.
+local WIRING_FAIL_PREFIX = "[WIRING FAIL]"
+
+--- Servicios sin los cuales el juego NO es jugable. Se usan para el
+--- informe de arranque: si uno de estos no llega a `Started`, el
+--- servidor esta en modo degradado aunque no haya ningun error rojo.
+ServerMain.CriticalServices = {
+	"WorldService",
+	"SpawnService",
+	"DestructionService",
+	"RoundService",
+	"CombatService",
+	"PlayerService",
+	"ExplosionService",
+	"BombService",
+	"MatchService",
+}
+
+--- Resultado del cableado de dependencias de la ultima arrancada.
+ServerMain.WiringReport = {}
+
 -- Referencias a los servicios que los handlers de remotos necesitan.
 -- Se llenan en `Start`, despues de arrancar el registro.
 local playerService = nil
@@ -66,10 +89,19 @@ local SERVICES = {
 
 --- Conecta las dependencias entre servicios.
 ---
---- Se hace ANTES de arrancar el ciclo de ronda: si no, la primera
---- ronda empezaria sin traslados ni destruccion configurados.
+--- Se hace ENTRE `InitAll` y `StartAll`: antes de arrancar, pero despues
+--- de que cada servicio exista. Este es el unico punto del arranque en el
+--- que un servicio puede conocer a otro.
+---
+--- AUDITORIA: antes esta funcion NO reportaba nada. Cada `if ... then`
+--- se saltaba en silencio si una dependencia era nil, de modo que un
+--- servicio podia quedarse sin cablear y el juego seguia "arrancando".
+--- Ahora cada salto se registra como `[WIRING FAIL]` y se devuelve un
+--- informe, para que el Output diga exactamente que falta y por que.
 --- @param registry any registro de servicios
-local function wireDependencies(registry: any)
+--- @return { string } report una linea por conexion
+local function wireDependencies(registry: any): { string }
+	local report: { string } = {}
 	local worldService = registry:Get("WorldService")
 	local roundService = registry:Get("RoundService")
 	local playerService = registry:Get("PlayerService")
@@ -78,45 +110,107 @@ local function wireDependencies(registry: any)
 	local bombService = registry:Get("BombService")
 	local destructionService = registry:Get("DestructionService")
 	local matchService = registry:Get("MatchService")
+	local spawnService = registry:Get("SpawnService")
+
+	-- Declara una conexion y verifica que se pudo hacer de verdad.
+	-- @param label string
+	-- @param consumer any servicio que recibe
+	-- @param dependencies { string } nombres de lo que se le inyecta
+	-- @param setter any? funcion que hace la inyeccion
+	local function connect(label: string, consumer: any, dependencies: { string }, setter: any?)
+		if not consumer then
+			table.insert(report, ("[WIRING FAIL] %s no existe (su Init fallo)"):format(label))
+			return
+		end
+
+		local missing = {}
+		for _, dependency in ipairs(dependencies) do
+			if not registry:Get(dependency) then
+				table.insert(missing, dependency)
+			end
+		end
+
+		if #missing > 0 then
+			table.insert(report, ("[WIRING FAIL] %s sin %s"):format(
+				label,
+				table.concat(missing, ", ")
+			))
+			return
+		end
+
+		if setter then
+			setter(consumer)
+		end
+
+		table.insert(report, ("[WIRING OK] %s -> %s"):format(
+			label,
+			table.concat(dependencies, ", ")
+		))
+	end
 
 	-- ExplosionService necesita a CombatService: TODOS los danos pasan
-	-- por ahi (invulnerabilidad, ronda, atribucion). Si falta, la
-	-- explosion no puede danar a nadie.
-	if explosionService and destructionService and combatService then
-		explosionService.SetDependencies(destructionService, combatService)
-	end
+	-- por ahi (invulnerabilidad, ronda, atribucion). Sin el, la explosion
+	-- no puede danar a nadie.
+	connect("ExplosionService", explosionService, { "DestructionService", "CombatService" },
+		function(service: any)
+			service.SetDependencies(destructionService, combatService)
+		end
+	)
 
 	-- CombatService notifica las muertes a PlayerService, que es quien
 	-- mantiene el estado de sesion y paga al asesino.
-	if combatService and roundService and playerService then
-		combatService.SetDependencies(roundService, playerService)
-	end
+	connect("CombatService", combatService, { "RoundService", "PlayerService" },
+		function(service: any)
+			service.SetDependencies(roundService, playerService)
+		end
+	)
 
-	if bombService then
-		bombService.SetDependencies(roundService, explosionService)
-	end
+	connect("BombService", bombService, { "RoundService", "ExplosionService" },
+		function(service: any)
+			service.SetDependencies(roundService, explosionService)
+		end
+	)
 
-	if playerService and roundService and combatService then
-		playerService.SetDependencies(roundService, combatService, matchService)
-	end
+	connect("PlayerService", playerService, { "RoundService", "CombatService", "MatchService" },
+		function(service: any)
+			service.SetDependencies(roundService, combatService, matchService)
+		end
+	)
 
 	-- SpawnService necesita saber en que zona esta el jugador para
 	-- rescatarlo en el sitio correcto (arena si hay ronda, lobby si no).
-	local spawnService = registry:Get("SpawnService")
+	connect("SpawnService", spawnService, { "RoundService", "MatchService" },
+		function(service: any)
+			service.SetDependencies(roundService, matchService)
+		end
+	)
 
-	if spawnService and roundService and matchService then
-		spawnService.SetDependencies(roundService, matchService)
-	end
-
-	if matchService then
-		matchService.SetDependencies(roundService, playerService, bombService, destructionService, combatService)
-	end
+	connect("MatchService", matchService,
+		{ "RoundService", "PlayerService", "BombService", "DestructionService", "CombatService" },
+		function(service: any)
+			service.SetDependencies(roundService, playerService, bombService, destructionService, combatService)
+		end
+	)
 
 	-- MatchService necesita conocer el mundo por defecto para validar
 	-- a quien puede entrar en el (FASE 18 lo hara con portales).
 	if worldService then
-		Logger.Debug(("mundo por defecto: %s"):format(tostring(worldService.GetDefaultWorldId())))
+		table.insert(report, ("[WIRING OK] mundo por defecto: %s"):format(
+			tostring(worldService.GetDefaultWorldId())
+		))
 	end
+
+	-- El informe se imprime aqui y no solo se devuelve: un fallo de
+	-- cableado es la causa mas silenciosa de "el juego no hace nada".
+	for _, line in ipairs(report) do
+		if string.sub(line, 1, #WIRING_FAIL_PREFIX) == WIRING_FAIL_PREFIX then
+			Logger.Error(line)
+		else
+			Logger.Info(line)
+		end
+	end
+
+	return report
 end
 
 -- Canales remotos y sus handlers.
@@ -243,16 +337,33 @@ function ServerMain.Start(): boolean
 		return false
 	end
 
-	local started = ServerMain.Registry:Start()
+	local registry = ServerMain.Registry
 
-	-- Servicios que los handlers de remotos consultan en caliente.
-	playerService = ServerMain.Registry:Get("PlayerService")
-	bombService = ServerMain.Registry:Get("BombService")
+	-- ORDEN DE ARRANQUE (auditoria de integracion):
+	--
+	-- BUG CORREGIDO: antes se llamaba `Registry:Start()`, que hacia Init y
+	-- Start en un solo paso, y las dependencias se cableaban DESPUES. Como
+	-- `Registry:Get` solo devolvia instancias ya arrancadas, `MatchService`
+	-- arrancaba sin `RoundService` inyectado y su `Start` devolvia false
+	-- ANTES de suscribirse a `OnStateChanged`. En el juego eso significaba:
+	--   - nadie se teletransportaba nunca a la arena,
+	--   - `RoundService` avanzaba de estado sin nadie escuchando,
+	--   - las bombas nunca podian colocarse (no habia arena),
+	--   - y todo ello con el output aparentemente "limpio".
+	--
+	-- Ahora: Init de todo -> cablear -> Start de todo. Ese es el unico
+	-- orden en el que las dependencias tienen sentido.
+	local initialized = registry:InitAll()
 
-	-- Las dependencias se conectan DESPUES de arrancar: `Registry:Get`
-	-- solo devuelve instancias ya iniciadas. Hacerlo antes devolveria
-	-- nil y los servicios se quedarian sin wiring, en silencio.
-	wireDependencies(ServerMain.Registry)
+	-- Cableado. `Get` ya devuelve los servicios inicializados, asi que
+	-- esta fase ve exactamente los mismos objetos que vera `Start`.
+	ServerMain.WiringReport = wireDependencies(registry)
+
+	-- Los handlers de remotos consultan estos en caliente.
+	playerService = registry:Get("PlayerService")
+	bombService = registry:Get("BombService")
+
+	local started = registry:StartAll()
 
 	-- Gateway de remotos: valida y limita TODO lo que llega del cliente.
 	-- Se arranca despues de los servicios para que sus handlers ya
@@ -267,9 +378,64 @@ function ServerMain.Start(): boolean
 		table.concat(registeredChannels, ", ")
 	))
 
-	Logger.Info("Foundation initialized.")
+	-- Resumen de arranque. Se imprime SIEMPRE, no solo en fallo: sin esto
+	-- no hay forma de saber desde el Output que sistema arranco y cual no.
+	Logger.Info("[BOOT] SERVIDOR ARRANCADO")
+	for _, line in ipairs(ServerMain.GetBootReport()) do
+		Logger.Info(line)
+	end
 
-	return started
+	if not initialized then
+		Logger.Error("[BOOT FAIL] hay servicios cuyo Init fallo; revisa el informe de arriba.")
+	end
+
+	if not started then
+		Logger.Error("[BOOT FAIL] hay servicios cuyo Start fallo; revisa el informe de arriba.")
+	end
+
+	return initialized and started
+end
+
+--- Informe del arranque: una linea por servicio con su estado real.
+---
+--- Es la unica forma de distinguir "todo bien" de "arranca en modo
+--- degradado" leyendo el Output, sin abrir el explorador a cada paso.
+--- @return { string } report
+function ServerMain.GetBootReport(): { string }
+	local report = {}
+
+	if not ServerMain.Registry then
+		table.insert(report, "[BOOT] no hay registro de servicios")
+		return report
+	end
+
+	table.insert(report, ("[BOOT] estado del servidor: %s"):format(
+		ServerMain.Registry:GetServerState()
+	))
+
+	for _, line in ipairs(ServerMain.Registry:GetReport()) do
+		table.insert(report, ("[BOOT]   %s"):format(line))
+	end
+
+	local failed = 0
+	for _, name in ipairs(ServerMain.CriticalServices) do
+		local _, state = ServerMain.Registry:GetEntry(name)
+		if tostring(state) ~= GameConstants.ServiceState.Started then
+			failed += 1
+			table.insert(report, ("[BOOT FAIL] %s no arranco (estado: %s)"):format(
+				name,
+				tostring(state)
+			))
+		end
+	end
+
+	if failed == 0 then
+		table.insert(report, ("[BOOT] servicios criticos OK (%d)"):format(
+			#ServerMain.CriticalServices
+		))
+	end
+
+	return report
 end
 
 --- Apaga el servidor de forma ordenada (regla de shutdown).

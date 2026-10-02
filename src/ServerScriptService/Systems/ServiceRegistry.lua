@@ -62,9 +62,23 @@ Registry._state = ServerState.Starting
 Registry._masterMaid = nil
 
 --- Crea el registro. Debe existir uno solo por servidor.
+---
+--- BUG CORREGIDO (auditoria de integracion): antes los campos de estado
+--- vivian SOLO en la tabla de clase (`Registry._entries`) y `new()`
+--- devolvia `setmetatable({}, Registry)`. Como `self._entries` se
+--- resolvia por `__index` hasta la clase, ESCRIBIR en `self._entries`
+--- mutaba la tabla COMPARTIDA: dos registros distintos (o un test que
+--- creara uno nuevo) contaminaban el estado del anterior. Ahora cada
+--- registro nace con su PROPIA tabla de estado.
 --- @return table
 function Registry.new()
-	return setmetatable({}, Registry)
+	return setmetatable({
+		_entries = {},
+		_order = {},
+		_state = ServerState.Starting,
+		_masterMaid = nil,
+		_didInitAll = false,
+	}, Registry)
 end
 
 --- Registra un servicio. No lo inicializa todavia.
@@ -119,7 +133,20 @@ function Registry:GetState(name: string): string?
 	return entry and entry.State or nil
 end
 
---- Devuelve la instancia de un servicio ya inicializado.
+--- Devuelve la instancia de un servicio.
+---
+--- BUG CORREGIDO (auditoria de integracion): antes solo devolvia la
+--- instancia si el servicio habia llegado a `Started`, y ademas la
+--- asignaba DENTRO de la fase de Start. Eso obligaba a que
+--- `ServerMain` conectara las dependencias DESPUES de arrancar, cuando
+--- ya era demasiado tarde: `MatchService.Start` se ejecutaba sin
+--- `RoundService` inyectado y por eso NUNCA se suscribia a los cambios
+--- de ronda. En el juego no se teletransportaba a nadie a la arena y
+--- ningun sistema reaccionaba: "no funciona nada".
+---
+--- Ahora `Instance` se rellena en cuanto el servicio supera su `Init`,
+--- de modo que las dependencias se pueden conectar ENTRE Init y Start,
+--- que es el unico momento en el que tienen sentido.
 --- @param name string
 --- @return any? instance
 function Registry:Get(name: string): any?
@@ -129,6 +156,20 @@ function Registry:Get(name: string): any?
 		return nil
 	end
 	return entry.Instance
+end
+
+--- Devuelve la instancia de un servicio en cualquier estado en el que
+--- tenga una. Util para diagnostico: distingue "no registrado" de
+--- "registrado pero fallo su Init".
+--- @param name string
+--- @return any? instance
+--- @return string? state
+function Registry:GetEntry(name: string): (any?, string?)
+	local entry = self._entries[name]
+	if not entry then
+		return nil, nil
+	end
+	return entry.Instance, entry.State
 end
 
 --- Maid propio de un servicio: todo lo que registre se limpia solo.
@@ -213,7 +254,11 @@ function Registry:_InitService(name: string): boolean
 	end
 
 	entry.Maid = Maid.new()
-	entry.State = ServiceState.Initialized
+	-- El estado NO se marca `Initialized` todavia: se hace solo si el
+	-- `Init` devuelve true. Marcarlo antes hacia que un `Init` que
+	-- lanzaba una excepcion dejara al servicio marcado como bueno, y
+	-- la fase de Start lo ejecutaba igualmente sin estar preparado.
+	entry.State = ServiceState.Registered
 
 	local startTime = os.clock()
 	local ok, result = pcall(function()
@@ -237,6 +282,12 @@ function Registry:_InitService(name: string): boolean
 		Logger.Error(("Init de '%s' devolvio false"):format(name))
 		return false
 	end
+
+	-- El servicio ya es utilizable: se publica la instancia para que
+	-- `ServerMain` pueda inyectar las dependencias ENTRE Init y Start,
+	-- que es el unico momento en el que el cableado significa algo.
+	entry.Instance = entry.Module
+	entry.State = ServiceState.Initialized
 
 	-- Antes leia `GameConfig.Performance.WarnThreshold`, pero Performance
 	-- vive en su propio modulo (GameConfig no lo expone). Ese acceso
@@ -292,12 +343,19 @@ function Registry:_StartService(name: string): boolean
 	entry.StartedAt = os.clock()
 	return true
 end
---- Inicializa y arranca todos los servicios registrados.
+--- Fase 1 del arranque: inicializa TODOS los servicios y resuelve el
+--- orden topologico. No arranca ninguno.
+---
+--- Existe separada de `StartAll` porque las dependencias se inyectan
+--- ENTRE las dos fases. `MatchService.Start` necesita `RoundService` ya
+--- en la mano para suscribirse a los cambios de ronda; si el registro
+--- hiciera Init y Start en un solo paso, la suscripcion se perderia.
 --- @return boolean success false si algun servicio fallo
-function Registry:Start(): boolean
+--- @return { string } failed nombres de los que no superaron su Init
+function Registry:InitAll(): (boolean, { string })
 	if self._state ~= ServerState.Starting then
-		Logger.Warn(("Start ignorado: estado actual %s"):format(self._state))
-		return false
+		Logger.Warn(("InitAll ignorado: estado actual %s"):format(self._state))
+		return false, {}
 	end
 
 	self._masterMaid = Maid.new()
@@ -311,25 +369,58 @@ function Registry:Start(): boolean
 		end
 	end
 
-	-- Fase 1: todos los Init (las dependencias ya estan resueltas).
+	local allInitialized = true
+
 	for _, name in order do
 		local entry = self._entries[name]
 		if entry and entry.State ~= ServiceState.Failed then
-			self:_InitService(name)
+			if not self:_InitService(name) then
+				allInitialized = false
+			end
+		elseif entry then
+			allInitialized = false
 		end
 	end
 
-	-- Fase 2: todos los Start. Un fallo no detiene a los demas.
+	self._order = order
+	self._didInitAll = true
+
+	Logger.Info(("ServiceRegistry: %d servicios inicializados (%s)"):format(
+		#order,
+		table.concat(order, " > ")
+	))
+
+	if not allInitialized then
+		for _, line in ipairs(self:GetReport()) do
+			Logger.Warn(("[Init] %s"):format(line))
+		end
+	end
+
+	return allInitialized, failed
+end
+
+--- Fase 2 del arranque: arranca los servicios ya inicializados.
+--- @return boolean success false si algun servicio fallo
+function Registry:StartAll(): boolean
+	if self._state ~= ServerState.Starting then
+		Logger.Warn(("StartAll ignorado: estado actual %s"):format(self._state))
+		return false
+	end
+
+	if not self._didInitAll then
+		Logger.Error("StartAll sin InitAll: se ejecuta InitAll automaticamente.")
+		self:InitAll()
+	end
+
 	local allStarted = true
 
-	for _, name in order do
+	for _, name in self._order do
 		local entry = self._entries[name]
 		if not entry then
 			continue
 		end
 
 		if entry.State == ServiceState.Initialized then
-			entry.Instance = entry.Module
 			if not self:_StartService(name) then
 				allStarted = false
 			end
@@ -338,16 +429,36 @@ function Registry:Start(): boolean
 		end
 	end
 
-	self._order = order
 	self._state = ServerState.Running
 
-	Logger.Info(("ServiceRegistry: %d servicios -> %s"):format(#order, table.concat(order, " > ")))
+	Logger.Info(("ServiceRegistry: %d servicios arrancados (%s)"):format(
+		#self._order,
+		table.concat(self._order, " > ")
+	))
 
 	if not allStarted then
-		Logger.Warn("ServiceRegistry: hay servicios en fallo; el servidor opera en modo degradado.")
+		Logger.Error(
+			"ServiceRegistry: HAY SERVICIOS EN FALLO; el servidor opera en modo "
+			.. "degradado. El informe completo esta en ServerMain.GetBootReport()."
+		)
+		for _, line in ipairs(self:GetReport()) do
+			Logger.Warn(("[Start] %s"):format(line))
+		end
 	end
 
 	return allStarted
+end
+
+--- Arranque completo en un solo paso (Init + Start).
+---
+--- Se mantiene por compatibilidad, pero `ServerMain` usa `InitAll`,
+--- cablea las dependencias y luego llama a `StartAll`: sin ese hueco,
+--- ningun servicio puede depender de otro al arrancar.
+--- @return boolean success false si algun servicio fallo
+function Registry:Start(): boolean
+	local initialized = self:InitAll()
+	local started = self:StartAll()
+	return initialized and started
 end
 
 --- Estado global del servidor.

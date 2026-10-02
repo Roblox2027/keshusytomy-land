@@ -291,7 +291,17 @@ function Service.Start(): boolean
 	end
 
 	if not Service._roundService then
-		Logger.Error("MatchService: RoundService no inyectado; no habra traslados.")
+		-- BUG CRITICO QUE ESTE BLOQUE OCULTABA (auditoria de integracion):
+		-- esto es un ERROR FATAL, no un aviso. Sin `RoundService` no hay
+		-- maquina de estados a la que suscribirse, y por tanto NADIE se
+		-- teletransporta nunca: ni a la arena ni de vuelta al lobby. El
+		-- juego "arranca" y no hace absolutamente nada. Por eso devuelve
+		-- false: el registro lo marca como fallo y el informe de arranque
+		-- lo dice en voz alta.
+		Logger.Error(
+			"MatchService: RoundService no inyectado; no habra traslados y la "
+			.. "ronda no tendra efecto. El juego no es jugable."
+		)
 		return false
 	end
 
@@ -299,7 +309,33 @@ function Service.Start(): boolean
 	-- hiciera despues, la primera ronda no moveria a nadie.
 	Service._roundService.OnStateChanged(Service.OnRoundStateChanged)
 
-	Logger.Info("MatchService listo.")
+	-- Comprobacion de que la suscripcion ha SURGIDO EFECTO.
+	--
+	-- Que `OnStateChanged` no lance un error NO demuestra que el listener
+	-- llegara a la lista: un `RoundService` distinto (por ejemplo, una
+	-- segunda copia del modulo cacheada en otro contexto) aceptaria la
+	-- llamada y jamas la invocaria. En ese caso `MatchService` queda
+	-- `Started`, el arranque parece limpio y NADIE se teletransporta:
+	-- el sintoma exacto de "el juego no hace nada".
+	--
+	-- Se comprueba la lista de listeners directamente. Es una lectura
+	-- pura: no dispara transiciones ni altera el ciclo de ronda.
+	local listeners = Service._roundService.GetListenerCount()
+
+	if type(listeners) ~= "number" or listeners < 1 then
+		Logger.Error(
+			("MatchService: la suscripcion a los cambios de ronda NO quedo "
+				.. "registrada (listeners=%s). Comprueba que el `RoundService` "
+				.. "inyectado es el MISMO que corre el ciclo de ronda."):format(
+				tostring(listeners)
+			)
+		)
+		return false
+	end
+
+	Logger.Info(("MatchService listo (suscrito a los cambios de ronda; %d listeners)"):format(
+		listeners
+	))
 	return true
 end
 

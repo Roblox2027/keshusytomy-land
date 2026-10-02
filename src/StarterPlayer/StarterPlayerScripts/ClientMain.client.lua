@@ -63,23 +63,50 @@ end
 --- Registra y arranca todos los controllers disponibles.
 --- @return boolean success
 function ClientMain.Start(): boolean
+	Logger.Info("[BOOT] CLIENT_STARTED")
 	Logger.Info("Client starting...")
 
 	local registry = ControllerRegistry.new()
 	ClientMain.Registry = registry
 
 	local registered = registry:RegisterAll()
+
 	if #registered == 0 then
 		-- Sin controllers no hay fallo: la FASE 1 aun no tiene
 		-- logica de cliente, las siguientes la anaden.
-		Logger.Info("ClientMain: no hay controllers todavia.")
-		return true
+		Logger.Error(
+			"[BOOT FAIL] CONTROLLERS_REGISTERED = 0. No hay ningun controller "
+			.. "en StarterPlayer.StarterPlayerScripts.Controllers."
+		)
+		return false
 	end
 
+	Logger.Info(("[BOOT] CONTROLLERS_REGISTERED (%d): %s"):format(
+		#registered,
+		table.concat(registered, ", ")
+	))
+
 	local started = registry:StartAll()
+
+	local failed = 0
+	for _, line in ipairs(registry:GetReport()) do
+		if string.find(line, "Failed", 1, true) then
+			failed += 1
+		end
+	end
+
+	Logger.Info("[BOOT] CONTROLLERS_STARTED")
+	for _, line in ipairs(registry:GetReport()) do
+		Logger.Info(("[BOOT]   %s"):format(line))
+	end
+
+	if failed > 0 then
+		Logger.Error(("[BOOT FAIL] %d controller(s) no arrancaron. Ver el informe."):format(failed))
+	end
+
 	Logger.Info("Foundation initialized.")
 
-	return started
+	return started and failed == 0
 end
 
 --- Detiene todos los controllers de forma ordenada.
