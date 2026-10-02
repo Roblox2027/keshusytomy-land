@@ -240,6 +240,10 @@ async function main() {
 	let same = 0;
 	let dry = 0;
 	const failed = [];
+	// Lecturas que la herramienta truncó a 300 líneas: el final del archivo
+	// NO se pudo verificar en esos casos, y se informa en vez de disimularlo.
+	let truncatedReads = 0;
+	const truncatedPaths = [];
 
 	for (const file of files) {
 		const instancePath = "game." + instancePathFor(file);
@@ -247,29 +251,39 @@ async function main() {
 
 		// Comprobacion de "ya esta al dia".
 		//
-		// Se comparan los textos NORMALIZADOS COMPLETOS, no una huella
-		// parcial. La version anterior comparaba solo los primeros 300
-		// caracteres normalizados: como la cabecera de cada archivo (el
-		// comentario de `--!strict` y el bloque `--[[ ... ]]`) es identica
-		// antes y despues de cualquier cambio de logica, ese prefijo
-		// SIEMPRE coincidia y el script informaba "ya iguales" sin haber
-		// escrito nada. Un cambio en `Start` o en `Init` quedaba invisible
-		// y el repositorio y Studio se separaban en silencio.
+		// Se compara el texto NORMALIZADO (sin espacios), immune a las dos
+		// representaciones del salto de linea y a los numeros de linea que
+		// antepone `get_script_source`.
 		//
-		// Comparar el texto entero normalizado (sin espacios) hace la
-		// comprobacion inmune a las dos representaciones del salto de linea
-		// y a los numeros de linea que antepone `get_script_source`.
+		// ANTES ERA UNA HUELLA DE 300 CARACTERES y era un fallo grave: la
+		// cabecera de cada archivo (el comentario `--!strict` y el bloque
+		// `--[[ ... ]]`) es identica antes y despues de cualquier cambio de
+		// logica, asi que el prefijo SIEMPRE coincidia y el script informaba
+		// "ya iguales" sin escribir nada. Seis divergencias reales siguieron
+		// invisibles durante varias pasadas.
+		//
+		// AHORA: se compara la lectura COMPLETA cuando esta disponible. Si la
+		// herramienta la devuelve truncada a 300 lineas, no se puede afirmar
+		// nada del final del archivo, y en ese caso se REESCRIBE siempre: es
+		// preferible una escritura de mas a dar por bueno un archivo que
+		// podria estar divergido en su ultima linea sin que nadie lo note.
 		let current = "";
+		let readTruncated = false;
 		try {
 			const res = await session.callObject("get_script_source", { instancePath });
 			if (res && typeof res.source === "string" && !res.error) {
 				current = stripLineNumbers(res.source);
+				readTruncated = res.truncated === true;
 			}
 		} catch {
 			current = "";
 		}
 
-		if (current && normalize(current) === normalize(source)) {
+		const diskNormalized = normalize(source);
+
+		// Solo se da por al dia si la lectura NO esta truncada y coincide
+		// enteramente. Con lectura truncada se cae en la escritura de abajo.
+		if (current && !readTruncated && normalize(current) === diskNormalized) {
 			same += 1;
 			continue;
 		}
@@ -283,6 +297,40 @@ async function main() {
 		try {
 			const res = await session.call("set_script_source", { instancePath, source });
 			if (res.startsWith("ERROR MCP:")) throw new Error(res.slice(0, 200));
+
+			// COMPROBACION DE INTEGRIDAD POST-ESCRITURA.
+			//
+			// Se relee lo que hay en Studio y se compara con el disco, para no
+			// dar por buena una escritura que la herramienta haya truncado.
+			//
+			// OJO CON EL LIMITE DE LECTURA: `get_script_source` devuelve como
+			// maximo 300 lineas y lo marca con `truncated`. Una comparacion
+			// literal daria FALSO NEGATIVO en cuanto un archivo pase de ahi (6
+			// de 63 ya lo hacen), y el gate reportaria fallos inexistentes en
+			// lugar de detectar nada real.
+			//
+			// Por eso la comparacion es de PREFIJO: se verifica que Studio
+			// contenga el inicio exacto del archivo. Lo que la lectura truncada
+			// NO permite comprobar (el final del archivo) se declara
+			// explicitamente en vez de darse por bueno.
+			const check = await session.callObject("get_script_source", { instancePath });
+			if (!check || typeof check.source !== "string") {
+				throw new Error("no se pudo releer el script para verificar la escritura");
+			}
+
+			const after = stripLineNumbers(check.source);
+			const disk = normalize(source);
+			const seen = normalize(after);
+
+			if (!disk.startsWith(seen.slice(0, Math.min(seen.length, disk.length)))) {
+				throw new Error("la escritura no coincide con el disco al inicio del archivo");
+			}
+
+			if (check.truncated) {
+				truncatedReads += 1;
+				truncatedPaths.push(instancePath);
+			}
+
 			written += 1;
 			console.log("ESCRITO    " + instancePath);
 		} catch (err) {
@@ -297,6 +345,15 @@ async function main() {
 	if (DRY) console.log(`detectados como diferentes: ${dry}`);
 	else console.log(`ya iguales: ${same}`);
 	console.log(`fallidos: ${failed.length}`);
+
+	// Se declara lo que no se pudo verificar. Ocultarlo seria repetir el
+	// mismo tipo de fallo que este script ya ha sufrido dos veces: dar por
+	// buena una sincronizacion que nadie ha comprobado del todo.
+	if (truncatedReads) {
+		console.log(`verificacion parcial: ${truncatedReads} lectura(s) truncadas por la herramienta`);
+		console.log("  el FINAL de estos archivos no pudo comprobarse:");
+		for (const p of truncatedPaths) console.log("    " + p);
+	}
 
 	if (failed.length) {
 		console.log("RESULTADO: FAIL");
