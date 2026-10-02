@@ -122,6 +122,35 @@ function marker(name, position, opts) {
 	});
 }
 
+/**
+ * Crea un Model. Sus hijos se aplanan con `asChildren` por la misma razon que
+ * en `folder()`.
+ *
+ * POR QUE EXISTE (y por que los portales son Models)
+ * --------------------------------------------------
+ * Los portales se construyen como UN Model por portal (`Portal_Forest`,
+ * `Portal_Desert`, ...), no como un reguero de Parts planos.
+ *
+ * `PortalService` recorre el mapa buscando instancias cuyo nombre empiece
+ * por `Portal_` y de las que exige:
+ *   1. que sean un Model (para agrupar las piezas del portal), y
+ *   2. que contengan un umbral con nombre estable (`PortalPanel`).
+ *
+ * Con Parts sueltos no habia forma de saber cual era el panel de cual, y el
+ * servicio no podia calcular ni la posicion del umbral ni la distancia de
+ * proximidad. El Model convierte "estas seis Parts forman un portal" en un
+ * hecho que el codigo puede leer.
+ *
+ * @param {string} name
+ * @param {Array} children
+ */
+function model(name, children) {
+	return {
+		name: name,
+		node: Object.assign({ $className: "Model" }, asChildren(children)),
+	};
+}
+
 function spawnLocation(name, position, colorRGB) {
 	return {
 		name: name,
@@ -201,9 +230,11 @@ for (const p of perimeter("LobbyWall", 0, 0, LOBBY_HALF, 14, DEEP)) {
 // dimensiones. Se construye en capas para que de lejos se lea como un
 // nucleo y de cerca tenga detalle.
 //
-// Vive en `lobbyParts` (plano, bajo `Workspace.Lobby`) y no en una
-// subcarpeta porque el diseno y el codigo lo localizan por nombre.
-lobbyParts.push(
+// Vive en su propia carpeta `Workspace.Lobby.KeshusyCore`, exigida por el
+// contrato. Antes estas piezas se empujaban planas en la raiz del lobby,
+// mezcladas con el suelo y las paredes, y ningun servicio podia localizar el
+// Core como una unidad: solo existia la suma de sus Partes sueltas.
+const coreParts = [
 	// Base: tres plataformas escalonadas.
 	part("CoreBase", {
 		position: [0, 0.5, 0], size: [26, 1, 26],
@@ -237,16 +268,16 @@ lobbyParts.push(
 	decor("CoreRing_B", {
 		position: [0, 8, 0], size: [19, 0.5, 19],
 		shape: "Cylinder", color: KESHUSY, transparency: 0.35,
-	})
-);
+	}),
+];
 
 // Cuatro pilares: dan escala y ancla la composicion.
 [[7, 7], [-7, 7], [7, -7], [-7, -7]].forEach(function (p, i) {
-	lobbyParts.push(part("CorePillar_" + i, {
+	coreParts.push(part("CorePillar_" + i, {
 		position: [p[0], 4, p[1]], size: [2, 8, 2],
 		shape: "Cylinder", material: "Metal", color: [130, 142, 162],
 	}));
-	lobbyParts.push(decor("CorePillarLight_" + i, {
+	coreParts.push(decor("CorePillarLight_" + i, {
 		position: [p[0], 8.4, p[1]], size: [1.2, 1.2, 1.2],
 		shape: "Ball", color: KESHUSY,
 	}));
@@ -254,10 +285,21 @@ lobbyParts.push(
 
 // ------------------------------------------------------------ PORTALES
 // Cinco portales en arco frente al Core, uno por mundo del contrato.
-// Se identifican por nombre: `Portal_<WorldId>`.
+//
+// Cada portal es un MODEL (`Portal_<WorldId>`) y todos viven bajo
+// `Workspace.Lobby.Portals`. Ver `model()` para por que son Models.
 //
 // El panel interior es translucido y SIN colision: se ve el destino y no
 // se choca. El marco SI colisiona y marca el umbral.
+//
+// CONTRATO CON `PortalService`
+// ---------------------------
+//   - el Model se llama `Portal_<WorldId>`;
+//   - el umbral se llama `PortalPanel` y es la hoja central;
+//   - `PortalPanel` NO colisiona, para que el jugador pueda cruzarlo.
+//
+// Si se renombra cualquiera de los dos, el servicio deja de encontrar el
+// portal y todos los viajes se rechazan.
 const PORTAL_DEFS = [
 	{ id: "Forest", x: -32, level: 1, color: KESHUSY },
 	{ id: "Desert", x: -16, level: 10, color: TOMY },
@@ -266,45 +308,49 @@ const PORTAL_DEFS = [
 	{ id: "Cyber", x: 32, level: 50, color: [190, 120, 255] },
 ];
 
+const portalModels = [];
+
 for (const p of PORTAL_DEFS) {
 	const z = -34;
-	const tag = "Portal_" + p.id;
 	const frame = [86, 96, 114];
 
-	lobbyParts.push(
-		part(tag + "_Base", {
-			position: [p.x, 0.5, z], size: [12, 1, 8],
-			material: "Slate", color: frame,
-		}),
-		part(tag + "_Lintel", {
-			position: [p.x, 9, z], size: [12, 1.2, 8],
-			material: "Slate", color: frame,
-		}),
-		part(tag + "_PostL", {
-			position: [p.x - 5.5, 4.75, z], size: [1.2, 8.5, 8],
-			material: "Slate", color: frame,
-		}),
-		part(tag + "_PostR", {
-			position: [p.x + 5.5, 4.75, z], size: [1.2, 8.5, 8],
-			material: "Slate", color: frame,
-		}),
+	portalModels.push(
+		model("Portal_" + p.id, [
+			part("Base", {
+				position: [p.x, 0.5, z], size: [12, 1, 8],
+				material: "Slate", color: frame,
+			}),
+			part("Lintel", {
+				position: [p.x, 9, z], size: [12, 1.2, 8],
+				material: "Slate", color: frame,
+			}),
+			part("PostL", {
+				position: [p.x - 5.5, 4.75, z], size: [1.2, 8.5, 8],
+				material: "Slate", color: frame,
+			}),
+			part("PostR", {
+				position: [p.x + 5.5, 4.75, z], size: [1.2, 8.5, 8],
+				material: "Slate", color: frame,
+			}),
 
-		// Panel: la puerta en si. Sin colision a proposito.
-		decor(tag + "_Panel", {
-			position: [p.x, 4.75, z], size: [10, 8, 0.4],
-			color: p.color, transparency: 0.55,
-		}),
-		decor(tag + "_Glow", {
-			position: [p.x, 4.75, z], size: [7, 5, 0.3],
-			color: p.color, transparency: 0.3,
-		}),
+			// El umbral: la hoja central, translucida y sin colision.
+			decor("PortalPanel", {
+				position: [p.x, 4.75, z], size: [10, 8, 0.4],
+				color: p.color, transparency: 0.55,
+			}),
+			decor("Glow", {
+				position: [p.x, 4.75, z], size: [7, 5, 0.3],
+				color: p.color, transparency: 0.3,
+			}),
 
-		// Rotulo del nivel exigido: visible en el cartel, no en un atributo
-		// invisible. `PortalService` lo lee para validar server-side.
-		part(tag + "_Sign", {
-			position: [p.x, 10.6, z], size: [10, 1.6, 0.4],
-			material: "SmoothPlastic", color: p.color,
-		})
+			// Rotulo del nivel exigido: visible en el cartel, no en un
+			// atributo invisible. `PortalService` lo lee para validar
+			// server-side.
+			part("Sign", {
+				position: [p.x, 10.6, z], size: [10, 1.6, 0.4],
+				material: "SmoothPlastic", color: p.color,
+			}),
+		])
 	);
 }
 
@@ -534,7 +580,19 @@ const project = {
 			// Los hijos son campos directos de Workspace (ver asChildren).
 			Environment: folder("Environment", []).node,
 			SpawnLocations: folder("SpawnLocations", lobbySpawns).node,
-			Lobby: folder("Lobby", lobbyParts).node,
+
+			// El lobby lleva dentro sus dos subsystems, como exige el
+			// contrato: `Lobby.KeshusyCore` y `Lobby.Portals`.
+			//
+			// Antes el Core y los portales se empujaban como Parts sueltos
+			// en la raiz del lobby. Esa forma NO permite que un servicio
+			// los identifique: `PortalService` necesita saber que Pieces
+			// forman un portal y cual es su umbral, cosa imposible con un
+			// reguero de Parts con nombre plano.
+			Lobby: folder("Lobby", lobbyParts.concat([
+				folder("KeshusyCore", coreParts),
+				folder("Portals", portalModels),
+			])).node,
 			// Los cinco mundos del contrato se declaran TODOS aqui.
 			//
 			// Antes solo se declaraba `Forest` y los otros cuatro existian

@@ -245,19 +245,20 @@ async function main() {
 		const instancePath = "game." + instancePathFor(file);
 		const source = fs.readFileSync(file, "utf8");
 
-		// Solo se reescribe lo que cambia, y la comprobacion tiene que
-		// funcionar de verdad.
+		// Comprobacion de "ya esta al dia".
 		//
-		// `get_script_source` devuelve un objeto, no el fuente pelado: el
-		// texto llega en `source` con el numero de linea antepuesto a cada
-		// linea ("12: \tlocal x = 1"). Compararlo con el archivo del disco
-		// tal cual no coincide NUNCA: por eso la primera version informaba
-		// "ya iguales: 0" y reescribia los 63 scripts en cada pase, con el
-		// coste de recompilar todo en Studio.
+		// Se comparan los textos NORMALIZADOS COMPLETOS, no una huella
+		// parcial. La version anterior comparaba solo los primeros 300
+		// caracteres normalizados: como la cabecera de cada archivo (el
+		// comentario de `--!strict` y el bloque `--[[ ... ]]`) es identica
+		// antes y despues de cualquier cambio de logica, ese prefijo
+		// SIEMPRE coincidia y el script informaba "ya iguales" sin haber
+		// escrito nada. Un cambio en `Start` o en `Init` quedaba invisible
+		// y el repositorio y Studio se separaban en silencio.
 		//
-		// Se lee el campo `source`, se quitan los prefijos y se comparan
-		// los textos normalizados (sin espacios): immune a las dos
-		// representaciones del salto de linea.
+		// Comparar el texto entero normalizado (sin espacios) hace la
+		// comprobacion inmune a las dos representaciones del salto de linea
+		// y a los numeros de linea que antepone `get_script_source`.
 		let current = "";
 		try {
 			const res = await session.callObject("get_script_source", { instancePath });
@@ -268,8 +269,7 @@ async function main() {
 			current = "";
 		}
 
-		const fingerprint = normalize(source).slice(0, 300);
-		if (fingerprint.length > 0 && normalize(current).includes(fingerprint)) {
+		if (current && normalize(current) === normalize(source)) {
 			same += 1;
 			continue;
 		}

@@ -419,1330 +419,6 @@
             ]
           }
         },
-        "CoreBase": {
-          "$className": "Part",
-          "$properties": {
-            "Anchored": true,
-            "CanCollide": true,
-            "CanTouch": false,
-            "TopSurface": "Smooth",
-            "BottomSurface": "Smooth",
-            "Material": "Slate",
-            "Color": [
-              0.27450980392156865,
-              0.3137254901960784,
-              0.3764705882352941
-            ],
-            "Size": [
-              26,
-              1,
-              26
-            ],
-            "Position": [
-              0,
-              0.5,
-              0
-            ]
-          }
-        },
-        "CorePlinth": {
-          "$className": "Part",
-          "$properties": {
-            "Anchored": true,
-            "CanCollide": true,
-            "CanTouch": false,
-            "TopSurface": "Smooth",
-            "BottomSurface": "Smooth",
-            "Material": "Slate",
-            "Color": [
-              0.3607843137254902,
-              0.40784313725490196,
-              0.47843137254901963
-            ],
-            "Size": [
-              18,
-              1.5,
-              18
-            ],
-            "Position": [
-              0,
-              1.75,
-              0
-            ]
-          }
-        },
-        "CoreDais": {
-          "$className": "Part",
-          "$properties": {
-            "Anchored": true,
-            "CanCollide": true,
-            "CanTouch": false,
-            "TopSurface": "Smooth",
-            "BottomSurface": "Smooth",
-            "Material": "SmoothPlastic",
-            "Color": [
-              0.43137254901960786,
-              0.48627450980392156,
-              0.5647058823529412
-            ],
-            "Size": [
-              12,
-              1.4,
-              12
-            ],
-            "Position": [
-              0,
-              3.2,
-              0
-            ]
-          }
-        },
-        "CoreOrb": {
-          "$className": "Part",
-          "$properties": {
-            "Anchored": true,
-            "CanCollide": false,
-            "CanTouch": false,
-            "TopSurface": "Smooth",
-            "BottomSurface": "Smooth",
-            "Material": "Neon",
-            "Color": [
-              0.33725490196078434,
-              0.8392156862745098,
-              0.48627450980392156
-            ],
-            "Size": [
-              8,
-              8,
-              8
-            ],
-            "Position": [
-              0,
-              8,
-              0
-            ],
-            "Shape": "Ball"
-          }
-        },
-        "CoreGlow": {
-          "$className": "Part",
-          "$properties": {
-            "Anchored": true,
-            "CanCollide": false,
-            "CanTouch": false,
-            "TopSurface": "Smooth",
-            "BottomSurface": "Smooth",
-            "Material": "Neon",
-            "Color": [
-              0.5490196078431373,
-              0.9411764705882353,
-              0.7450980392156863
-            ],
-            "Size": [
-              11,
-              11,
-              11
-            ],
-            "Position": [
-              0,
-              8,
-              0
-            ],
-            "Transparency": 0.65,
-            "Shape": "Ball"
-          }
-        },
-        "CoreRing_A": {
-          "$className": "Part",
-          "$properties": {
-            "Anchored": true,
-            "CanCollide": false,
-            "CanTouch": false,
-            "TopSurface": "Smooth",
-            "BottomSurface": "Smooth",
-            "Material": "Neon",
-            "Color": [
-              1,
-              0.596078431372549,
-              0.2823529411764706
-            ],
-            "Size": [
-              16,
-              0.6,
-              16
-            ],
-            "Position": [
-              0,
-              8,
-              0
-            ],
-            "Shape": "Cylinder"
-          }
-        },
-        "CoreRing_B": {
-          "$className": "Part",
-          "$properties": {
-            "Anchored": true,
-            "CanCollide": false,
-            "CanTouch": false,
-            "TopSurface": "Smooth",
-            "BottomSurface": "Smooth",
-            "Material": "Neon",
-            "Color": [
-              0.33725490196078434,
-              0.8392156862745098,
-              0.48627450980392156
-            ],
-            "Size": [
-              19,
-              0.5,
-              19
-            ],
-            "Position": [
-              0,
-              8,
-              0
-            ],
-            "Transparency": 0.35,
-            "Shape": "Cylinder"
-          }
-        },
-        "CorePillar_0": {
-          "$className": "Part",
-          "$properties": {
-            "Anchored": true,
-            "CanCollide": true,
-            "CanTouch": false,
-            "TopSurface": "Smooth",
-            "BottomSurface": "Smooth",
-            "Material": "Metal",
-            "Color": [
-              0.5098039215686274,
-              0.5568627450980392,
-              0.6352941176470588
-            ],
-            "Size": [
-              2,
-              8,
-              2
-            ],
-            "Position": [
-              7,
-              4,
-              7
-            ],
-            "Shape": "Cylinder"
-          }
-        },
-        "CorePillarLight_0": {
-          "$className": "Part",
-          "$properties": {
-            "Anchored": true,
-            "CanCollide": false,
-            "CanTouch": false,
-            "TopSurface": "Smooth",
-            "BottomSurface": "Smooth",
-            "Material": "Neon",
-            "Color": [
-              0.33725490196078434,
-              0.8392156862745098,
-              0.48627450980392156
-            ],
-            "Size": [
-              1.2,
-              1.2,
-              1.2
-            ],
-            "Position": [
-              7,
-              8.4,
-              7
-            ],
-            "Shape": "Ball"
-          }
-        },
-        "CorePillar_1": {
-          "$className": "Part",
-          "$properties": {
-            "Anchored": true,
-            "CanCollide": true,
-            "CanTouch": false,
-            "TopSurface": "Smooth",
-            "BottomSurface": "Smooth",
-            "Material": "Metal",
-            "Color": [
-              0.5098039215686274,
-              0.5568627450980392,
-              0.6352941176470588
-            ],
-            "Size": [
-              2,
-              8,
-              2
-            ],
-            "Position": [
-              -7,
-              4,
-              7
-            ],
-            "Shape": "Cylinder"
-          }
-        },
-        "CorePillarLight_1": {
-          "$className": "Part",
-          "$properties": {
-            "Anchored": true,
-            "CanCollide": false,
-            "CanTouch": false,
-            "TopSurface": "Smooth",
-            "BottomSurface": "Smooth",
-            "Material": "Neon",
-            "Color": [
-              0.33725490196078434,
-              0.8392156862745098,
-              0.48627450980392156
-            ],
-            "Size": [
-              1.2,
-              1.2,
-              1.2
-            ],
-            "Position": [
-              -7,
-              8.4,
-              7
-            ],
-            "Shape": "Ball"
-          }
-        },
-        "CorePillar_2": {
-          "$className": "Part",
-          "$properties": {
-            "Anchored": true,
-            "CanCollide": true,
-            "CanTouch": false,
-            "TopSurface": "Smooth",
-            "BottomSurface": "Smooth",
-            "Material": "Metal",
-            "Color": [
-              0.5098039215686274,
-              0.5568627450980392,
-              0.6352941176470588
-            ],
-            "Size": [
-              2,
-              8,
-              2
-            ],
-            "Position": [
-              7,
-              4,
-              -7
-            ],
-            "Shape": "Cylinder"
-          }
-        },
-        "CorePillarLight_2": {
-          "$className": "Part",
-          "$properties": {
-            "Anchored": true,
-            "CanCollide": false,
-            "CanTouch": false,
-            "TopSurface": "Smooth",
-            "BottomSurface": "Smooth",
-            "Material": "Neon",
-            "Color": [
-              0.33725490196078434,
-              0.8392156862745098,
-              0.48627450980392156
-            ],
-            "Size": [
-              1.2,
-              1.2,
-              1.2
-            ],
-            "Position": [
-              7,
-              8.4,
-              -7
-            ],
-            "Shape": "Ball"
-          }
-        },
-        "CorePillar_3": {
-          "$className": "Part",
-          "$properties": {
-            "Anchored": true,
-            "CanCollide": true,
-            "CanTouch": false,
-            "TopSurface": "Smooth",
-            "BottomSurface": "Smooth",
-            "Material": "Metal",
-            "Color": [
-              0.5098039215686274,
-              0.5568627450980392,
-              0.6352941176470588
-            ],
-            "Size": [
-              2,
-              8,
-              2
-            ],
-            "Position": [
-              -7,
-              4,
-              -7
-            ],
-            "Shape": "Cylinder"
-          }
-        },
-        "CorePillarLight_3": {
-          "$className": "Part",
-          "$properties": {
-            "Anchored": true,
-            "CanCollide": false,
-            "CanTouch": false,
-            "TopSurface": "Smooth",
-            "BottomSurface": "Smooth",
-            "Material": "Neon",
-            "Color": [
-              0.33725490196078434,
-              0.8392156862745098,
-              0.48627450980392156
-            ],
-            "Size": [
-              1.2,
-              1.2,
-              1.2
-            ],
-            "Position": [
-              -7,
-              8.4,
-              -7
-            ],
-            "Shape": "Ball"
-          }
-        },
-        "Portal_Forest_Base": {
-          "$className": "Part",
-          "$properties": {
-            "Anchored": true,
-            "CanCollide": true,
-            "CanTouch": false,
-            "TopSurface": "Smooth",
-            "BottomSurface": "Smooth",
-            "Material": "Slate",
-            "Color": [
-              0.33725490196078434,
-              0.3764705882352941,
-              0.4470588235294118
-            ],
-            "Size": [
-              12,
-              1,
-              8
-            ],
-            "Position": [
-              -32,
-              0.5,
-              -34
-            ]
-          }
-        },
-        "Portal_Forest_Lintel": {
-          "$className": "Part",
-          "$properties": {
-            "Anchored": true,
-            "CanCollide": true,
-            "CanTouch": false,
-            "TopSurface": "Smooth",
-            "BottomSurface": "Smooth",
-            "Material": "Slate",
-            "Color": [
-              0.33725490196078434,
-              0.3764705882352941,
-              0.4470588235294118
-            ],
-            "Size": [
-              12,
-              1.2,
-              8
-            ],
-            "Position": [
-              -32,
-              9,
-              -34
-            ]
-          }
-        },
-        "Portal_Forest_PostL": {
-          "$className": "Part",
-          "$properties": {
-            "Anchored": true,
-            "CanCollide": true,
-            "CanTouch": false,
-            "TopSurface": "Smooth",
-            "BottomSurface": "Smooth",
-            "Material": "Slate",
-            "Color": [
-              0.33725490196078434,
-              0.3764705882352941,
-              0.4470588235294118
-            ],
-            "Size": [
-              1.2,
-              8.5,
-              8
-            ],
-            "Position": [
-              -37.5,
-              4.75,
-              -34
-            ]
-          }
-        },
-        "Portal_Forest_PostR": {
-          "$className": "Part",
-          "$properties": {
-            "Anchored": true,
-            "CanCollide": true,
-            "CanTouch": false,
-            "TopSurface": "Smooth",
-            "BottomSurface": "Smooth",
-            "Material": "Slate",
-            "Color": [
-              0.33725490196078434,
-              0.3764705882352941,
-              0.4470588235294118
-            ],
-            "Size": [
-              1.2,
-              8.5,
-              8
-            ],
-            "Position": [
-              -26.5,
-              4.75,
-              -34
-            ]
-          }
-        },
-        "Portal_Forest_Panel": {
-          "$className": "Part",
-          "$properties": {
-            "Anchored": true,
-            "CanCollide": false,
-            "CanTouch": false,
-            "TopSurface": "Smooth",
-            "BottomSurface": "Smooth",
-            "Material": "SmoothPlastic",
-            "Color": [
-              0.33725490196078434,
-              0.8392156862745098,
-              0.48627450980392156
-            ],
-            "Size": [
-              10,
-              8,
-              0.4
-            ],
-            "Position": [
-              -32,
-              4.75,
-              -34
-            ],
-            "Transparency": 0.55
-          }
-        },
-        "Portal_Forest_Glow": {
-          "$className": "Part",
-          "$properties": {
-            "Anchored": true,
-            "CanCollide": false,
-            "CanTouch": false,
-            "TopSurface": "Smooth",
-            "BottomSurface": "Smooth",
-            "Material": "SmoothPlastic",
-            "Color": [
-              0.33725490196078434,
-              0.8392156862745098,
-              0.48627450980392156
-            ],
-            "Size": [
-              7,
-              5,
-              0.3
-            ],
-            "Position": [
-              -32,
-              4.75,
-              -34
-            ],
-            "Transparency": 0.3
-          }
-        },
-        "Portal_Forest_Sign": {
-          "$className": "Part",
-          "$properties": {
-            "Anchored": true,
-            "CanCollide": true,
-            "CanTouch": false,
-            "TopSurface": "Smooth",
-            "BottomSurface": "Smooth",
-            "Material": "SmoothPlastic",
-            "Color": [
-              0.33725490196078434,
-              0.8392156862745098,
-              0.48627450980392156
-            ],
-            "Size": [
-              10,
-              1.6,
-              0.4
-            ],
-            "Position": [
-              -32,
-              10.6,
-              -34
-            ]
-          }
-        },
-        "Portal_Desert_Base": {
-          "$className": "Part",
-          "$properties": {
-            "Anchored": true,
-            "CanCollide": true,
-            "CanTouch": false,
-            "TopSurface": "Smooth",
-            "BottomSurface": "Smooth",
-            "Material": "Slate",
-            "Color": [
-              0.33725490196078434,
-              0.3764705882352941,
-              0.4470588235294118
-            ],
-            "Size": [
-              12,
-              1,
-              8
-            ],
-            "Position": [
-              -16,
-              0.5,
-              -34
-            ]
-          }
-        },
-        "Portal_Desert_Lintel": {
-          "$className": "Part",
-          "$properties": {
-            "Anchored": true,
-            "CanCollide": true,
-            "CanTouch": false,
-            "TopSurface": "Smooth",
-            "BottomSurface": "Smooth",
-            "Material": "Slate",
-            "Color": [
-              0.33725490196078434,
-              0.3764705882352941,
-              0.4470588235294118
-            ],
-            "Size": [
-              12,
-              1.2,
-              8
-            ],
-            "Position": [
-              -16,
-              9,
-              -34
-            ]
-          }
-        },
-        "Portal_Desert_PostL": {
-          "$className": "Part",
-          "$properties": {
-            "Anchored": true,
-            "CanCollide": true,
-            "CanTouch": false,
-            "TopSurface": "Smooth",
-            "BottomSurface": "Smooth",
-            "Material": "Slate",
-            "Color": [
-              0.33725490196078434,
-              0.3764705882352941,
-              0.4470588235294118
-            ],
-            "Size": [
-              1.2,
-              8.5,
-              8
-            ],
-            "Position": [
-              -21.5,
-              4.75,
-              -34
-            ]
-          }
-        },
-        "Portal_Desert_PostR": {
-          "$className": "Part",
-          "$properties": {
-            "Anchored": true,
-            "CanCollide": true,
-            "CanTouch": false,
-            "TopSurface": "Smooth",
-            "BottomSurface": "Smooth",
-            "Material": "Slate",
-            "Color": [
-              0.33725490196078434,
-              0.3764705882352941,
-              0.4470588235294118
-            ],
-            "Size": [
-              1.2,
-              8.5,
-              8
-            ],
-            "Position": [
-              -10.5,
-              4.75,
-              -34
-            ]
-          }
-        },
-        "Portal_Desert_Panel": {
-          "$className": "Part",
-          "$properties": {
-            "Anchored": true,
-            "CanCollide": false,
-            "CanTouch": false,
-            "TopSurface": "Smooth",
-            "BottomSurface": "Smooth",
-            "Material": "SmoothPlastic",
-            "Color": [
-              1,
-              0.596078431372549,
-              0.2823529411764706
-            ],
-            "Size": [
-              10,
-              8,
-              0.4
-            ],
-            "Position": [
-              -16,
-              4.75,
-              -34
-            ],
-            "Transparency": 0.55
-          }
-        },
-        "Portal_Desert_Glow": {
-          "$className": "Part",
-          "$properties": {
-            "Anchored": true,
-            "CanCollide": false,
-            "CanTouch": false,
-            "TopSurface": "Smooth",
-            "BottomSurface": "Smooth",
-            "Material": "SmoothPlastic",
-            "Color": [
-              1,
-              0.596078431372549,
-              0.2823529411764706
-            ],
-            "Size": [
-              7,
-              5,
-              0.3
-            ],
-            "Position": [
-              -16,
-              4.75,
-              -34
-            ],
-            "Transparency": 0.3
-          }
-        },
-        "Portal_Desert_Sign": {
-          "$className": "Part",
-          "$properties": {
-            "Anchored": true,
-            "CanCollide": true,
-            "CanTouch": false,
-            "TopSurface": "Smooth",
-            "BottomSurface": "Smooth",
-            "Material": "SmoothPlastic",
-            "Color": [
-              1,
-              0.596078431372549,
-              0.2823529411764706
-            ],
-            "Size": [
-              10,
-              1.6,
-              0.4
-            ],
-            "Position": [
-              -16,
-              10.6,
-              -34
-            ]
-          }
-        },
-        "Portal_Ice_Base": {
-          "$className": "Part",
-          "$properties": {
-            "Anchored": true,
-            "CanCollide": true,
-            "CanTouch": false,
-            "TopSurface": "Smooth",
-            "BottomSurface": "Smooth",
-            "Material": "Slate",
-            "Color": [
-              0.33725490196078434,
-              0.3764705882352941,
-              0.4470588235294118
-            ],
-            "Size": [
-              12,
-              1,
-              8
-            ],
-            "Position": [
-              0,
-              0.5,
-              -34
-            ]
-          }
-        },
-        "Portal_Ice_Lintel": {
-          "$className": "Part",
-          "$properties": {
-            "Anchored": true,
-            "CanCollide": true,
-            "CanTouch": false,
-            "TopSurface": "Smooth",
-            "BottomSurface": "Smooth",
-            "Material": "Slate",
-            "Color": [
-              0.33725490196078434,
-              0.3764705882352941,
-              0.4470588235294118
-            ],
-            "Size": [
-              12,
-              1.2,
-              8
-            ],
-            "Position": [
-              0,
-              9,
-              -34
-            ]
-          }
-        },
-        "Portal_Ice_PostL": {
-          "$className": "Part",
-          "$properties": {
-            "Anchored": true,
-            "CanCollide": true,
-            "CanTouch": false,
-            "TopSurface": "Smooth",
-            "BottomSurface": "Smooth",
-            "Material": "Slate",
-            "Color": [
-              0.33725490196078434,
-              0.3764705882352941,
-              0.4470588235294118
-            ],
-            "Size": [
-              1.2,
-              8.5,
-              8
-            ],
-            "Position": [
-              -5.5,
-              4.75,
-              -34
-            ]
-          }
-        },
-        "Portal_Ice_PostR": {
-          "$className": "Part",
-          "$properties": {
-            "Anchored": true,
-            "CanCollide": true,
-            "CanTouch": false,
-            "TopSurface": "Smooth",
-            "BottomSurface": "Smooth",
-            "Material": "Slate",
-            "Color": [
-              0.33725490196078434,
-              0.3764705882352941,
-              0.4470588235294118
-            ],
-            "Size": [
-              1.2,
-              8.5,
-              8
-            ],
-            "Position": [
-              5.5,
-              4.75,
-              -34
-            ]
-          }
-        },
-        "Portal_Ice_Panel": {
-          "$className": "Part",
-          "$properties": {
-            "Anchored": true,
-            "CanCollide": false,
-            "CanTouch": false,
-            "TopSurface": "Smooth",
-            "BottomSurface": "Smooth",
-            "Material": "SmoothPlastic",
-            "Color": [
-              0.5490196078431373,
-              0.8392156862745098,
-              0.9607843137254902
-            ],
-            "Size": [
-              10,
-              8,
-              0.4
-            ],
-            "Position": [
-              0,
-              4.75,
-              -34
-            ],
-            "Transparency": 0.55
-          }
-        },
-        "Portal_Ice_Glow": {
-          "$className": "Part",
-          "$properties": {
-            "Anchored": true,
-            "CanCollide": false,
-            "CanTouch": false,
-            "TopSurface": "Smooth",
-            "BottomSurface": "Smooth",
-            "Material": "SmoothPlastic",
-            "Color": [
-              0.5490196078431373,
-              0.8392156862745098,
-              0.9607843137254902
-            ],
-            "Size": [
-              7,
-              5,
-              0.3
-            ],
-            "Position": [
-              0,
-              4.75,
-              -34
-            ],
-            "Transparency": 0.3
-          }
-        },
-        "Portal_Ice_Sign": {
-          "$className": "Part",
-          "$properties": {
-            "Anchored": true,
-            "CanCollide": true,
-            "CanTouch": false,
-            "TopSurface": "Smooth",
-            "BottomSurface": "Smooth",
-            "Material": "SmoothPlastic",
-            "Color": [
-              0.5490196078431373,
-              0.8392156862745098,
-              0.9607843137254902
-            ],
-            "Size": [
-              10,
-              1.6,
-              0.4
-            ],
-            "Position": [
-              0,
-              10.6,
-              -34
-            ]
-          }
-        },
-        "Portal_Volcano_Base": {
-          "$className": "Part",
-          "$properties": {
-            "Anchored": true,
-            "CanCollide": true,
-            "CanTouch": false,
-            "TopSurface": "Smooth",
-            "BottomSurface": "Smooth",
-            "Material": "Slate",
-            "Color": [
-              0.33725490196078434,
-              0.3764705882352941,
-              0.4470588235294118
-            ],
-            "Size": [
-              12,
-              1,
-              8
-            ],
-            "Position": [
-              16,
-              0.5,
-              -34
-            ]
-          }
-        },
-        "Portal_Volcano_Lintel": {
-          "$className": "Part",
-          "$properties": {
-            "Anchored": true,
-            "CanCollide": true,
-            "CanTouch": false,
-            "TopSurface": "Smooth",
-            "BottomSurface": "Smooth",
-            "Material": "Slate",
-            "Color": [
-              0.33725490196078434,
-              0.3764705882352941,
-              0.4470588235294118
-            ],
-            "Size": [
-              12,
-              1.2,
-              8
-            ],
-            "Position": [
-              16,
-              9,
-              -34
-            ]
-          }
-        },
-        "Portal_Volcano_PostL": {
-          "$className": "Part",
-          "$properties": {
-            "Anchored": true,
-            "CanCollide": true,
-            "CanTouch": false,
-            "TopSurface": "Smooth",
-            "BottomSurface": "Smooth",
-            "Material": "Slate",
-            "Color": [
-              0.33725490196078434,
-              0.3764705882352941,
-              0.4470588235294118
-            ],
-            "Size": [
-              1.2,
-              8.5,
-              8
-            ],
-            "Position": [
-              10.5,
-              4.75,
-              -34
-            ]
-          }
-        },
-        "Portal_Volcano_PostR": {
-          "$className": "Part",
-          "$properties": {
-            "Anchored": true,
-            "CanCollide": true,
-            "CanTouch": false,
-            "TopSurface": "Smooth",
-            "BottomSurface": "Smooth",
-            "Material": "Slate",
-            "Color": [
-              0.33725490196078434,
-              0.3764705882352941,
-              0.4470588235294118
-            ],
-            "Size": [
-              1.2,
-              8.5,
-              8
-            ],
-            "Position": [
-              21.5,
-              4.75,
-              -34
-            ]
-          }
-        },
-        "Portal_Volcano_Panel": {
-          "$className": "Part",
-          "$properties": {
-            "Anchored": true,
-            "CanCollide": false,
-            "CanTouch": false,
-            "TopSurface": "Smooth",
-            "BottomSurface": "Smooth",
-            "Material": "SmoothPlastic",
-            "Color": [
-              0.9411764705882353,
-              0.43137254901960786,
-              0.2823529411764706
-            ],
-            "Size": [
-              10,
-              8,
-              0.4
-            ],
-            "Position": [
-              16,
-              4.75,
-              -34
-            ],
-            "Transparency": 0.55
-          }
-        },
-        "Portal_Volcano_Glow": {
-          "$className": "Part",
-          "$properties": {
-            "Anchored": true,
-            "CanCollide": false,
-            "CanTouch": false,
-            "TopSurface": "Smooth",
-            "BottomSurface": "Smooth",
-            "Material": "SmoothPlastic",
-            "Color": [
-              0.9411764705882353,
-              0.43137254901960786,
-              0.2823529411764706
-            ],
-            "Size": [
-              7,
-              5,
-              0.3
-            ],
-            "Position": [
-              16,
-              4.75,
-              -34
-            ],
-            "Transparency": 0.3
-          }
-        },
-        "Portal_Volcano_Sign": {
-          "$className": "Part",
-          "$properties": {
-            "Anchored": true,
-            "CanCollide": true,
-            "CanTouch": false,
-            "TopSurface": "Smooth",
-            "BottomSurface": "Smooth",
-            "Material": "SmoothPlastic",
-            "Color": [
-              0.9411764705882353,
-              0.43137254901960786,
-              0.2823529411764706
-            ],
-            "Size": [
-              10,
-              1.6,
-              0.4
-            ],
-            "Position": [
-              16,
-              10.6,
-              -34
-            ]
-          }
-        },
-        "Portal_Cyber_Base": {
-          "$className": "Part",
-          "$properties": {
-            "Anchored": true,
-            "CanCollide": true,
-            "CanTouch": false,
-            "TopSurface": "Smooth",
-            "BottomSurface": "Smooth",
-            "Material": "Slate",
-            "Color": [
-              0.33725490196078434,
-              0.3764705882352941,
-              0.4470588235294118
-            ],
-            "Size": [
-              12,
-              1,
-              8
-            ],
-            "Position": [
-              32,
-              0.5,
-              -34
-            ]
-          }
-        },
-        "Portal_Cyber_Lintel": {
-          "$className": "Part",
-          "$properties": {
-            "Anchored": true,
-            "CanCollide": true,
-            "CanTouch": false,
-            "TopSurface": "Smooth",
-            "BottomSurface": "Smooth",
-            "Material": "Slate",
-            "Color": [
-              0.33725490196078434,
-              0.3764705882352941,
-              0.4470588235294118
-            ],
-            "Size": [
-              12,
-              1.2,
-              8
-            ],
-            "Position": [
-              32,
-              9,
-              -34
-            ]
-          }
-        },
-        "Portal_Cyber_PostL": {
-          "$className": "Part",
-          "$properties": {
-            "Anchored": true,
-            "CanCollide": true,
-            "CanTouch": false,
-            "TopSurface": "Smooth",
-            "BottomSurface": "Smooth",
-            "Material": "Slate",
-            "Color": [
-              0.33725490196078434,
-              0.3764705882352941,
-              0.4470588235294118
-            ],
-            "Size": [
-              1.2,
-              8.5,
-              8
-            ],
-            "Position": [
-              26.5,
-              4.75,
-              -34
-            ]
-          }
-        },
-        "Portal_Cyber_PostR": {
-          "$className": "Part",
-          "$properties": {
-            "Anchored": true,
-            "CanCollide": true,
-            "CanTouch": false,
-            "TopSurface": "Smooth",
-            "BottomSurface": "Smooth",
-            "Material": "Slate",
-            "Color": [
-              0.33725490196078434,
-              0.3764705882352941,
-              0.4470588235294118
-            ],
-            "Size": [
-              1.2,
-              8.5,
-              8
-            ],
-            "Position": [
-              37.5,
-              4.75,
-              -34
-            ]
-          }
-        },
-        "Portal_Cyber_Panel": {
-          "$className": "Part",
-          "$properties": {
-            "Anchored": true,
-            "CanCollide": false,
-            "CanTouch": false,
-            "TopSurface": "Smooth",
-            "BottomSurface": "Smooth",
-            "Material": "SmoothPlastic",
-            "Color": [
-              0.7450980392156863,
-              0.47058823529411764,
-              1
-            ],
-            "Size": [
-              10,
-              8,
-              0.4
-            ],
-            "Position": [
-              32,
-              4.75,
-              -34
-            ],
-            "Transparency": 0.55
-          }
-        },
-        "Portal_Cyber_Glow": {
-          "$className": "Part",
-          "$properties": {
-            "Anchored": true,
-            "CanCollide": false,
-            "CanTouch": false,
-            "TopSurface": "Smooth",
-            "BottomSurface": "Smooth",
-            "Material": "SmoothPlastic",
-            "Color": [
-              0.7450980392156863,
-              0.47058823529411764,
-              1
-            ],
-            "Size": [
-              7,
-              5,
-              0.3
-            ],
-            "Position": [
-              32,
-              4.75,
-              -34
-            ],
-            "Transparency": 0.3
-          }
-        },
-        "Portal_Cyber_Sign": {
-          "$className": "Part",
-          "$properties": {
-            "Anchored": true,
-            "CanCollide": true,
-            "CanTouch": false,
-            "TopSurface": "Smooth",
-            "BottomSurface": "Smooth",
-            "Material": "SmoothPlastic",
-            "Color": [
-              0.7450980392156863,
-              0.47058823529411764,
-              1
-            ],
-            "Size": [
-              10,
-              1.6,
-              0.4
-            ],
-            "Position": [
-              32,
-              10.6,
-              -34
-            ]
-          }
-        },
         "Station_Shop_Pad": {
           "$className": "Part",
           "$properties": {
@@ -2797,6 +1473,1351 @@
               -41
             ],
             "Shape": "Ball"
+          }
+        },
+        "KeshusyCore": {
+          "$className": "Folder",
+          "CoreBase": {
+            "$className": "Part",
+            "$properties": {
+              "Anchored": true,
+              "CanCollide": true,
+              "CanTouch": false,
+              "TopSurface": "Smooth",
+              "BottomSurface": "Smooth",
+              "Material": "Slate",
+              "Color": [
+                0.27450980392156865,
+                0.3137254901960784,
+                0.3764705882352941
+              ],
+              "Size": [
+                26,
+                1,
+                26
+              ],
+              "Position": [
+                0,
+                0.5,
+                0
+              ]
+            }
+          },
+          "CorePlinth": {
+            "$className": "Part",
+            "$properties": {
+              "Anchored": true,
+              "CanCollide": true,
+              "CanTouch": false,
+              "TopSurface": "Smooth",
+              "BottomSurface": "Smooth",
+              "Material": "Slate",
+              "Color": [
+                0.3607843137254902,
+                0.40784313725490196,
+                0.47843137254901963
+              ],
+              "Size": [
+                18,
+                1.5,
+                18
+              ],
+              "Position": [
+                0,
+                1.75,
+                0
+              ]
+            }
+          },
+          "CoreDais": {
+            "$className": "Part",
+            "$properties": {
+              "Anchored": true,
+              "CanCollide": true,
+              "CanTouch": false,
+              "TopSurface": "Smooth",
+              "BottomSurface": "Smooth",
+              "Material": "SmoothPlastic",
+              "Color": [
+                0.43137254901960786,
+                0.48627450980392156,
+                0.5647058823529412
+              ],
+              "Size": [
+                12,
+                1.4,
+                12
+              ],
+              "Position": [
+                0,
+                3.2,
+                0
+              ]
+            }
+          },
+          "CoreOrb": {
+            "$className": "Part",
+            "$properties": {
+              "Anchored": true,
+              "CanCollide": false,
+              "CanTouch": false,
+              "TopSurface": "Smooth",
+              "BottomSurface": "Smooth",
+              "Material": "Neon",
+              "Color": [
+                0.33725490196078434,
+                0.8392156862745098,
+                0.48627450980392156
+              ],
+              "Size": [
+                8,
+                8,
+                8
+              ],
+              "Position": [
+                0,
+                8,
+                0
+              ],
+              "Shape": "Ball"
+            }
+          },
+          "CoreGlow": {
+            "$className": "Part",
+            "$properties": {
+              "Anchored": true,
+              "CanCollide": false,
+              "CanTouch": false,
+              "TopSurface": "Smooth",
+              "BottomSurface": "Smooth",
+              "Material": "Neon",
+              "Color": [
+                0.5490196078431373,
+                0.9411764705882353,
+                0.7450980392156863
+              ],
+              "Size": [
+                11,
+                11,
+                11
+              ],
+              "Position": [
+                0,
+                8,
+                0
+              ],
+              "Transparency": 0.65,
+              "Shape": "Ball"
+            }
+          },
+          "CoreRing_A": {
+            "$className": "Part",
+            "$properties": {
+              "Anchored": true,
+              "CanCollide": false,
+              "CanTouch": false,
+              "TopSurface": "Smooth",
+              "BottomSurface": "Smooth",
+              "Material": "Neon",
+              "Color": [
+                1,
+                0.596078431372549,
+                0.2823529411764706
+              ],
+              "Size": [
+                16,
+                0.6,
+                16
+              ],
+              "Position": [
+                0,
+                8,
+                0
+              ],
+              "Shape": "Cylinder"
+            }
+          },
+          "CoreRing_B": {
+            "$className": "Part",
+            "$properties": {
+              "Anchored": true,
+              "CanCollide": false,
+              "CanTouch": false,
+              "TopSurface": "Smooth",
+              "BottomSurface": "Smooth",
+              "Material": "Neon",
+              "Color": [
+                0.33725490196078434,
+                0.8392156862745098,
+                0.48627450980392156
+              ],
+              "Size": [
+                19,
+                0.5,
+                19
+              ],
+              "Position": [
+                0,
+                8,
+                0
+              ],
+              "Transparency": 0.35,
+              "Shape": "Cylinder"
+            }
+          },
+          "CorePillar_0": {
+            "$className": "Part",
+            "$properties": {
+              "Anchored": true,
+              "CanCollide": true,
+              "CanTouch": false,
+              "TopSurface": "Smooth",
+              "BottomSurface": "Smooth",
+              "Material": "Metal",
+              "Color": [
+                0.5098039215686274,
+                0.5568627450980392,
+                0.6352941176470588
+              ],
+              "Size": [
+                2,
+                8,
+                2
+              ],
+              "Position": [
+                7,
+                4,
+                7
+              ],
+              "Shape": "Cylinder"
+            }
+          },
+          "CorePillarLight_0": {
+            "$className": "Part",
+            "$properties": {
+              "Anchored": true,
+              "CanCollide": false,
+              "CanTouch": false,
+              "TopSurface": "Smooth",
+              "BottomSurface": "Smooth",
+              "Material": "Neon",
+              "Color": [
+                0.33725490196078434,
+                0.8392156862745098,
+                0.48627450980392156
+              ],
+              "Size": [
+                1.2,
+                1.2,
+                1.2
+              ],
+              "Position": [
+                7,
+                8.4,
+                7
+              ],
+              "Shape": "Ball"
+            }
+          },
+          "CorePillar_1": {
+            "$className": "Part",
+            "$properties": {
+              "Anchored": true,
+              "CanCollide": true,
+              "CanTouch": false,
+              "TopSurface": "Smooth",
+              "BottomSurface": "Smooth",
+              "Material": "Metal",
+              "Color": [
+                0.5098039215686274,
+                0.5568627450980392,
+                0.6352941176470588
+              ],
+              "Size": [
+                2,
+                8,
+                2
+              ],
+              "Position": [
+                -7,
+                4,
+                7
+              ],
+              "Shape": "Cylinder"
+            }
+          },
+          "CorePillarLight_1": {
+            "$className": "Part",
+            "$properties": {
+              "Anchored": true,
+              "CanCollide": false,
+              "CanTouch": false,
+              "TopSurface": "Smooth",
+              "BottomSurface": "Smooth",
+              "Material": "Neon",
+              "Color": [
+                0.33725490196078434,
+                0.8392156862745098,
+                0.48627450980392156
+              ],
+              "Size": [
+                1.2,
+                1.2,
+                1.2
+              ],
+              "Position": [
+                -7,
+                8.4,
+                7
+              ],
+              "Shape": "Ball"
+            }
+          },
+          "CorePillar_2": {
+            "$className": "Part",
+            "$properties": {
+              "Anchored": true,
+              "CanCollide": true,
+              "CanTouch": false,
+              "TopSurface": "Smooth",
+              "BottomSurface": "Smooth",
+              "Material": "Metal",
+              "Color": [
+                0.5098039215686274,
+                0.5568627450980392,
+                0.6352941176470588
+              ],
+              "Size": [
+                2,
+                8,
+                2
+              ],
+              "Position": [
+                7,
+                4,
+                -7
+              ],
+              "Shape": "Cylinder"
+            }
+          },
+          "CorePillarLight_2": {
+            "$className": "Part",
+            "$properties": {
+              "Anchored": true,
+              "CanCollide": false,
+              "CanTouch": false,
+              "TopSurface": "Smooth",
+              "BottomSurface": "Smooth",
+              "Material": "Neon",
+              "Color": [
+                0.33725490196078434,
+                0.8392156862745098,
+                0.48627450980392156
+              ],
+              "Size": [
+                1.2,
+                1.2,
+                1.2
+              ],
+              "Position": [
+                7,
+                8.4,
+                -7
+              ],
+              "Shape": "Ball"
+            }
+          },
+          "CorePillar_3": {
+            "$className": "Part",
+            "$properties": {
+              "Anchored": true,
+              "CanCollide": true,
+              "CanTouch": false,
+              "TopSurface": "Smooth",
+              "BottomSurface": "Smooth",
+              "Material": "Metal",
+              "Color": [
+                0.5098039215686274,
+                0.5568627450980392,
+                0.6352941176470588
+              ],
+              "Size": [
+                2,
+                8,
+                2
+              ],
+              "Position": [
+                -7,
+                4,
+                -7
+              ],
+              "Shape": "Cylinder"
+            }
+          },
+          "CorePillarLight_3": {
+            "$className": "Part",
+            "$properties": {
+              "Anchored": true,
+              "CanCollide": false,
+              "CanTouch": false,
+              "TopSurface": "Smooth",
+              "BottomSurface": "Smooth",
+              "Material": "Neon",
+              "Color": [
+                0.33725490196078434,
+                0.8392156862745098,
+                0.48627450980392156
+              ],
+              "Size": [
+                1.2,
+                1.2,
+                1.2
+              ],
+              "Position": [
+                -7,
+                8.4,
+                -7
+              ],
+              "Shape": "Ball"
+            }
+          }
+        },
+        "Portals": {
+          "$className": "Folder",
+          "Portal_Forest": {
+            "$className": "Model",
+            "Base": {
+              "$className": "Part",
+              "$properties": {
+                "Anchored": true,
+                "CanCollide": true,
+                "CanTouch": false,
+                "TopSurface": "Smooth",
+                "BottomSurface": "Smooth",
+                "Material": "Slate",
+                "Color": [
+                  0.33725490196078434,
+                  0.3764705882352941,
+                  0.4470588235294118
+                ],
+                "Size": [
+                  12,
+                  1,
+                  8
+                ],
+                "Position": [
+                  -32,
+                  0.5,
+                  -34
+                ]
+              }
+            },
+            "Lintel": {
+              "$className": "Part",
+              "$properties": {
+                "Anchored": true,
+                "CanCollide": true,
+                "CanTouch": false,
+                "TopSurface": "Smooth",
+                "BottomSurface": "Smooth",
+                "Material": "Slate",
+                "Color": [
+                  0.33725490196078434,
+                  0.3764705882352941,
+                  0.4470588235294118
+                ],
+                "Size": [
+                  12,
+                  1.2,
+                  8
+                ],
+                "Position": [
+                  -32,
+                  9,
+                  -34
+                ]
+              }
+            },
+            "PostL": {
+              "$className": "Part",
+              "$properties": {
+                "Anchored": true,
+                "CanCollide": true,
+                "CanTouch": false,
+                "TopSurface": "Smooth",
+                "BottomSurface": "Smooth",
+                "Material": "Slate",
+                "Color": [
+                  0.33725490196078434,
+                  0.3764705882352941,
+                  0.4470588235294118
+                ],
+                "Size": [
+                  1.2,
+                  8.5,
+                  8
+                ],
+                "Position": [
+                  -37.5,
+                  4.75,
+                  -34
+                ]
+              }
+            },
+            "PostR": {
+              "$className": "Part",
+              "$properties": {
+                "Anchored": true,
+                "CanCollide": true,
+                "CanTouch": false,
+                "TopSurface": "Smooth",
+                "BottomSurface": "Smooth",
+                "Material": "Slate",
+                "Color": [
+                  0.33725490196078434,
+                  0.3764705882352941,
+                  0.4470588235294118
+                ],
+                "Size": [
+                  1.2,
+                  8.5,
+                  8
+                ],
+                "Position": [
+                  -26.5,
+                  4.75,
+                  -34
+                ]
+              }
+            },
+            "PortalPanel": {
+              "$className": "Part",
+              "$properties": {
+                "Anchored": true,
+                "CanCollide": false,
+                "CanTouch": false,
+                "TopSurface": "Smooth",
+                "BottomSurface": "Smooth",
+                "Material": "SmoothPlastic",
+                "Color": [
+                  0.33725490196078434,
+                  0.8392156862745098,
+                  0.48627450980392156
+                ],
+                "Size": [
+                  10,
+                  8,
+                  0.4
+                ],
+                "Position": [
+                  -32,
+                  4.75,
+                  -34
+                ],
+                "Transparency": 0.55
+              }
+            },
+            "Glow": {
+              "$className": "Part",
+              "$properties": {
+                "Anchored": true,
+                "CanCollide": false,
+                "CanTouch": false,
+                "TopSurface": "Smooth",
+                "BottomSurface": "Smooth",
+                "Material": "SmoothPlastic",
+                "Color": [
+                  0.33725490196078434,
+                  0.8392156862745098,
+                  0.48627450980392156
+                ],
+                "Size": [
+                  7,
+                  5,
+                  0.3
+                ],
+                "Position": [
+                  -32,
+                  4.75,
+                  -34
+                ],
+                "Transparency": 0.3
+              }
+            },
+            "Sign": {
+              "$className": "Part",
+              "$properties": {
+                "Anchored": true,
+                "CanCollide": true,
+                "CanTouch": false,
+                "TopSurface": "Smooth",
+                "BottomSurface": "Smooth",
+                "Material": "SmoothPlastic",
+                "Color": [
+                  0.33725490196078434,
+                  0.8392156862745098,
+                  0.48627450980392156
+                ],
+                "Size": [
+                  10,
+                  1.6,
+                  0.4
+                ],
+                "Position": [
+                  -32,
+                  10.6,
+                  -34
+                ]
+              }
+            }
+          },
+          "Portal_Desert": {
+            "$className": "Model",
+            "Base": {
+              "$className": "Part",
+              "$properties": {
+                "Anchored": true,
+                "CanCollide": true,
+                "CanTouch": false,
+                "TopSurface": "Smooth",
+                "BottomSurface": "Smooth",
+                "Material": "Slate",
+                "Color": [
+                  0.33725490196078434,
+                  0.3764705882352941,
+                  0.4470588235294118
+                ],
+                "Size": [
+                  12,
+                  1,
+                  8
+                ],
+                "Position": [
+                  -16,
+                  0.5,
+                  -34
+                ]
+              }
+            },
+            "Lintel": {
+              "$className": "Part",
+              "$properties": {
+                "Anchored": true,
+                "CanCollide": true,
+                "CanTouch": false,
+                "TopSurface": "Smooth",
+                "BottomSurface": "Smooth",
+                "Material": "Slate",
+                "Color": [
+                  0.33725490196078434,
+                  0.3764705882352941,
+                  0.4470588235294118
+                ],
+                "Size": [
+                  12,
+                  1.2,
+                  8
+                ],
+                "Position": [
+                  -16,
+                  9,
+                  -34
+                ]
+              }
+            },
+            "PostL": {
+              "$className": "Part",
+              "$properties": {
+                "Anchored": true,
+                "CanCollide": true,
+                "CanTouch": false,
+                "TopSurface": "Smooth",
+                "BottomSurface": "Smooth",
+                "Material": "Slate",
+                "Color": [
+                  0.33725490196078434,
+                  0.3764705882352941,
+                  0.4470588235294118
+                ],
+                "Size": [
+                  1.2,
+                  8.5,
+                  8
+                ],
+                "Position": [
+                  -21.5,
+                  4.75,
+                  -34
+                ]
+              }
+            },
+            "PostR": {
+              "$className": "Part",
+              "$properties": {
+                "Anchored": true,
+                "CanCollide": true,
+                "CanTouch": false,
+                "TopSurface": "Smooth",
+                "BottomSurface": "Smooth",
+                "Material": "Slate",
+                "Color": [
+                  0.33725490196078434,
+                  0.3764705882352941,
+                  0.4470588235294118
+                ],
+                "Size": [
+                  1.2,
+                  8.5,
+                  8
+                ],
+                "Position": [
+                  -10.5,
+                  4.75,
+                  -34
+                ]
+              }
+            },
+            "PortalPanel": {
+              "$className": "Part",
+              "$properties": {
+                "Anchored": true,
+                "CanCollide": false,
+                "CanTouch": false,
+                "TopSurface": "Smooth",
+                "BottomSurface": "Smooth",
+                "Material": "SmoothPlastic",
+                "Color": [
+                  1,
+                  0.596078431372549,
+                  0.2823529411764706
+                ],
+                "Size": [
+                  10,
+                  8,
+                  0.4
+                ],
+                "Position": [
+                  -16,
+                  4.75,
+                  -34
+                ],
+                "Transparency": 0.55
+              }
+            },
+            "Glow": {
+              "$className": "Part",
+              "$properties": {
+                "Anchored": true,
+                "CanCollide": false,
+                "CanTouch": false,
+                "TopSurface": "Smooth",
+                "BottomSurface": "Smooth",
+                "Material": "SmoothPlastic",
+                "Color": [
+                  1,
+                  0.596078431372549,
+                  0.2823529411764706
+                ],
+                "Size": [
+                  7,
+                  5,
+                  0.3
+                ],
+                "Position": [
+                  -16,
+                  4.75,
+                  -34
+                ],
+                "Transparency": 0.3
+              }
+            },
+            "Sign": {
+              "$className": "Part",
+              "$properties": {
+                "Anchored": true,
+                "CanCollide": true,
+                "CanTouch": false,
+                "TopSurface": "Smooth",
+                "BottomSurface": "Smooth",
+                "Material": "SmoothPlastic",
+                "Color": [
+                  1,
+                  0.596078431372549,
+                  0.2823529411764706
+                ],
+                "Size": [
+                  10,
+                  1.6,
+                  0.4
+                ],
+                "Position": [
+                  -16,
+                  10.6,
+                  -34
+                ]
+              }
+            }
+          },
+          "Portal_Ice": {
+            "$className": "Model",
+            "Base": {
+              "$className": "Part",
+              "$properties": {
+                "Anchored": true,
+                "CanCollide": true,
+                "CanTouch": false,
+                "TopSurface": "Smooth",
+                "BottomSurface": "Smooth",
+                "Material": "Slate",
+                "Color": [
+                  0.33725490196078434,
+                  0.3764705882352941,
+                  0.4470588235294118
+                ],
+                "Size": [
+                  12,
+                  1,
+                  8
+                ],
+                "Position": [
+                  0,
+                  0.5,
+                  -34
+                ]
+              }
+            },
+            "Lintel": {
+              "$className": "Part",
+              "$properties": {
+                "Anchored": true,
+                "CanCollide": true,
+                "CanTouch": false,
+                "TopSurface": "Smooth",
+                "BottomSurface": "Smooth",
+                "Material": "Slate",
+                "Color": [
+                  0.33725490196078434,
+                  0.3764705882352941,
+                  0.4470588235294118
+                ],
+                "Size": [
+                  12,
+                  1.2,
+                  8
+                ],
+                "Position": [
+                  0,
+                  9,
+                  -34
+                ]
+              }
+            },
+            "PostL": {
+              "$className": "Part",
+              "$properties": {
+                "Anchored": true,
+                "CanCollide": true,
+                "CanTouch": false,
+                "TopSurface": "Smooth",
+                "BottomSurface": "Smooth",
+                "Material": "Slate",
+                "Color": [
+                  0.33725490196078434,
+                  0.3764705882352941,
+                  0.4470588235294118
+                ],
+                "Size": [
+                  1.2,
+                  8.5,
+                  8
+                ],
+                "Position": [
+                  -5.5,
+                  4.75,
+                  -34
+                ]
+              }
+            },
+            "PostR": {
+              "$className": "Part",
+              "$properties": {
+                "Anchored": true,
+                "CanCollide": true,
+                "CanTouch": false,
+                "TopSurface": "Smooth",
+                "BottomSurface": "Smooth",
+                "Material": "Slate",
+                "Color": [
+                  0.33725490196078434,
+                  0.3764705882352941,
+                  0.4470588235294118
+                ],
+                "Size": [
+                  1.2,
+                  8.5,
+                  8
+                ],
+                "Position": [
+                  5.5,
+                  4.75,
+                  -34
+                ]
+              }
+            },
+            "PortalPanel": {
+              "$className": "Part",
+              "$properties": {
+                "Anchored": true,
+                "CanCollide": false,
+                "CanTouch": false,
+                "TopSurface": "Smooth",
+                "BottomSurface": "Smooth",
+                "Material": "SmoothPlastic",
+                "Color": [
+                  0.5490196078431373,
+                  0.8392156862745098,
+                  0.9607843137254902
+                ],
+                "Size": [
+                  10,
+                  8,
+                  0.4
+                ],
+                "Position": [
+                  0,
+                  4.75,
+                  -34
+                ],
+                "Transparency": 0.55
+              }
+            },
+            "Glow": {
+              "$className": "Part",
+              "$properties": {
+                "Anchored": true,
+                "CanCollide": false,
+                "CanTouch": false,
+                "TopSurface": "Smooth",
+                "BottomSurface": "Smooth",
+                "Material": "SmoothPlastic",
+                "Color": [
+                  0.5490196078431373,
+                  0.8392156862745098,
+                  0.9607843137254902
+                ],
+                "Size": [
+                  7,
+                  5,
+                  0.3
+                ],
+                "Position": [
+                  0,
+                  4.75,
+                  -34
+                ],
+                "Transparency": 0.3
+              }
+            },
+            "Sign": {
+              "$className": "Part",
+              "$properties": {
+                "Anchored": true,
+                "CanCollide": true,
+                "CanTouch": false,
+                "TopSurface": "Smooth",
+                "BottomSurface": "Smooth",
+                "Material": "SmoothPlastic",
+                "Color": [
+                  0.5490196078431373,
+                  0.8392156862745098,
+                  0.9607843137254902
+                ],
+                "Size": [
+                  10,
+                  1.6,
+                  0.4
+                ],
+                "Position": [
+                  0,
+                  10.6,
+                  -34
+                ]
+              }
+            }
+          },
+          "Portal_Volcano": {
+            "$className": "Model",
+            "Base": {
+              "$className": "Part",
+              "$properties": {
+                "Anchored": true,
+                "CanCollide": true,
+                "CanTouch": false,
+                "TopSurface": "Smooth",
+                "BottomSurface": "Smooth",
+                "Material": "Slate",
+                "Color": [
+                  0.33725490196078434,
+                  0.3764705882352941,
+                  0.4470588235294118
+                ],
+                "Size": [
+                  12,
+                  1,
+                  8
+                ],
+                "Position": [
+                  16,
+                  0.5,
+                  -34
+                ]
+              }
+            },
+            "Lintel": {
+              "$className": "Part",
+              "$properties": {
+                "Anchored": true,
+                "CanCollide": true,
+                "CanTouch": false,
+                "TopSurface": "Smooth",
+                "BottomSurface": "Smooth",
+                "Material": "Slate",
+                "Color": [
+                  0.33725490196078434,
+                  0.3764705882352941,
+                  0.4470588235294118
+                ],
+                "Size": [
+                  12,
+                  1.2,
+                  8
+                ],
+                "Position": [
+                  16,
+                  9,
+                  -34
+                ]
+              }
+            },
+            "PostL": {
+              "$className": "Part",
+              "$properties": {
+                "Anchored": true,
+                "CanCollide": true,
+                "CanTouch": false,
+                "TopSurface": "Smooth",
+                "BottomSurface": "Smooth",
+                "Material": "Slate",
+                "Color": [
+                  0.33725490196078434,
+                  0.3764705882352941,
+                  0.4470588235294118
+                ],
+                "Size": [
+                  1.2,
+                  8.5,
+                  8
+                ],
+                "Position": [
+                  10.5,
+                  4.75,
+                  -34
+                ]
+              }
+            },
+            "PostR": {
+              "$className": "Part",
+              "$properties": {
+                "Anchored": true,
+                "CanCollide": true,
+                "CanTouch": false,
+                "TopSurface": "Smooth",
+                "BottomSurface": "Smooth",
+                "Material": "Slate",
+                "Color": [
+                  0.33725490196078434,
+                  0.3764705882352941,
+                  0.4470588235294118
+                ],
+                "Size": [
+                  1.2,
+                  8.5,
+                  8
+                ],
+                "Position": [
+                  21.5,
+                  4.75,
+                  -34
+                ]
+              }
+            },
+            "PortalPanel": {
+              "$className": "Part",
+              "$properties": {
+                "Anchored": true,
+                "CanCollide": false,
+                "CanTouch": false,
+                "TopSurface": "Smooth",
+                "BottomSurface": "Smooth",
+                "Material": "SmoothPlastic",
+                "Color": [
+                  0.9411764705882353,
+                  0.43137254901960786,
+                  0.2823529411764706
+                ],
+                "Size": [
+                  10,
+                  8,
+                  0.4
+                ],
+                "Position": [
+                  16,
+                  4.75,
+                  -34
+                ],
+                "Transparency": 0.55
+              }
+            },
+            "Glow": {
+              "$className": "Part",
+              "$properties": {
+                "Anchored": true,
+                "CanCollide": false,
+                "CanTouch": false,
+                "TopSurface": "Smooth",
+                "BottomSurface": "Smooth",
+                "Material": "SmoothPlastic",
+                "Color": [
+                  0.9411764705882353,
+                  0.43137254901960786,
+                  0.2823529411764706
+                ],
+                "Size": [
+                  7,
+                  5,
+                  0.3
+                ],
+                "Position": [
+                  16,
+                  4.75,
+                  -34
+                ],
+                "Transparency": 0.3
+              }
+            },
+            "Sign": {
+              "$className": "Part",
+              "$properties": {
+                "Anchored": true,
+                "CanCollide": true,
+                "CanTouch": false,
+                "TopSurface": "Smooth",
+                "BottomSurface": "Smooth",
+                "Material": "SmoothPlastic",
+                "Color": [
+                  0.9411764705882353,
+                  0.43137254901960786,
+                  0.2823529411764706
+                ],
+                "Size": [
+                  10,
+                  1.6,
+                  0.4
+                ],
+                "Position": [
+                  16,
+                  10.6,
+                  -34
+                ]
+              }
+            }
+          },
+          "Portal_Cyber": {
+            "$className": "Model",
+            "Base": {
+              "$className": "Part",
+              "$properties": {
+                "Anchored": true,
+                "CanCollide": true,
+                "CanTouch": false,
+                "TopSurface": "Smooth",
+                "BottomSurface": "Smooth",
+                "Material": "Slate",
+                "Color": [
+                  0.33725490196078434,
+                  0.3764705882352941,
+                  0.4470588235294118
+                ],
+                "Size": [
+                  12,
+                  1,
+                  8
+                ],
+                "Position": [
+                  32,
+                  0.5,
+                  -34
+                ]
+              }
+            },
+            "Lintel": {
+              "$className": "Part",
+              "$properties": {
+                "Anchored": true,
+                "CanCollide": true,
+                "CanTouch": false,
+                "TopSurface": "Smooth",
+                "BottomSurface": "Smooth",
+                "Material": "Slate",
+                "Color": [
+                  0.33725490196078434,
+                  0.3764705882352941,
+                  0.4470588235294118
+                ],
+                "Size": [
+                  12,
+                  1.2,
+                  8
+                ],
+                "Position": [
+                  32,
+                  9,
+                  -34
+                ]
+              }
+            },
+            "PostL": {
+              "$className": "Part",
+              "$properties": {
+                "Anchored": true,
+                "CanCollide": true,
+                "CanTouch": false,
+                "TopSurface": "Smooth",
+                "BottomSurface": "Smooth",
+                "Material": "Slate",
+                "Color": [
+                  0.33725490196078434,
+                  0.3764705882352941,
+                  0.4470588235294118
+                ],
+                "Size": [
+                  1.2,
+                  8.5,
+                  8
+                ],
+                "Position": [
+                  26.5,
+                  4.75,
+                  -34
+                ]
+              }
+            },
+            "PostR": {
+              "$className": "Part",
+              "$properties": {
+                "Anchored": true,
+                "CanCollide": true,
+                "CanTouch": false,
+                "TopSurface": "Smooth",
+                "BottomSurface": "Smooth",
+                "Material": "Slate",
+                "Color": [
+                  0.33725490196078434,
+                  0.3764705882352941,
+                  0.4470588235294118
+                ],
+                "Size": [
+                  1.2,
+                  8.5,
+                  8
+                ],
+                "Position": [
+                  37.5,
+                  4.75,
+                  -34
+                ]
+              }
+            },
+            "PortalPanel": {
+              "$className": "Part",
+              "$properties": {
+                "Anchored": true,
+                "CanCollide": false,
+                "CanTouch": false,
+                "TopSurface": "Smooth",
+                "BottomSurface": "Smooth",
+                "Material": "SmoothPlastic",
+                "Color": [
+                  0.7450980392156863,
+                  0.47058823529411764,
+                  1
+                ],
+                "Size": [
+                  10,
+                  8,
+                  0.4
+                ],
+                "Position": [
+                  32,
+                  4.75,
+                  -34
+                ],
+                "Transparency": 0.55
+              }
+            },
+            "Glow": {
+              "$className": "Part",
+              "$properties": {
+                "Anchored": true,
+                "CanCollide": false,
+                "CanTouch": false,
+                "TopSurface": "Smooth",
+                "BottomSurface": "Smooth",
+                "Material": "SmoothPlastic",
+                "Color": [
+                  0.7450980392156863,
+                  0.47058823529411764,
+                  1
+                ],
+                "Size": [
+                  7,
+                  5,
+                  0.3
+                ],
+                "Position": [
+                  32,
+                  4.75,
+                  -34
+                ],
+                "Transparency": 0.3
+              }
+            },
+            "Sign": {
+              "$className": "Part",
+              "$properties": {
+                "Anchored": true,
+                "CanCollide": true,
+                "CanTouch": false,
+                "TopSurface": "Smooth",
+                "BottomSurface": "Smooth",
+                "Material": "SmoothPlastic",
+                "Color": [
+                  0.7450980392156863,
+                  0.47058823529411764,
+                  1
+                ],
+                "Size": [
+                  10,
+                  1.6,
+                  0.4
+                ],
+                "Position": [
+                  32,
+                  10.6,
+                  -34
+                ]
+              }
+            }
           }
         }
       },

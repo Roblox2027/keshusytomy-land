@@ -81,6 +81,16 @@ function main() {
 		process.exit(1);
 	}
 
+	// 1-bis. PURGA DEL MAPA, antes de importar.
+	//
+	// El orden importa: la fusion y la deduplicacion son incrementales, asi
+	// que si el Workspace guarda geometria en una posicion invalida (por
+	// ejemplo, toda apilada en el origen), cada pasada posterior descarta la
+	// copia correcta que trae la importacion y el mapa nunca se recupera.
+	// `reset-map.lua` solo purga cuando detecta ese estado; si el mapa esta
+	// sano no toca nada.
+	lua(path.join("tools", "reset-map.lua"));
+
 	// El `import_rbxm` necesita la ruta ABSOLUTA del .rbxm.
 	const argsFile = path.join(CACHE, "mcp-args.json");
 	fs.writeFileSync(
@@ -98,6 +108,19 @@ function main() {
 	lua(path.join("tools", "merge-workspace.lua"));
 	lua(path.join("tools", "dedupe-workspace.lua"));
 	lua(path.join("tools", "fix-starterscripts.lua"));
+
+	// 5-bis. COLOCAR LA GEOMETRIA.
+	//
+	// `import_rbxm` importa las Partes con su tamano pero con
+	// `Position = (0,0,0)`. Se verifico con un `.rbxm` minimo de UNA sola
+	// Part y XML bien formado (`tools/build-probe-rbxm.js`): la perdida no
+	// depende del mapa ni del generador, ocurre dentro de Studio.
+	//
+	// Por eso, despues de importar, las posiciones se vuelven a colocar desde
+	// `default.project.json`, que es la fuente unica. Sin este paso, el mapa
+	// "sincronizado" tiene todas las Partes amontonadas en el origen y el
+	// juego no es jugable aunque `source-runtime-diff` de PASS.
+	run("apply-map-positions.js", ["--run"]);
 
 	// 6. Los 63 scripts. Tarda: cada llamada MCP abre sesion propia.
 	if (!run("sync-scripts.js")) {

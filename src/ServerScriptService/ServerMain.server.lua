@@ -66,6 +66,7 @@ ServerMain.WiringReport = {}
 -- Se llenan en `Start`, despues de arrancar el registro.
 local playerService = nil
 local bombService = nil
+local portalService = nil
 
 -- Registro de servicios. Cada entrada declara sus dependencias para
 -- que el orden de arranque sea determinista.
@@ -85,6 +86,10 @@ local SERVICES = {
 	{ name = "ExplosionService", module = SERVER.Services.ExplosionService, dependencies = { "DestructionService", "CombatService" } },
 	{ name = "BombService", module = SERVER.Services.BombService, dependencies = { "RoundService", "ExplosionService" } },
 	{ name = "MatchService", module = SERVER.Services.MatchService, dependencies = { "RoundService", "PlayerService", "BombService", "DestructionService" } },
+	-- PortalService depende de MatchService: para entrar a un mundo hace
+	-- falta saber a donde se teletransporta al jugador, y MatchService es el
+	-- unico que tiene los marcadores de traslado del mapa.
+	{ name = "PortalService", module = SERVER.Services.PortalService, dependencies = { "WorldService", "MatchService", "RoundService" } },
 }
 
 --- Conecta las dependencias entre servicios.
@@ -111,6 +116,7 @@ local function wireDependencies(registry: any): { string }
 	local destructionService = registry:Get("DestructionService")
 	local matchService = registry:Get("MatchService")
 	local spawnService = registry:Get("SpawnService")
+	local portalService = registry:Get("PortalService")
 
 	-- Declara una conexion y verifica que se pudo hacer de verdad.
 	-- @param label string
@@ -192,6 +198,16 @@ local function wireDependencies(registry: any): { string }
 		end
 	)
 
+	-- PortalService necesita el mundo (para el nivel), el destino (para
+	-- teletransportar), la ronda (para impedir salir durante la partida) y el
+	-- jugador (para leer su nivel real y no el atributo del cliente).
+	connect("PortalService", portalService,
+		{ "WorldService", "MatchService", "RoundService", "PlayerService" },
+		function(service: any)
+			service.SetDependencies(worldService, matchService, roundService, playerService)
+		end
+	)
+
 	-- MatchService necesita conocer el mundo por defecto para validar
 	-- a quien puede entrar en el (FASE 18 lo hara con portales).
 	if worldService then
@@ -266,7 +282,22 @@ local REMOTE_CHANNELS = {
 	[GameConstants.RemoteAction.Shop] = {},
 	[GameConstants.RemoteAction.Inventory] = {},
 	[GameConstants.RemoteAction.Quest] = {},
-	[GameConstants.RemoteAction.Portal] = {},
+
+	-- El canal de portales es la UNICA via de entrada a un mundo. El
+	-- payload es solo el `worldId` pedido: el servidor decide si el viaje
+	-- procede y calcula el destino. Un cliente que invente un `worldId` no
+	-- tiene portal asociado y la peticion se descarta.
+	[GameConstants.RemoteAction.Portal] = {
+		Enter = function(player: Player, payload: any)
+			if not portalService then
+				Logger.Warn("PortalAction.Enter recibido sin PortalService")
+				return
+			end
+
+			portalService.HandleEnter(player, payload)
+		end,
+	},
+
 	[GameConstants.RemoteAction.Party] = {},
 	[GameConstants.RemoteAction.Settings] = {},
 }
@@ -392,6 +423,9 @@ function ServerMain.Start(): boolean
 	-- Los handlers de remotos consultan estos en caliente.
 	playerService = registry:Get("PlayerService")
 	bombService = registry:Get("BombService")
+	-- El handler de `PortalAction.Enter` vive fuera de `wireDependencies`,
+	-- asi que necesita la misma referencia a nivel de modulo que los demas.
+	portalService = registry:Get("PortalService")
 
 	local started = registry:StartAll()
 

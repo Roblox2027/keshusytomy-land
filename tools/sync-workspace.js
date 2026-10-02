@@ -104,7 +104,28 @@ function main() {
 	// El cuerpo del subarbol son sus hijos directos. Se reenvuelven en
 	// un Folder para poder importarlos bajo `game.Workspace` sin
 	// intentar crear un segundo Workspace (Roblox no lo permite).
-	const bodyStart = workspace.indexOf(">") + 1;
+	//
+	// BUG CORREGIDO (auditoria de importacion)
+	// ----------------------------------------
+	// El corte se hacia en el primer `>` del `<Item class="Workspace">`, que
+	// es el de APERTURA del Item, de modo que el bloque de propiedades del
+	// Workspace (Gravity, StreamingEnabled) quedaba PEGADO al Folder
+	// envoltorio y el `.rbxm` llevaba DOS `<Properties>` dentro del MISMO
+	// `<Item>`.
+	//
+	// Ese XML es invalido. Studio lo parsea con tolerancia y aplica lo que
+	// entiende: las Partes llegaban con `Size` pero con `Position = (0,0,0)`,
+	// de modo que TODO el lobby se apilaba en el origen mientras la arena,
+	// declarada en el mismo archivo, conservaba sus coordenadas. La
+	// divergencia era invisible en el recuento de instancias (source ==
+	// runtime en numero) y solo se veía al medir posiciones.
+	//
+	// El corte correcto es DESPUES del `</Properties>` del Item.
+	const propertiesEnd = workspace.indexOf("</Properties>");
+	if (propertiesEnd === -1) {
+		throw new Error("El <Item class=\"Workspace\"> no tiene bloque <Properties>");
+	}
+	const bodyStart = workspace.indexOf(">", propertiesEnd) + 1;
 	const bodyEnd = workspace.lastIndexOf("</Item>");
 	const children = workspace.slice(bodyStart, bodyEnd);
 
@@ -130,6 +151,77 @@ function main() {
 	console.log("Subarbol Workspace extraido del build de Rojo.");
 	console.log("  incluye la raiz Folder: " + count + " Items");
 	console.log("  escrito en: " + path.relative(ROOT, OUT));
+
+	// COMPROBACION ESTRUCTURAL (no es decorativa).
+	//
+	// Un `<Item>` con dos `<Properties>` es XML invalido. Studio lo acepta y
+	// aplica solo lo que entiende, de modo que el fallo se manifiesta en el
+	// JUEGO (geometria amontonada en el origen) y no en la importacion: el
+	// comando sale con exito 0 y el recuento de instancias coincide. Por eso
+	// el defecto tiene que detectarse aqui, antes de que llegue a Studio.
+	//
+	// Se comprueba de forma estructural y no comparando texto: se recorre el
+	// documento contando aperturas y cierres de `<Properties>` por Item.
+	const problems = validateRbxm(rbxm);
+	if (problems.length) {
+		for (const p of problems) console.log("  XML INVALIDO: " + p);
+		console.log("");
+		console.log("El .rbxm generado no es importable de forma fiable.");
+		process.exit(1);
+	}
+}
+
+/**
+ * Valida que cada `<Item>` tenga como mucho un `<Properties>` y que el
+ * documento este balanceado.
+ *
+ * @param {string} xml
+ * @returns {string[]} problemas encontrados (vacio = correcto)
+ */
+function validateRbxm(xml) {
+	const problems = [];
+	const items = xml.match(/<Item [^>]*>|<Item class="[^"]*"[^>]*>/g) || [];
+	let depth = 0;
+
+	// Se recorren las APERTURAS y CIERRES de Item en orden, contando cuantos
+	// `<Properties>` abiertos hay dentro de cada Item.
+	let open = 0;
+	let propertiesSeen = 0;
+	const tokenRe = /<Item [^>]*>|<\/Item>|<Properties>|<\/Properties>/g;
+	let m;
+
+	while ((m = tokenRe.exec(xml)) !== null) {
+		const t = m[0];
+		if (t.startsWith("<Item ")) {
+			depth += 1;
+			open += 1;
+			// Solo se vigila el Item mas externo: los internos se validan
+			// al cerrar su padre.
+			propertiesSeen = 0;
+		} else if (t === "<Properties>") {
+			propertiesSeen += 1;
+			if (propertiesSeen > 1) {
+				problems.push(`<Item> #${open} (nivel ${depth}) declara ${propertiesSeen} bloques <Properties>`);
+			}
+		} else if (t === "</Properties>") {
+			propertiesSeen -= 1;
+		} else if (t === "</Item>") {
+			depth -= 1;
+			open -= 1;
+		}
+	}
+
+	if (depth !== 0) {
+		problems.push(`desequilibrio de <Item>: quedan ${depth} sin cerrar`);
+	}
+	if (!xml.trimStart().startsWith("<roblox")) {
+		problems.push("el documento no empieza por <roblox>");
+	}
+	if (!xml.trimEnd().endsWith("</roblox>")) {
+		problems.push("el documento no termina en </roblox>");
+	}
+
+	return problems;
 }
 
 main();

@@ -1,18 +1,42 @@
 -- merge-workspace.lua
 -- Fusiona el arbol importado por `sync-workspace.js` en el Workspace real.
 --
--- `import_rbxm` crea `game.Workspace.Workspace` (un Folder con el nombre
--- del sitio) porque no puede crear un segundo Workspace. Este script:
---   1. sube los hijos reales al Workspace de verdad,
---   2. elimina los placeholders vacios que losduplicaban,
---   3. destruye el Folder envoltorio.
+-- `import_rbxm` no puede crear un segundo Workspace, asi que el arbol llega
+-- envuelto en un Folder. Este script sube sus hijos al Workspace de verdad y
+-- destruye el envoltorio.
+--
+-- Se aceptan LOS DOS nombres posibles del envoltorio:
+--   - `Workspace`  (el nombre que usa `sync-workspace.js`);
+--   - `WorkspaceSource` (el nombre que declara el Folder raiz del `.rbxm`).
+--
+-- BUG CORREGIDO (auditoria de importacion)
+-- ---------------------------------------
+-- El script solo buscaba un envoltorio llamado `Workspace`. Como el Folder
+-- raiz del `.rbxm` se llama `WorkspaceSource`, la fusion se salia entera y
+-- devolvia "SIN ENVOLTORIO" sin hacer nada. El arbol importado se quedaba
+-- colgando dentro de `Workspace.WorkspaceSource`, con la geometria duplicada
+-- y el lobby authenticamente amontonado en el origen.
+--
+-- Con ambos nombres reconocidos, el envoltorio se encuentra y se destruye.
 --
 -- Es idempotente: si no hay envoltorio, no hace nada.
 
 local Workspace = game:GetService("Workspace")
 
-local wrapper = Workspace:FindFirstChild("Workspace")
-if not wrapper or not wrapper:IsA("Folder") then
+--- Busca el Folder envoltorio de la importacion, sea cual sea su nombre.
+--- @return Folder?
+local function findWrapper()
+	for _, name in ipairs({ "WorkspaceSource", "Workspace" }) do
+		local candidate = Workspace:FindFirstChild(name)
+		if candidate and candidate:IsA("Folder") then
+			return candidate
+		end
+	end
+	return nil
+end
+
+local wrapper = findWrapper()
+if not wrapper then
 	return "SIN ENVOLTORIO: nada que fusionar"
 end
 
@@ -39,9 +63,10 @@ end
 wrapper:Destroy()
 
 return string.format(
-	"FUSIONADO: %d carpetas subidas (%s); %d placeholders vacios eliminados (%s); envoltorio destruido",
+	"FUSIONADO: %d carpetas subidas (%s); %d placeholders vacios eliminados (%s); envoltorio '%s' destruido",
 	#moved,
 	table.concat(moved, ", "),
 	#removed,
-	#removed > 0 and table.concat(removed, ", ") or "-"
+	#removed > 0 and table.concat(removed, ", ") or "-",
+	wrapper.Name
 )

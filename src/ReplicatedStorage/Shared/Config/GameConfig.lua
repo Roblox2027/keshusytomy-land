@@ -1,16 +1,6 @@
 --!strict
 --[[
 	GameConfig
-	Valores centrales de configuracion.
-
-	Regla: los sistemas NO deben contener numeros magicos.
-	Deben leer de este modulo, de modo que ajustar el balance
-	no requiera modificar logica de juego.
-]]
-
---!strict
---[[
-	GameConfig
 	Valores centrales de BALANCE.
 
 	Regla: los sistemas NO deben contener numeros magicos.
@@ -22,6 +12,14 @@
 	dominio (PerformanceConfig, FeatureConfig, etc.) es un archivo
 	independiente que se carga por separado. Esto mantiene cada
 	configuracion testeable de forma aislada, sin dependencias.
+
+	BUG CORREGIDO (auditoria): el archivo tenia DOS cabeceras
+	concatenadas y DOS directivas `--!strict` (lineas 1-10 y 11-25). La
+	segunda directiva se ignoraba con el aviso "Comment directive is
+	ignored because it is placed after the first non-comment token", de modo
+	que la mitad del archivo creia estar en modo estricto y la otra no.
+	Los dos bloques describian ademas el mismo modulo con textos distintos.
+	Se conserva solo la cabecera vigente.
 ]]
 
 return {
