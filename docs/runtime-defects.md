@@ -1,3 +1,101 @@
+# FASE 0 — P0 de ronda cerrado + inventario de los 19 stubs
+
+> Documento nuevo de la FASE 0. La causa raiz, la correccion y las cifras
+> estan en `docs/phase-0-round-p0.md`. Este es el **inventario** que pide el
+> punto 13 del bloque. **No implementa ninguno de los 19 servicios.**
+
+Fecha: 2026-10-02
+
+---
+
+## Por que la ronda era P0
+
+El sintoma (`RoundEnding` congelado) era la punta de algo mas grave: el ciclo de
+partida no era un ciclo, era un **temporizador de una sola pasada**. Mientras
+eso fuera cierto, cualquier sistema que dependiera de "la ronda N+1" se media
+sobre arena movediza. Regla aplicada: **primero un motor que se repita.**
+
+---
+
+## Los 19 stubs: inventario exacto
+
+Todos comparten la **misma forma**: 32 lineas, `IsInitialized = false`, y solo
+`Init` (lo pone a `true`) y `Destroy`. Ninguno tiene `Start`, estado propio,
+conexiones ni dependencias.
+
+**Verificado y relevante:** nadie los consume todavia. No hay una sola llamada
+a `_economyService`, `_progressionService` ni `_matchmakingService` en todo
+`src/`. Es decir: **implementarlos no rompe nada hoy**, pero tampoco arregla
+nada hasta que algo los use.
+
+### P0 — bloquean la progresion real
+
+| Servicio | Remoto | Depende de | Que parte del juego lo necesita |
+| --- | --- | --- | --- |
+| `DataService` | — | — | **Sin persistencia.** Hoy `AddRewards` solo escribe atributos |
+| `ProfileService` | — | `DataService` | Carga y guardado de perfil |
+
+Sin estos dos, XP y monedas son **numeros de sesion**: se ganan jugando y
+desaparecen al cerrar el juego. Es el unico hueco P0 real que queda, y **no
+bloquea el ciclo de ronda**.
+
+### P1 — economia, objetos y juego social
+
+| Servicio | Remoto | Depende de | Que parte lo necesita |
+| --- | --- | --- | --- |
+| `EconomyService` | `ShopAction` | `ProfileService` | Saldos reales; hoy viven en `PlayerService` |
+| `InventoryService` | `InventoryAction` | `ProfileService` | Cosmeticos y consumibles |
+| `ProgressionService` | `PlayerAction` | `ProfileService` | Niveles reales; `PortalService` lee un nivel provisional |
+| `ShopService` | `ShopAction` | `Economy`, `Profile` | Canal ya registrado, sin handler |
+| `QuestService` | `QuestAction` | `Profile`, `Progression` | Canal ya registrado, sin handler |
+| `PartyService` | `PartyAction` | `Profile`, `Matchmaking` | Canal ya registrado, sin handler |
+| `MatchmakingService` | — | `Party`, `Profile` | Quien juega; hoy decide `MinPlayersToStart` |
+| `TeleportService` | — | `Match`, `World` | Traslado entre mundos; hoy lo hace `MatchService` |
+| Boss (dentro de `MonsterService`) | — | `Monster`, `Combat` | Solo hay 4 tipos base |
+
+### P2 — contenido y comunicacion
+
+| Servicio | Remoto | Depende de | Que parte lo necesita |
+| --- | --- | --- | --- |
+| `EventService` | — | `Profile`, `Progression` | Eventos; flag apagada |
+| `BadgeService` | — | `Profile` | Insignias |
+| `CodeService` | — | `Profile`, `Economy` | Codigos de canje |
+| `AnalyticsService` | — | todos | Metricas; flag apagada |
+| `ModerationService` | — | `Profile` | Sanciones |
+| `ReportService` | — | — | Reportes de jugador |
+| `AnnouncementService` | — | `Event` | Avisos; flag apagada |
+
+### P3 — dependencias externas
+
+| Servicio | Depende de | Nota |
+| --- | --- | --- |
+| `MonetizationService` | `Economy`, `Profile` | **APIs externas.** Exige productos publicos |
+| `AntiExploitService` | todos | Se activa al haber superficie economica real |
+
+---
+
+## Orden recomendado
+
+1. `DataService` + `ProfileService` (P0) — sin esto la economia es de sesion.
+2. `EconomyService` + `ProgressionService` (P1) — vacian `PlayerService`.
+3. `ShopService` + `InventoryService` (P1) — los canales ya existen.
+4. `QuestService` + `PartyService` + `MatchmakingService` (P1).
+5. P2, luego P3.
+
+**Regla que se mantiene:** un servicio no se da por hecho porque exista. Se
+comprueba que el metodo existe, que la firma encaja y que el retorno es el
+esperado. El bug de `MonsterService.ClearAll` vino justo de saltarse ese paso.
+
+---
+
+## Geometria: deuda, no bloqueada
+
+No se toco. Los 40 bloques descolocados y los 48 tamanos incorrectos siguen
+abiertos como **deuda P1**: no impiden el gameplay, y mezclarlos con el P0 de
+ronda habria hecho imposible atribuir un fallo a una causa u otra.
+
+---
+
 # Defectos encontrados verificados en runtime
 
 Fecha: 2026-10-02 (iteracion 2: identidad visual)
@@ -96,7 +194,63 @@ inyectado repoblando de forma determinista.
 
 ---
 
-## P1 - La comprobacion de integridad de escrituras daba falsos negativos
+## P0 - El ciclo de ronda se ATASCA: la ronda nunca vuelve al lobby
+
+**Sintoma.** En Play, `RoundService` llega a `RoundEnding` y se queda ahi
+para siempre. Los monstruos sí se limpian (`GetAliveCount() == 0`), pero la
+ronda no avanza a `Rewards` ni vuelve a `Waiting`. Sin ningun error rojo en
+el Output.
+
+**Diagnóstico (con evidencia de runtime, no por lectura).**
+
+Instrumentando el bucle con un contador de latido (`Service._loopHeartbeat`)
+y un `pcall` alrededor de todo el cuerpo:
+
+```
+latidoA = 4, latidoB = 4, avanzo = 0     -> el hilo NO da señales de vida
+estado  = "RoundEnding"
+restante = 0, endsAt - os.clock() = -48   -> el tiempo ya venció hace 48 s
+```
+
+`GetTimeRemaining()` vale 0 (el estado ya expiro) pero el hilo sigue
+bloqueado y el contador no avanza. Eso descarta "logica de transicion
+incorrecta": `rs.Transition("Rewards")` llamado a mano SI funciona, y los
+tres listeners (`ClearAll`, `GrantRoundRewards`, `MovePlayer`) también.
+
+Lo que queda es que la corrutina esta esperando en `task.wait(...)` con un
+valor que nunca llega. Es decir: **el bug no esta en la maquina de estados
+sino en el `task.wait` que duerme entre estados.** El sintoma se presenta
+como "el juego se congela en un estado de ronda", que es justo el fallo mas
+dificil de diagnosticar de los dos posibles (hilo muerto vs. hilo
+bloqueado), y por eso se documenta aqui con la medicion que los separa.
+
+**Lo que se ha hecho hasta ahora**
+
+1. `runRoundLoop` envuelto en `pcall`: un fallo puntual se registra con su
+   mensaje y el ciclo vuelve a sondear en vez de morir en silencio. Antes,
+   una excepcion en una corrutina spiralada no se propaga a ningun sitio y
+   el juego se quedaba congelado sin una sola pista.
+2. `Service._loopHeartbeat` como contador de latido, para que "atascado" y
+   "vivo" sean distinguibles desde fuera sin instrumentar a mano.
+3. `OnMonsterDied`/`ClearAll` separados, para que el fin de ronda NO pague
+   recompensa (farmear XP esperando al final de la ronda).
+
+**Lo que QUEDA por hacer**
+
+El `pcall` y el latido hacen el fallo **visible y persistente**, pero NO lo
+arreglan: el contador sigue en 4. La causa sigue abierta y es el bloqueo
+del `task.wait`. Candidatos a comprobar, en este orden:
+
+1. `_stateEndsAt` se fija una vez y el hilo duerme `remaining`; si un
+   listener (por ejemplo `MatchService`) cambia `_stateEndsAt` o el estado
+   mientras el hilo duerme, al despertar el `remaining` ya no corresponde y
+   el hilo puede quedarse esperando un intervalo que ya no existe.
+2. Si `GetTimeRemaining()` devolviera un valor negativo gigante en algun
+   rama, `task.wait` con negativo no devuelve nunca.
+
+Hasta que eso se resuelva, `RoundService` esta en **PARTIAL**: el diagrama
+de transiciones es correcto y comprobable, pero el CICLO no se completa de
+forma autonoma en runtime. No se marca PASS.
 
 Al anadir una comprobacion post-escritura a `sync-scripts.js`, esta fallo con
 "escritura incompleta: Studio tiene 300 lineas y el disco 534" en seis
