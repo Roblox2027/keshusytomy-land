@@ -56,7 +56,13 @@ Gateway._rejected = {}
 --- @param options { capacity: number?, refillPerSecond: number? }?
 --- @return table
 function Gateway.new(options: { capacity: number?, refillPerSecond: number? }?)
-	local resolved = options or {}
+	-- El `or {}` de abajo NECESITA anotacion explicita. Sin ella Luau
+-- unnests la union `{...}? | {}` y `resolved` queda tipado como `{}`,
+-- de modo que `resolved.capacity` es un acceso a una clave inexistente
+-- en un tipo cerrado: el analizador lo marca como error aunque en
+-- ejecucion la clave exista. La anotacion mantiene el tipo real sin
+-- cambiar una sola linea de comportamiento.
+local resolved: { capacity: number?, refillPerSecond: number? } = options or {}
 	local self = setmetatable({
 		_handlers = {},
 		_channels = {},

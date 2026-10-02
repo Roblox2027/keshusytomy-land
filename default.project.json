@@ -12,7 +12,13 @@
       "$path": "src/StarterGui"
     },
     "StarterPlayer": {
-      "$path": "src/StarterPlayer"
+      "$className": "StarterPlayer",
+      "StarterPlayerScripts": {
+        "$path": "src/StarterPlayer/StarterPlayerScripts"
+      },
+      "StarterCharacterScripts": {
+        "$className": "StarterCharacterScripts"
+      }
     },
     "Workspace": {
       "$className": "Workspace",
@@ -1937,6 +1943,18 @@
               }
             }
           }
+        },
+        "Desert": {
+          "$className": "Folder"
+        },
+        "Ice": {
+          "$className": "Folder"
+        },
+        "Volcano": {
+          "$className": "Folder"
+        },
+        "Cyber": {
+          "$className": "Folder"
         }
       }
     }

@@ -116,10 +116,27 @@ async function main() {
 	// El codigo Luau se puede pasar en un archivo con `--file <ruta>`.
 	// Es la via fiable: PowerShell y cmd mutilan las comillas dobles del
 	// codigo antes de que node las vea.
+	//
+	// `--jsonfile <ruta>` hace lo mismo para los argumentos JSON de las
+	// herramientas. Passing JSON por la linea de comandos es imposible de
+	// forma fiable desde PowerShell: las comillas dobles sobreviven como
+	// `\"` y `JSON.parse` falla en la posicion 1. Leer el objeto desde un
+	// archivo elimina de raiz esa clase de fallo.
 	let arg = rawArg;
+	let jsonFile = null;
+	let codeFile = null;
 	if (arg === "--file") {
 		// `process.argv[2]` es la herramienta y `[3]` el flag `--file`.
 		arg = fs.readFileSync(process.argv[4], "utf8");
+	} else if (arg === "--jsonfile") {
+		jsonFile = process.argv[4];
+	} else if (arg === "--codefile") {
+		// Igual que `--file`, pero coloca el contenido en el PRIMER
+		// campo `required` de la herramienta. Lo necesitan las
+		// herramientas de runtime (`eval_server_runtime`,
+		// `eval_client_runtime`), cuyo parametro se llama `code` y no
+		// `query`: pasarles un `--file` a pelo las llenaria con `{}`.
+		codeFile = process.argv[4];
 	}
 
 	await rpc("initialize", {
@@ -146,12 +163,36 @@ async function main() {
 		return;
 	}
 
+	// `--schema <herramienta>` imprime el inputSchema completo.
+	//
+	// Por que existe: varias herramientas (import_rbxm, manage_instance,
+	// set_properties...) reciben objetos anidados y el mensaje de error
+	// del servidor solo dice "must be object", sin decir que forma
+	// espera. Adivinar por ensayo y error desde PowerShell es lento y
+	// fragile; volcar el esquema real lo responde de una vez.
+	if (tool === "--schema") {
+		const name = rawArg;
+		const found = allTools.find((t) => t.name === name);
+		if (!found) {
+			console.error("Herramienta desconocida: " + name);
+			process.exit(1);
+		}
+		console.log(JSON.stringify(found.inputSchema, null, 2));
+		return;
+	}
+
 	// Un argumento que empieza por `{` se trata como literal, NO como JSON.
 	// Luau usa `{ ... }` para tablas y el codigo de auditoria empieza
 	// siempre por ahi, asi que interpretarlo como JSON rompe la llamada.
 	// El JSON explicito se indica con el prefijo `--json `.
 	let args;
-	if (arg === undefined) {
+	if (jsonFile) {
+		args = JSON.parse(fs.readFileSync(jsonFile, "utf8"));
+	} else if (codeFile) {
+		const field = TOOL_SCHEMAS[tool] && TOOL_SCHEMAS[tool][0];
+		if (!field) throw new Error(`la herramienta ${tool} no declara ningun campo requerido`);
+		args = { [field]: fs.readFileSync(codeFile, "utf8") };
+	} else if (arg === undefined) {
 		args = {};
 	} else if (arg.startsWith("--json ")) {
 		args = JSON.parse(arg.slice("--json ".length));

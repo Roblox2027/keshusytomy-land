@@ -444,7 +444,22 @@ function Service.OnPlayerAdded(player: Player)
 
 	-- Tiempo de reaparicion desde la configuracion: sin esto se usa el
 	-- valor por defecto de Roblox y el PvP se siente lento.
-	player.RespawnTime = GameConfig.RespawnTime
+	--
+	-- BUG CORREGIDO (auditoria de integracion): esto escribia
+	-- `player.RespawnTime`. Esa propiedad NO existe en la instancia Player
+	-- y el log del playtest lo confirmaba:
+	--     "RespawnTime is not a valid member of Player Players.SiSoyPapito"
+	-- El error no era cosmético: lanzaba DENTRO de OnPlayerAdded, justo
+	-- antes de `bindCharacter`, asi que `CharacterAdded`/`CharacterRemoving`
+	-- nunca se conectaban. El servidor se quedaba sin enterarse de las
+	-- muertes por bomba: el combatimiento autoritativo no arrancaba nunca.
+	--
+	-- `RespawnTime` cuelga del SERVICIO Players, no del jugador. Es un
+	-- ajuste global del servidor, asi que se aplica una sola vez al
+	-- arrancar el servicio en vez de en cada conexion.
+	if GameConfig.RespawnTime ~= nil then
+		Players.RespawnTime = GameConfig.RespawnTime
+	end
 
 	-- El ciclo del personaje (nacimiento y muerte) se conecta aqui: sin
 	-- esto el servidor no se entera de las muertes por bomba.

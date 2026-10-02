@@ -318,12 +318,42 @@ function ServerMain.Initialize(): boolean
 	local registry = ServiceRegistry.new()
 	ServerMain.Registry = registry
 
+	-- `SERVICES[].module` guarda la INSTANCIA ModuleScript, no el valor
+	-- que devuelve. Hay que `require`la aqui.
+	--
+	-- AUDITORIA (P0): se pasaba `entry.module` tal cual a `Register`, y
+	-- `ServiceRegistry:Register` rechaza con "modulo invalido" lo que no
+	-- sea `table`. Una Instance no es una tabla, asi que los NUEVE
+	-- servicios se rechazaban uno a uno: "ServiceRegistry: 0 servicios
+	-- inicializados", "[BOOT FAIL] ... no arranco (estado: nil)" para
+	-- todos, y ningun error rojo en el Output. El servidor arrancaba
+	-- "correcto" sin un solo servicio vivo. Los tests unitarios no lo
+	-- detectan porque registraban modulos de mentira que ya eran tablas.
+	--
+	-- El `pcall` no esconde nada: si el modulo revienta al cargarse,
+	-- se registra el error REAL y el servicio queda sin registrar, que
+	-- es justo lo que el informe de arranque tiene que detectar.
 	for _, entry in ipairs(SERVICES) do
-		local registered, registerError = registry:Register(entry.name, entry.module, entry.dependencies)
-		if not registered then
-			local message = ("no se pudo registrar '%s': %s"):format(entry.name, tostring(registerError))
+		local ok, module = pcall(require, entry.module)
+
+		if not ok then
+			local message = ("no se pudo cargar '%s': %s"):format(entry.name, tostring(module))
 			Logger.Error(message)
 			table.insert(errors, message)
+		elseif type(module) ~= "table" then
+			local message = ("'%s' no devuelve una tabla (devuelve %s)"):format(
+				entry.name,
+				type(module)
+			)
+			Logger.Error(message)
+			table.insert(errors, message)
+		else
+			local registered, registerError = registry:Register(entry.name, module, entry.dependencies)
+			if not registered then
+				local message = ("no se pudo registrar '%s': %s"):format(entry.name, tostring(registerError))
+				Logger.Error(message)
+				table.insert(errors, message)
+			end
 		end
 	end
 

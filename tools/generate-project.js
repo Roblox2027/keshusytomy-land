@@ -261,9 +261,13 @@ const lobbySpawns = [
 
 // ---------------------------------------------------------------- PROYECTO
 // Los servicios que aun no tienen codigo NO se montan: un Folder vacio
-// es inofensivo, un Script roto tumba el arranque. `ServerStorage` y
-// `SoundService` se crean vacios para que las fases futuras tengan
-// destino sin cambiar el arbol Rojo.
+// es inofensivo, un Script roto tumba el arranque.
+//
+// `ServerStorage`, `SoundService` y `Lighting` NO se declaran aqui, y
+// el comentario anterior decia lo contrario. No estan en el arbol: son
+// servicios que Roblox crea en todos los places por su cuenta, asi que
+// declararlos solo generaria objetos muertos que nadie referencia. Las
+// fases futuras los usan donde ya existen.
 const project = {
 	name: "KeshusyTomy-LanD",
 	tree: {
@@ -272,7 +276,24 @@ const project = {
 		ReplicatedStorage: { $path: "src/ReplicatedStorage" },
 		ServerScriptService: { $path: "src/ServerScriptService" },
 		StarterGui: { $path: "src/StarterGui" },
-		StarterPlayer: { $path: "src/StarterPlayer" },
+
+		// `StarterPlayer` NO puede mapearse con `$path` a secas.
+		//
+		// El motivo es concreto y ya se manifesto en runtime: con
+		// `"StarterPlayer": { "$path": "src/StarterPlayer" }`, Rojo crea
+		// una CARPETA llamada `StarterPlayerScripts` junto al contenedor
+		// real del motor, y el juego entero cuelga de la carpeta. Roblox
+		// solo clona el `StarterPlayerScripts` autentico, asi que
+		// `ClientMain` y los 12 Controllers quedan dentro de un Folder
+		// cualquiera y NO se ejecutan nunca.
+		//
+		// Por eso se declara el arbol a mano: `$className` fija la clase
+		// del contenedor y `$path` sigue sirviendo el contenido.
+		StarterPlayer: {
+			$className: "StarterPlayer",
+			StarterPlayerScripts: { $path: "src/StarterPlayer/StarterPlayerScripts" },
+			StarterCharacterScripts: { $className: "StarterCharacterScripts" },
+		},
 
 		Workspace: {
 			$className: "Workspace",
@@ -287,7 +308,27 @@ const project = {
 			Environment: folder("Environment", []).node,
 			SpawnLocations: folder("SpawnLocations", lobbySpawns).node,
 			Lobby: folder("Lobby", lobbyParts).node,
-			Worlds: folder("Worlds", [folder("Forest", arenaChildren)]).node,
+			// Los cinco mundos del contrato se declaran TODOS aqui.
+			//
+			// Antes solo se declaraba `Forest` y los otros cuatro existian
+			// unicamente como carpetas vacias en `src/Workspace/`, que no
+			// esta mapeado en `default.project.json` (no tiene `$path`) y
+			// por eso Rojo nunca las entrega. El resultado era una
+			// divergencia SOURCE/RUNTIME real: el build tenia 1 mundo y el
+			// mundo vacio tampoco, pero el contrato y `WorldService`
+			// esperan los cinco.
+			//
+			// Un mundo sin contenido es un Folder vacio: es inocuo, no
+			// rompe el arranque y da destino a las fases futuras. Es
+			// exactamente el mismo criterio que ya se aplica a los
+			// servicios sin codigo.
+			Worlds: folder("Worlds", [
+				folder("Forest", arenaChildren),
+				folder("Desert", []),
+				folder("Ice", []),
+				folder("Volcano", []),
+				folder("Cyber", []),
+			]).node,
 		},
 	},
 };

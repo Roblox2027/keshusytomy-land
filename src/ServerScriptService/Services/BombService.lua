@@ -67,6 +67,27 @@ function Service.SetArenaBounds(bounds: { MinX: number, MaxX: number, MinZ: numb
 	return Vector3.new((bounds.MinX + bounds.MaxX) / 2, 0, (bounds.MinZ + bounds.MaxZ) / 2)
 end
 
+--- Inyecta los servicios de los que depende BombService.
+---
+--- AUDITORIA (P0): este setter NO existia. `ServerMain.wireDependencies`
+--- llama `BombService.SetDependencies(round, explosion)` y el metodo no
+--- estaba definido, asi que el arranque reventaba en runtime con
+--- "attempt to call a nil value" (ServerMain:170) DESPUES de que los
+--- nueve servicios se hubieran inicializado. El juego se quedaba a
+--- medio arrancar: sin rondas, sin explosiones y sin bombas.
+---
+--- El servicio ya declaraba `_roundService` y `_explosionService`, ya
+--- los consultaba en `TryPlaceBomb` y ya rechazaba `Start` si faltaban
+--- (lineas 490 y 494): solo faltaba la puerta de entrada. Se sigue la
+--- misma convencion que `SpawnService.SetDependencies`.
+---
+--- @param roundService any decide si se puede jugar (IsPlaying)
+--- @param explosionService any detona la bomba cuando vence la mecha
+function Service.SetDependencies(roundService: any, explosionService: any)
+	Service._roundService = roundService
+	Service._explosionService = explosionService
+end
+
 --- Indica si una posicion esta dentro de los limites del mapa.
 --- @param position Vector3
 --- @return boolean inside
