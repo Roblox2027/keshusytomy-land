@@ -95,6 +95,38 @@ return {
 	-- solitario desde Studio.
 	MinPlayersToStart = 1,
 
+	-- Duracion de los estados de TRANSICION.
+	--
+	-- BUG CORREGIDO (FASE 0, P0): estos cuatro valores estaban
+	-- HARDCODED en `RoundService.GetDuration` (3, 3, 4, 4). Con un numero
+	-- magico, un ciclo de ronda completo no se puede ejecutar en un tiempo
+	-- razonable (7 s de transicion + 180 s de `Playing` por ronda), y sin
+	-- poder ejecutar ciclos no hay forma de PROBAR que la ronda se repite.
+	--
+	-- Ahora son balance declarado, igual que `RoundDuration`. Se pueden
+	-- bajar en un playtest para certificar 100 ciclos sin esperar horas, y
+	-- los valores de produccion siguen siendo los de siempre.
+	RoundStartingDuration = 3,
+	RoundEndingDuration = 3,
+	RewardsDuration = 4,
+	ReturningToLobbyDuration = 4,
+
+	-- Cada cuanto sondea el ciclo de ronda.
+	--
+	-- POR QUE NO SE DUERME EL PLAZO ENTERO (causa raiz del P0):
+	-- el bucle hacia `task.wait(remaining)` con el `remaining` del estado
+	-- en el que entraba. Si otro hilo cambiaba el estado a mitad (por
+	-- ejemplo `PlayerService` al morir el ultimo vivo), el estado de la
+	-- maquina avanzaba pero el bucle seguia dormido con el plazo del estado
+	-- ANTERIOR: hasta 180 s de `Playing`. Sintoma medido en runtime:
+	-- `state = RoundEnding`, `remaining = 0`, heartbeat congelado durante
+	-- 155 s, sin un solo error en el Output.
+	--
+	-- Con sondeo en rebanadas, una transicion externa se ve en menos de
+	-- `RoundTickInterval` segundos. No es mas preciso: el coste es una
+	-- iteracion cada 0.25 s, que no es nada para un servidor.
+	RoundTickInterval = 0.25,
+
 	-- ---------------------------------------------------------------
 	-- Ciclo de vida del jugador
 	-- ---------------------------------------------------------------

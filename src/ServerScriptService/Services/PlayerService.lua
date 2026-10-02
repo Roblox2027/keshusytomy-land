@@ -36,7 +36,19 @@ local CombatMath = require(SHARED:WaitForChild("Libraries"):WaitForChild("Combat
 local Logger = require(UTILS:WaitForChild("Logger"))
 
 local PlayerState = GameConstants.PlayerState
-local RoundState = GameConstants.RoundState
+
+-- NOTA (FASE 0, P0): `PlayerService` ya NO importa `RoundState`.
+--
+-- Antes decia `RoundState.RoundEnding` y lo pasaba a
+-- `RoundService.Transition(...)` para terminar la ronda al morir el ultimo
+-- vivo. Eso lo hacia desde SU propio hilo, y el bucle de ronda seguia
+-- dormido con el plazo del `Playing` (hasta 180 s): el estado avanzaba a
+-- `RoundEnding` pero el ciclo no se enteraba. Medido en runtime:
+-- `RoundEnding`, `remaining = 0`, heartbeat congelado 140 s.
+--
+-- Ahora solo AVISA con `RequestEnd` y deja que el bucle, unico escritor
+-- del estado, lo ejecute. Por eso no hace falta conocer los estados aqui:
+-- quien decide el estado es el ciclo, no este servicio.
 
 local Service = {}
 
@@ -387,8 +399,21 @@ function Service.OnPlayerDied(player: Player, killer: Player?)
 		-- `GetAliveCount` mira el Humanoid, que es la fuente de verdad
 		-- del motor. La cuenta local sirve para el log; la decision la
 		-- toma el servicio de ronda para no depender de dos fuentes.
+		--
+		-- Se avisa con `RequestEnd`, NO llamando a `Transition`:
+		--
+		--   `Transition` la puede llamar cualquiera, y quien la llama desde
+		--   otro hilo deja al bucle dormido con el plazo del estado
+		--   ANTERIOR. Eso fue el P0 de la FASE 0: al morir el ultimo vivo
+		--   durante un `Playing` de 180 s, el estado pasaba a `RoundEnding`
+		--   pero el bucle seguia esperando los 180 s del `Playing`.
+		--   Medido: `RoundEnding`, `remaining = 0`, heartbeat congelado.
+		--
+		--   `RequestEnd` deja constancia de la INTENCION y devuelve; el
+		--   bucle la ejecuta en su proxima rebanada. Un solo escritor del
+		--   estado significa que nunca se compite con el.
 		if Service._roundService.GetAliveCount() <= 1 then
-			Service._roundService.Transition(RoundState.RoundEnding)
+			Service._roundService.RequestEnd(("ultimo vivo eliminado: %s"):format(player.Name))
 		end
 	end
 end

@@ -166,6 +166,13 @@ function Service.Transition(target: string): boolean
 
 	Service._currentDuration = Service.GetDuration(target)
 	Service._stateEndsAt = os.clock() + Service._currentDuration
+	-- El reloj del estado se reinicia aqui. Sin esto, un estado que se
+	-- visita arrastra el tiempo del anterior y el vigilante no puede
+	-- distinguir "lleva 140 s en RoundEnding" de "acabo de entrar".
+	Service._stateStartedAt = os.clock()
+	Service._lastReason = ("transicion: %s -> %s"):format(previous, target)
+	Service._diagnostics.LastTransitionAt = Service._stateStartedAt
+	Service._diagnostics.LastReason = Service._lastReason
 
 	Logger.Info(("ronda: %s -> %s (%ds)"):format(previous, target, Service._currentDuration))
 
@@ -181,6 +188,51 @@ function Service.Transition(target: string): boolean
 	return true
 end
 
+--- Pide terminar la ronda AHORA.
+---
+--- Esta es la via por la que el mundo exterior comunica "esta ronda ya
+--- termino" sin tocar la maquina de estados a sus espaldas.
+---
+--- POR QUE EXISTE Y POR QUE NO BASTABA CON LLAMAR A `Transition`
+--- ---------------------------------------------------------
+--- `PlayerService` la usaba al morir el ultimo vivo, y ESO era el P0 de la
+--- FASE 0. `Transition` se puede llamar desde cualquier hilo, y el bucle
+--- duerme el plazo del estado en el que entro. Al cambiar el estado desde
+--- fuera, el bucle seguia dormido con el plazo ANTERIOR: el estado era ya
+--- `RoundEnding` con `remaining = 0` y el heartbeat congelado, sin un solo
+--- error en el Output.
+---
+--- Aqui la peticion NO cambia el estado: se guarda, y el bucle la ejecuta en
+--- su proxima rebanada (`GameConfig.RoundTickInterval`). Un solo escritor
+--- del estado elimina por construccion la carrera entre el ciclo y quien
+--- lo llama desde fuera.
+--- @param reason string? por que se pide (queda en el log)
+--- @return boolean accepted
+function Service.RequestEnd(reason: string?): boolean
+	local state = Service.GetState()
+
+	if not Service.IsPlaying() then
+		-- No se esta jugando: la peticion no aplica. Se avisa para que una
+		-- llamada fuera de sitio sea visible y no un silencio.
+		Logger.Debug(("RequestEnd ignorado en %s: %s"):format(state, tostring(reason)))
+		return false
+	end
+
+	Service._endRequested = true
+	Service._endReason = reason or "sin razon"
+
+	Logger.Info(("se pide terminar la ronda desde %s (%s); el ciclo lo hara en "
+		.. "menos de %.2fs"):format(state, Service._endReason, GameConfig.RoundTickInterval))
+
+	return true
+end
+
+--- Indica si hay una peticion de fin pendiente.
+--- @return boolean
+function Service.IsEndRequested(): boolean
+	return Service._endRequested == true
+end
+
 --- Tiempo restante del estado actual, en segundos.
 --- @return number
 function Service.GetTimeRemaining(): number
@@ -189,6 +241,61 @@ function Service.GetTimeRemaining(): number
 	end
 
 	return math.max(0, Service._stateEndsAt - os.clock())
+end
+
+--- Segundos que lleva el estado actual activo.
+---
+--- Es distinto de `GetTimeRemaining` a proposito: `GetTimeRemaining` se
+--- recorta a 0 cuando el plazo vence, asi que un estado VENCIDO y un bucle
+--- MUERTO se ven IGUALES desde fuera. Eso fue exactamente el sintoma del
+--- P0: `remaining = 0` no distinguia nada. Con el tiempo real transcurrido,
+--- un estado que lleva 140 s vencido sobre una duracion de 3 s canta a la
+--- vista.
+--- @return number seconds
+function Service.GetTimeSinceStateStart(): number
+	if not Service._stateStartedAt then
+		return 0
+	end
+
+	return math.max(0, os.clock() - Service._stateStartedAt)
+end
+
+--- Segundos que un estado puede quedarse vencido antes de considerarse atasco.
+---
+--- Margen deliberadamente amplio: el vigilante NO debe disparar en el
+--- funcionamiento normal, solo en el patologico. Un margen pequeno
+--- convertiria la red de seguridad en ruido, y una puerta que suena sola es
+--- una puerta que nadie escucha.
+--- @return number seconds
+function Service.GetStallTimeout(): number
+	return math.max(5, GameConfig.RoundTickInterval * 20)
+end
+
+--- Instantanea del ciclo, para diagnostico externo (`tools/round-probe.js`).
+---
+--- Expone lo necesario para responder de una vez a lo que antes exigia
+--- instrumentar el codigo: ¿esta vivo el bucle?, ¿espera bien o espera una
+--- condicion imposible?, ¿hubo algun atasco?, ¿hay jugadores?, ¿cuantos
+--- sobreviven?
+--- @return { [string]: any }
+function Service.GetDiagnostics(): { [string]: any }
+	return {
+		State = Service.GetState(),
+		Round = Service._roundNumber,
+		Heartbeat = Service._loopHeartbeat,
+		Iteration = Service._iteration,
+		Remaining = Service.GetTimeRemaining(),
+		Elapsed = Service.GetTimeSinceStateStart(),
+		Duration = Service.GetDuration(Service.GetState()),
+		RawDelta = Service._stateEndsAt and (Service._stateEndsAt - os.clock()) or 0,
+		StallCount = Service._stallCount,
+		LastReason = Service._lastReason,
+		AliveCount = Service.GetAliveCount(),
+		PlayerCount = #Players:GetPlayers(),
+		ListenerCount = #Service._listeners,
+		IsInitialized = Service.IsInitialized,
+		HasThread = Service._loopThread ~= nil,
+	}
 end
 
 --- Duracion configurada de cada estado. La consulta centraliza el
@@ -205,12 +312,21 @@ function Service.GetDuration(state: string): number
 	if state == RoundState.SuddenDeath then
 		return GameConfig.SuddenDeathTime
 	end
-	-- Estados cortos de transicion: no tienen valor de balance propio.
-	if state == RoundState.RoundStarting or state == RoundState.RoundEnding then
-		return 3
+	-- Estados cortos de transicion: su duracion es balance declarado en
+	-- `GameConfig`, no un numero magico aqui. Antes eran 3/3/4/4 escritos en
+	-- el `if`, lo que hacia imposible ejecutar un ciclo completo en un
+	-- tiempo razonable y por tanto imposible PROBAR que la ronda se repite.
+	if state == RoundState.RoundStarting then
+		return GameConfig.RoundStartingDuration
 	end
-	if state == RoundState.Rewards or state == RoundState.ReturningToLobby then
-		return 4
+	if state == RoundState.RoundEnding then
+		return GameConfig.RoundEndingDuration
+	end
+	if state == RoundState.Rewards then
+		return GameConfig.RewardsDuration
+	end
+	if state == RoundState.ReturningToLobby then
+		return GameConfig.ReturningToLobbyDuration
 	end
 	-- `Waiting` espera a que haya jugadores: se comprueba cada segundo
 	-- en el ciclo, asi que 1 es un valor de sondeo, no un balance.
@@ -223,13 +339,22 @@ end
 --- via por la que el cliente se entera del estado de la ronda, y solo
 --- el servidor puede escribirlos.
 local function publishRoundState(state: string)
+	local alive = Service.GetAliveCount()
+
+	-- Los contadores de diagnostico se refrescan aqui, a 1 Hz, y no en el
+	-- bucle: no se necesita mas precision para observar, y asi el log de
+	-- diagnostico no compite con el del ciclo.
+	Service._diagnostics.AliveCount = alive
+	Service._diagnostics.PlayerCount = #Players:GetPlayers()
+	Service._diagnostics.LastReason = Service._lastReason
+
 	for _, player in ipairs(Players:GetPlayers()) do
 		player:SetAttribute("RoundState", state)
 		player:SetAttribute("RoundTimeRemaining", math.floor(Service.GetTimeRemaining()))
 		player:SetAttribute("RoundNumber", Service.GetRoundNumber())
 		-- `AliveCount` se publica para que el HUD muestre el marcador
 		-- sin calcularlo en el cliente (el cliente no es autoridad).
-		player:SetAttribute("AliveCount", Service.GetAliveCount())
+		player:SetAttribute("AliveCount", alive)
 	end
 end
 
@@ -267,6 +392,18 @@ function Service.Init(maid: any?): boolean
 	Service._roundNumber = 0
 	Service._currentDuration = 0
 	Service._stateEndsAt = nil
+	Service._stateStartedAt = os.clock()
+	Service._iteration = 0
+	Service._stallCount = 0
+	Service._lastReason = "inicializado"
+	Service._endRequested = false
+	Service._endReason = nil
+	Service._diagnostics = {
+		AliveCount = 0,
+		PlayerCount = 0,
+		LastReason = "inicializado",
+		LastTransitionAt = 0,
+	}
 	Service.IsInitialized = true
 
 	return true
@@ -303,7 +440,14 @@ local function decideNextState(current: string): string?
 		return RoundState.RoundStarting
 	end
 
-	if current == RoundState.Playing then
+	if current == RoundState.Playing or current == RoundState.SuddenDeath then
+		-- Una peticion de fin desde el exterior manda sobre el reloj: la
+		-- ronda se decide YA. Es el camino que usa `PlayerService` cuando
+		-- muere el ultimo vivo.
+		if Service.IsEndRequested() then
+			return RoundState.RoundEnding
+		end
+
 		-- Si solo queda un jugador (o nadie), la ronda se decide ya: la
 		-- muerte subita no aportaria nada con un unico sobreviviente.
 		if Service.GetAliveCount() <= 1 then
@@ -314,7 +458,8 @@ local function decideNextState(current: string): string?
 		-- este estado existia en el diagrama pero NUNCA se alcanzaba,
 		-- asi que era decorativo: el multiplicador de dano nunca se
 		-- aplicaba. Ahora es alcanzable y consequences reales.
-		if Service.GetTimeRemaining() <= GameConfig.SuddenDeathTime then
+		if current == RoundState.Playing
+			and Service.GetTimeRemaining() <= GameConfig.SuddenDeathTime then
 			return RoundState.SuddenDeath
 		end
 
@@ -342,37 +487,175 @@ end
 
 --- Corrutina que hace avanzar la ronda.
 ---
---- Es la UNICA fuente de tiempo de la ronda. No usa `wait` en bucle
---- sobre el estado: duerme lo que falta del estado actual, asi que un
---- estado largo no acumula retraso ni se desincroniza.
+--- Es la UNICA fuente de tiempo de la ronda.
+---
+--- POR QUE SONDEA EN REBANADAS Y NO DUERME EL PLAZO ENTERO
+--- ---------------------------------------------------------
+--- La version anterior hacia `task.wait(remaining)` con el `remaining` del
+--- estado en el que entraba. Eso esta bien SI el estado solo lo cambia este
+--- bucle, pero NO es cierto: `PlayerService` tambien cambia el estado desde
+--- otro hilo (`Transition(RoundEnding)` al morir el ultimo vivo).
+---
+--- MEDIDO EN PLAY (no deducido), con `tools/round-probe.js`:
+---   state = RoundEnding, remaining = 0, heartbeat = 46 congelado,
+---   `_stateEndsAt - os.clock()` = -140 (el plazo vencio hace 140 s),
+---   `coroutine.status(loopThread)` = "suspended",
+---   historial = 8 ciclos COMPLETOS, y la ronda 9 nunca avanza.
+---
+--- El hilo estaba vivo y sano, dormido dentro de un `task.wait` calculado
+--- para el `Playing` de 180 s. `task.wait` NO era la causa raiz: es la
+--- consecuencia de dormir un plazo que otro hilo puede invalidar en
+--- cualquier momento. Con el mismo fallo, una ronda terminada por muerte
+--- del ultimo vivo tardaba hasta 180 s en llegar a `Rewards`.
+---
+--- El sondeo en rebanadas de `GameConfig.RoundTickInterval` hace que una
+--- transicion externa se vea en menos de 0.25 s, y mantiene la garantia de
+--- que un estado largo no acumula retraso: solo se recalcula el plazo.
 local function runRoundLoop()
+	-- CONTADOR DE LATIDO.
+	--
+	-- POR QUE EXISTE: sin el, "la ronda esta atascada" y "el bucle esta
+	-- vivo pero bloqueado" son indistinguibles desde fuera. Medido en PLAY:
+	-- la ronda se quedaba en `RoundEnding` indefinidamente y no habia forma
+	-- de saber si el hilo habia muerto o si simplemente no avanzaba.
+	-- Con este contador, un latido que NO cambia durante varios segundos
+	-- demuestra que el hilo esta bloqueado, no que la logica este mal.
+	Service._loopHeartbeat = 0
+
+-- Iteraciones del bucle: avanza aunque no haya transicion. Junto con el
+-- heartbeat separa "vivo pero quieto" de "vivo y avanzando".
+Service._iteration = 0
+
+-- Atascos REALES detectados por el vigilante. En un ciclo estable vale
+-- siempre 0. Si sube, hay un estado que no pudo avanzar: se dice en el log.
+Service._stallCount = 0
+
+-- Ultima razon por la que el ciclo no transiciono. Sin esto, un atasco
+-- aparece en el Output como un simple silencio.
+Service._lastReason = "sin iniciar"
+
+-- Peticion de fin de ronda pendiente. La pone el mundo exterior
+-- (`RequestEnd`) y la CONSUME el bucle. Existe para que solo el bucle
+-- escriba el estado de la maquina.
+Service._endRequested = false
+Service._endReason = nil
+
+-- Momento (os.clock) en que entro el estado actual. Es lo que permite
+-- saber si un estado lleva mas tiempo del que deberia.
+Service._stateStartedAt = os.clock()
+
+-- Contadores observables del ciclo, para diagnostico externo.
+Service._diagnostics = {
+	AliveCount = 0,
+	PlayerCount = 0,
+	LastReason = "sin iniciar",
+	LastTransitionAt = 0,
+}
+
 	Service._currentDuration = Service.GetDuration(RoundState.Waiting)
 	Service._stateEndsAt = os.clock() + Service._currentDuration
 
 	while true do
-		local remaining = Service.GetTimeRemaining()
-		if remaining > 0 then
-			task.wait(remaining)
-		end
+		-- TODO el cuerpo va dentro de un `pcall`.
+		--
+		-- POR QUE: este bucle es la UNICA fuente de tiempo de la ronda y
+		-- una excepcion no controlada la mata en silencio. Medido en PLAY:
+		-- la ronda se quedaba en `ReturningToLobby` para siempre, sin un
+		-- solo error en el Output, porque el error de una corrutina 나선
+		-- abortada no se propaga a ningun `pcall` de quien la lanzo. El
+		-- sintoma era "el juego se congela en un estado de ronda" sin
+		-- ninguna pista de la causa.
+		--
+		-- Con el `pcall`, un fallo puntual se registra con su mensaje y el
+		-- ciclo vuelve a sondear en vez de morir. Un estado atascado es un
+		-- fallo MUCHO mas dificil de diagnosticar que un error visible.
+		local ok, err = pcall(function()
+		Service._loopHeartbeat += 1
 
-		local current = Service.GetState()
-		local nextState = decideNextState(current)
+			-- PLENO: cuenta de ATASCOS detectados por el vigilante. Es el
+			-- numero que responde a "¿el ciclo se atasca alguna vez?", no a
+			-- "¿el ciclo avanza?".
+			Service._iteration += 1
 
-		if not nextState then
-			-- `Waiting` sin jugadores suficientes: se sigue esperando.
-			Service._stateEndsAt = os.clock() + 1
-			continue
-		end
+			-- Se lee el estado ANTES de dormir y se vuelve a leer DESPUES.
+			-- Si ha cambiado mientras dormiamos, el plazo que durmio el
+			-- bucle era de otro estado y ya no vale: no se transiciona con
+			-- datos rancios, se recalcula en la siguiente iteracion.
+			local current = Service.GetState()
+			local remaining = Service.GetTimeRemaining()
 
-		if nextState == RoundState.RoundStarting then
-			Service._roundNumber += 1
-			Logger.Info(("--- ronda %d empieza ---"):format(Service._roundNumber))
-		end
+			if remaining > 0 then
+				-- Rebanada: nunca se duerme mas que una rebanada, para que
+				-- el plazo vigente siempre sea el del estado vigente.
+				task.wait(math.min(remaining, GameConfig.RoundTickInterval))
+			end
 
-		if not Service.Transition(nextState) then
-			-- Una transicion rechazada dejaria el ciclo en un estado
-			-- imposible. Se registra y se vuelve a sondear.
-			Logger.Error(("el ciclo no pudo pasar de %s a %s"):format(current, nextState))
+			-- ¿Cambio el estado mientras dormiamos? Entonces lo que dormimos
+			-- no era su plazo: se vuelve a medir sin transicionar.
+			if Service.GetState() ~= current then
+				Service._lastReason = ("estado cambiado durante el sueño: %s"):format(current)
+				return
+			end
+
+			-- VIGILANTE DE ATASCO.
+			--
+			-- Red de seguridad, no mecanismo normal. Si el plazo del estado
+			-- vencio y aun asi no se pudo transicionar (porque
+			-- `decideNextState` devolvio `nil` en un estado que no es
+			-- `Waiting`, o porque una transicion fue rechazada), el estado
+			-- se quedaria TERMINAL para siempre. Aqui se detecta y se
+			-- fuerza la salida, con la razon registrada.
+			--
+			-- No se oculta el fallo: se cuenta en `_stallCount` y se dice en
+			-- el log. Un ciclo estable da `_stallCount = 0` siempre.
+			local overdue = Service.GetTimeSinceStateStart()
+
+			if remaining <= 0 and overdue > Service.GetStallTimeout() then
+				Service._stallCount += 1
+				Logger.Error(("el estado %s lleva %.1fs vencido y no avanza; "
+					.. "se fuerza la salida (atasco %d). Ultima razon: %s"):format(
+					current,
+					overdue,
+					Service._stallCount,
+					tostring(Service._lastReason)
+				))
+				Service._stateEndsAt = os.clock()
+				Service._lastReason = "vigilante: forzado por atasco"
+			end
+
+			local nextState = decideNextState(current)
+
+			if not nextState then
+				-- `Waiting` sin jugadores suficientes: se sigue esperando.
+				-- NO es un atasco: es la espera normal por jugadores.
+				Service._stateEndsAt = os.clock() + 1
+				Service._lastReason = "esperando jugadores suficientes"
+				return
+			end
+
+			if nextState == RoundState.RoundStarting then
+				Service._roundNumber += 1
+				-- La peticion de fin se CONSUME al empezar la ronda. Si no se
+				-- limpiase aqui, la ronda 2 terminaria al instante porque
+				-- heredaria la peticion de la ronda 1.
+				Service._endRequested = false
+				Service._endReason = nil
+				Logger.Info(("--- ronda %d empieza ---"):format(Service._roundNumber))
+			end
+
+			if not Service.Transition(nextState) then
+				-- Una transicion rechazada dejaria el ciclo en un estado
+				-- imposible. Se registra y se vuelve a sondear.
+				Logger.Error(("el ciclo no pudo pasar de %s a %s"):format(current, nextState))
+				Service._lastReason = ("transicion rechazada: %s -> %s"):format(current, nextState)
+				Service._stateEndsAt = os.clock() + 1
+			end
+		end)
+
+		if not ok then
+			-- Sin este registro, el fallo anterior era invisible.
+			Logger.Error(("el ciclo de ronda fallo y se reintentara: %s"):format(tostring(err)))
+			Service._lastReason = ("excepcion en el ciclo: %s"):format(tostring(err))
 			Service._stateEndsAt = os.clock() + 1
 		end
 	end
