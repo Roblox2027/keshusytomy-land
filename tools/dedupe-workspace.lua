@@ -60,6 +60,33 @@ local function mergeInto(keep, drop, path)
 		else
 			-- Mismo nombre y al menos uno no es Folder: gana la instancia
 			-- que ya estaba consolidada.
+			--
+			-- ANTES DE DESTRUIRLA hay que rescatar sus hijos. Esto importaba
+			-- con el bosque: cada `Block_N` lleva su decoracion colgando
+			-- (`Deco_<Variante>_...`), y al fusionar dos copias de un bloque
+			-- con el MISMO nombre la copia nueva se descartaba ENTERA. El
+			-- bloque se conservaba porque ya existia, pero sus 325 hijos de
+			-- decoracion desaparecian con el, y el bosque llegaba a Studio
+			-- como 48 cajas peladas.
+			--
+			-- `child` no ser Folder NO significa "sin hijos": cualquier
+			-- instancia admite hijos, incluida una `Part`. Por eso el
+			-- rescate se hace SIEMPRE, no solo en la rama de Folder.
+			local rescued = 0
+			for _, grandchild in ipairs(child:GetChildren()) do
+				if existing:FindFirstChild(grandchild.Name) == nil then
+					grandchild.Parent = existing
+					rescued += 1
+				else
+					grandchild:Destroy()
+				end
+			end
+			if rescued > 0 then
+				table.insert(
+					report,
+					(" %s/%s: rescatados %d hijos del duplicado"):format(path, child.Name, rescued)
+				)
+			end
 			child:Destroy()
 			table.insert(report, path .. "/" .. child.Name .. " (duplicado descartado)")
 		end

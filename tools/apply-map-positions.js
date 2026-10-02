@@ -64,6 +64,18 @@ function collectEntries(node, prefix, out) {
 			out.push({
 				path: here,
 				position: props.Position.map((n) => Math.round(n * 1000) / 1000),
+				// El tamano se declara junto a la posicion. Se necesita para
+				// que `verify-geometry.js` pueda comprobar que la silueta
+				// tambien llega intacta, no solo donde esta la pieza.
+				size: Array.isArray(props.Size) && props.Size.length === 3
+					? props.Size.map((n) => Math.round(n * 1000) / 1000)
+					: null,
+				// La orientacion en grados, como la escribe Rojo. Va en el
+				// manifiesto para poder verificar que las piezas inclinadas
+				// siguen inclinadas y no llegan tumbadas a la rejilla.
+				orientation: Array.isArray(props.Orientation) && props.Orientation.length === 3
+					? props.Orientation.map((n) => Math.round(n * 1000) / 1000)
+					: null,
 			});
 		}
 
@@ -117,6 +129,8 @@ function main() {
 	// Los dos son arrays puros, que Luau si admite como literales.
 	const paths = entries.map((e) => e.path.join("."));
 	const positions = entries.map((e) => e.position);
+	const sizes = entries.map((e) => e.size);
+	const rotations = entries.map((e) => e.orientation);
 
 	/**
 	 * Convierte un array JSON a literal de tabla de Luau.
@@ -131,7 +145,11 @@ function main() {
 	const toLuauArray = (list) =>
 		"{" +
 		list
-			.map((v) => (Array.isArray(v) ? toLuauArray(v) : JSON.stringify(v)))
+			// `null` se convierte en `nil`. Sin esta rama, `JSON.stringify`
+			// devuelve la cadena "null" y Luau recibe un valor que no existe:
+			// una pieza sin `Size` declarada compararia contra el texto
+			// "null" en vez de saltarse la comprobacion.
+			.map((v) => (Array.isArray(v) ? toLuauArray(v) : v === null ? "nil" : JSON.stringify(v)))
 			.join(", ") +
 		"}";
 
@@ -140,6 +158,8 @@ function main() {
 
 local PATHS = ${toLuauArray(paths)}
 local POSITIONS = ${toLuauArray(positions)}
+local SIZES = ${toLuauArray(sizes)}
+local ROTATIONS = ${toLuauArray(rotations)}
 
 local Workspace = game:GetService("Workspace")
 
@@ -155,25 +175,115 @@ local function resolve(dotted)
 	return node
 end
 
-local fixed = 0
+-- TAMANO Y ORIENTACION.
+--
+-- POR QUE ESTA EN SU PROPIO SCRIPT Y NO DENTRO DE LA IMPORTACION
+-- -----------------------------------------------------------
+-- import_rbxm NO actualiza las propiedades de una instancia que ya
+-- existe con el mismo nombre (medido en tools/import-update-probe.js):
+-- se limita a anadir los hijos que faltan. Ademas, aunque la instancia
+-- sea nueva, la importacion deja Position en (0,0,0).
+--
+-- Consecuencia: la geometria del mapa solo llega integra si el mapa se
+-- PURGA antes de importar, y si despues se vuelven a colocar las
+-- propiedades a mano. Por eso esta colocacion existe, y por eso
+-- tools/remap.js purga siempre en lugar de fiarse de la salud del mapa.
+--
+-- El TAMANO se coloca aqui ademas porque import_rbxm tampoco lo aplica
+-- de forma fiable: los bloques llegaban con 8x8x8 del mapa viejo.
+
+local Workspace = game:GetService("Workspace")
+
+--- Resuelve una ruta "A.B.C" hasta su instancia.
+local function resolve(dotted)
+	local node = Workspace
+	for segment in string.gmatch(dotted, "[^%.]+") do
+		node = node and node:FindFirstChild(segment)
+		if node == nil then
+			return nil
+		end
+	end
+	return node
+end
+
+local fixedPosition = 0
+local fixedSize = 0
+local fixedRotation = 0
 local alreadyCorrect = 0
 local missing = 0
 local examples = {}
 
 for index, dotted in ipairs(PATHS) do
 	local coords = POSITIONS[index]
+	local dims = SIZES[index]
+	local rot = ROTATIONS[index]
 	local node = resolve(dotted)
 
 	if node == nil or not node:IsA("BasePart") then
 		missing += 1
 	else
+		local touched = false
+
+		-- 1. Posicion.
 		local target = Vector3.new(coords[1], coords[2], coords[3])
 		-- Solo se mueve si difiere de verdad: cada Position asignado
 		-- replica a todos los clientes, y repetirlo en cada pasada sin
 		-- necesidad es trafico puro.
 		if (node.Position - target).Magnitude > 0.01 then
 			node.Position = target
-			fixed += 1
+			fixedPosition += 1
+			touched = true
+		end
+
+		-- 2. Tamano.
+		--
+		-- Size solo puede cambiar en un BasePart ANCLADO, y se asigna
+		-- DESPUES que la rotacion: si se asigna antes, Studio puede
+		-- reajustar el CFrame y el resultado no es el declarado.
+		if dims then
+			local targetSize = Vector3.new(dims[1], dims[2], dims[3])
+			if (node.Size - targetSize).Magnitude > 0.01 then
+				node.Size = targetSize
+				fixedSize += 1
+				touched = true
+			end
+		end
+
+		-- 3. Orientacion, en grados.
+		--
+		-- Se escribe Orientation, no el CFrame: es la propiedad que el
+		-- generador declara, y escribir el CFrame exigiria recomponer los
+		-- doce componentes a mano para conservar el resto de la rotacion.
+		--
+		-- OJO CON EL GIRO Y: Roblox lo NORMALIZA al rango (-180, 180]. Un
+		-- yaw declarado de 220 grados llega como -140. No es un error: son
+		-- el mismo giro, y el producto vectorial de los ejes da lo mismo.
+		-- Por eso la comparacion de verify-geometry.js tiene que tratar
+		-- esos dos valores como iguales, y no como una discrepancia.
+		if rot then
+			local function angleGap(a, b)
+				-- Diferencia minima entre dos angulos, en grados. El giro
+				-- de 220 y el de -140 se separan 360, asi que su diferencia
+				-- cruda es 360 y la real es 0.
+				local raw = math.abs(a - b) % 360
+				if raw > 180 then
+					raw = 360 - raw
+				end
+				return raw
+			end
+
+			local current = node.Orientation
+			local delta = angleGap(current.X, rot[1])
+				+ angleGap(current.Y, rot[2])
+				+ angleGap(current.Z, rot[3])
+			if delta > 0.05 then
+				node.Orientation = Vector3.new(rot[1], rot[2], rot[3])
+				fixedRotation += 1
+				touched = true
+			end
+		end
+
+		if touched then
 			if #examples < 5 then
 				examples[#examples + 1] = dotted
 			end
@@ -185,7 +295,9 @@ end
 
 return {
 	declared = #PATHS,
-	fixed = fixed,
+	fixedPosition = fixedPosition,
+	fixedSize = fixedSize,
+	fixedRotation = fixedRotation,
 	alreadyCorrect = alreadyCorrect,
 	missingFromRuntime = missing,
 	examples = examples,
@@ -203,6 +315,39 @@ return {
 			.then((res) => console.log(JSON.stringify(res, null, 2)))
 			.catch((e) => {
 				console.error("FALLO al aplicar: " + e.message);
+				process.exitCode = 1;
+			});
+	}
+
+	// `--run-server` aplica lo MISMO sobre el servidor de Play.
+	//
+	// POR QUE HACE FALTA
+	// ------------------
+	// Studio arranca Play desde `AutoSaves/<place>_AutoRecovery_1.rbxl`, que
+	// es una COPIA EN DISCO hecha al abrir el lugar. Los cambios hechos en
+	// la sesion de EDICION por MCP (que es como entra todo el mapa, porque
+	// el plugin de Rojo no esta conectado) NO llegan a esa copia: se
+	// comprobo que la edicion tenia `Block_0` a 6x11x6 mientras el servidor
+	// de Play lo tenia a 8x8x8, siendo el mismo `instanceId`.
+	//
+	// Es decir: `verify-geometry.js` mide el servidor, y el servidor arranca
+	// de una copia obsoleta. Sin este paso, la verificacion mide siempre el
+	// mapa viejo y daria FAIL aunque la fuente y la edicion sean correctas.
+	//
+	// Aplicar en el servidor hace que lo que se mide sea lo que se acaba de
+	// colocar. No sustituye a sincronizar la edicion: ambas siguen siendo
+	// necesarias, y por eso son dos pasos y no uno.
+	if (process.argv.includes("--run-server")) {
+		mcp.serverLuau(luau)
+			.then((res) => {
+				console.log("");
+				console.log("=== aplicado en el SERVIDOR de Play ===");
+				console.log(JSON.stringify(res, null, 2));
+			})
+			.catch((e) => {
+				console.error("");
+				console.error("No se pudo aplicar en el servidor: " + e.message);
+				console.error("Comprueba que Play este arrancado: node tools/play.js start");
 				process.exitCode = 1;
 			});
 	}
