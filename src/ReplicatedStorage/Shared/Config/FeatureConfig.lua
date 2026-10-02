@@ -24,7 +24,10 @@ return {
 	-- Modos de juego
 	ENABLE_CLASSIC_PVP = true,
 	ENABLE_TEAM_BATTLE = false,
-	ENABLE_MONSTER_HUNT = false,
+	-- PvE: monstruos en la arena. Con esto apagado, `MonsterService` arranca
+	-- pero no genera nada, y "no aparecen monstruos" es una decision de
+	-- contenido, no un fallo del spawn.
+	ENABLE_MONSTER_HUNT = true,
 	ENABLE_BOSS_RUSH = false,
 	ENABLE_CHAOS = false,
 	ENABLE_RANKED = false,
@@ -40,6 +43,19 @@ return {
 	-- no procesar compras reales contra un entorno de pruebas.
 	ENABLE_MONETIZATION = false,
 
-	-- Herramientas internas. Nunca visibles para jugadores normales.
+-- Herramientas internas. Nunca visibles para jugadores normales.
 	ENABLE_ADMIN_COMMANDS = true,
+
+	-- Reproductor de pruebas del cliente (FASE 1 REAL).
+	--
+	-- Es la pieza que permite certificar `CLIENT INPUT PATH VERIFIED`
+	-- cuando el MCP no puede enviar teclas al cliente. Apagado por
+	-- defecto en produccion: con esto encendido, el servidor puede
+	-- pedirle al cliente que ejecute una intencion de jugador.
+	--
+	-- Lo que el reproductor NO puede hacer (y por eso no es un atajo):
+	-- llamar a `BombService`, a `PortalService` o a cualquier servicio.
+	-- Solo invoca controllers del cliente, que a su vez usan los
+	-- remotos reales. Por tanto el camino probado es el del jugador.
+	ENABLE_CLIENT_TEST_DRIVER = false,
 }

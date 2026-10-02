@@ -4,13 +4,29 @@
     Lecture de entrada unificada: teclado, gamepad, touch y mouse.
 
     Responsabilidad real (vertical slice):
-    detectar la pulsacion de "colocar bomba" y ENVIARLA al servidor por
-    el canal BombAction. Nunca coloca bombas ni aplica dano: el cliente
-    no es autoridad, solo envia intenciones.
+    traducir un evento de DISPOSITIVO a una INTENCION y entregarla al
+    controller que le corresponde. No envia nada al servidor por su cuenta.
 
-    La posicion que se envia es la del personaje en ese instante. El
-    servidor la vuelve a validar (distancia, ronda, cooldown), asi que
-    manipularla no concede nada.
+    RECONCILIACION FASE 1 REAL - division corregida
+    -------------------------------------------------
+    Antes este modulo resolvia `BombAction` y hacia `FireServer` por su
+    cuenta, mientras `BombController` estaba vacio. Eso hacia que el
+    controller de bomba no existiera como realidad y que la cadena real
+    fuera:
+
+        Tecla -> InputController -> Remote -> Servidor
+
+    Ahora la cadena es la documentada, y el teclado, el boton tactil y el
+    mando desembocan TODOS en la misma funcion:
+
+        Dispositivo -> InputController -> BombController -> Remote -> Servidor
+
+    Consecuencia honesta: una prueba que ejecute `BombController`
+    reproduce el camino real del jugador. No es una via paralela ni un
+    atajo, porque es la MISMA funcion a la que llama el teclado.
+
+    El cliente sigue sin ser autoridad: no comprueba ronda, arena ni
+    distancia. Eso lo decide `BombService` en el servidor.
 ]]
 
 local Players = game:GetService("Players")
@@ -20,9 +36,11 @@ local UserInputService = game:GetService("UserInputService")
 local SHARED = ReplicatedStorage:WaitForChild("Shared")
 local CONSTANTS = SHARED:WaitForChild("Constants")
 local UTILS = SHARED:WaitForChild("Utils")
+local CONTROLLERS = script.Parent
 
 local GameConstants = require(CONSTANTS:WaitForChild("GameConstants"))
 local Logger = require(UTILS:WaitForChild("Logger"))
+local BombController = require(CONTROLLERS:WaitForChild("BombController"))
 
 local RemoteAction = GameConstants.RemoteAction
 
@@ -31,8 +49,10 @@ local Controller = {}
 --- Indica si el controller esta activo.
 Controller.IsActive = false
 
--- Canal de bombas. Se resuelve una vez: si el remoto no existe, el
--- controller avisa y no se activa (fallo visible, no silencioso).
+-- Canal de bombas. SOLO se usa para comprobar que el canal existe al
+-- arrancar y para avisar con claridad si falta. El ENVIO lo hace
+-- `BombController`; mantener aqui el remoto era lo que duplicaba la
+-- responsabilidad y dejaba a `BombController` sin existir.
 local bombRemote = nil
 local _maid = nil
 
@@ -40,33 +60,34 @@ local _maid = nil
 -- la UNICA zona de la pantalla que coloca una bomba.
 local bombButton = nil
 
---- Peticion de colocar bomba. Se separa para poder probarla y para que
---- el registro de entrada no mezcle lectura con envio.
-function Controller.RequestBombPlacement()
-    local player = Players.LocalPlayer
-    if not player then
-        return false
-    end
+--- Peticion de colocar bomba. Delega en `BombController`.
+---
+--- Se conserva el nombre `RequestBombPlacement` porque es la superficie
+--- que usan el teclado, el mando, el boton tactil y el reproductor de
+--- pruebas. Que todos llamen a la MISMA funcion es precisamente lo que
+--- hace que la prueba signifique algo.
+--- @return boolean sent
+function Controller.RequestBombPlacement(): boolean
+	local ok, sent = pcall(BombController.RequestPlace)
 
-    local character = player.Character
-    if not character then
-        return false
-    end
+	if not ok then
+		Logger.Error(("InputController: la peticion de bomba fallo: %s"):format(tostring(sent)))
+		return false
+	end
 
-    local rootPart = character:FindFirstChild("HumanoidRootPart")
-    if not rootPart then
-        return false
-    end
+	return sent == true
+end
 
-    if not bombRemote then
-        Logger.Warn("InputController: BombAction no disponible; no se pueden colocar bombas.")
-        return false
-    end
+--- Cooldown restante segun el controller de bomba (para el boton).
+--- @return number
+function Controller.GetBombCooldownRemaining(): number
+	local ok, remaining = pcall(BombController.GetCooldownRemaining)
 
-    -- Se envia la posicion del personaje, no la del raton: el servidor
-    -- decide si es legal y por tanto no puede ser falseado.
-    bombRemote:FireServer("Place", rootPart.Position)
-    return true
+	if not ok then
+		return 0
+	end
+
+	return remaining or 0
 end
 
 --- Crea el boton tactil de bomba si el dispositivo tiene pantalla tactil.
@@ -76,12 +97,15 @@ end
 --- tactil, para no anadir un boton invisible en cada cliente.
 --- @return boolean created
 local function ensureBombButton(): boolean
+    -- El boton se crea en TODOS los dispositivos, no solo en tactiles.
+    --
+    -- Por que: antes el boton solo existia con `TouchEnabled`, asi que
+    -- en PC el jugador no tenia ninguna forma VISIBLE de colocar una
+    -- bomba aunque el teclado funcionara. Un unico boton para PC,
+    -- movil y mando es menos codigo que la rama condicional, y ejecuta
+    -- exactamente la misma accion en los tres casos.
     if bombButton then
         return true
-    end
-
-    if not UserInputService.TouchEnabled then
-        return false
     end
 
     local player = Players.LocalPlayer
@@ -93,7 +117,7 @@ local function ensureBombButton(): boolean
     local playerGui = player:WaitForChild("PlayerGui", 10)
 
     if not playerGui then
-        Logger.Warn("InputController: PlayerGui no disponible; no habra boton tactil.")
+        Logger.Warn("InputController: PlayerGui no disponible; no habra boton de bomba.")
         return false
     end
 
@@ -119,13 +143,46 @@ local function ensureBombButton(): boolean
     button.AutoButtonColor = true
     button.Parent = gui
 
+    -- `MouseButton1Click` cubre PC y el toque emulado en movil, y es la
+    -- senal del PROPIO boton, no global. Por eso no puede colocar una
+    -- bomba al abrir un menu o al mover la camara, que fue exactamente
+    -- el bug que corrigio el `TouchTap` global.
+    button.MouseButton1Click:Connect(function()
+        Controller.RequestBombPlacement()
+    end)
+
     -- El Maid destruye el ScreenGui completo, que incluye el boton.
     if _maid then
         _maid:Add(gui)
     end
 
     bombButton = button
-    Logger.Info("InputController: boton tactil de bomba creado.")
+    Logger.Info("InputController: boton de bomba creado.")
+    return true
+end
+
+--- Refresca el boton: lo atenua y muestra el cooldown restante.
+---
+--- Convierte el cooldown en algo VISIBLE. Sin esto el boton acepta el
+--- toque, el controller lo frena en silencio y el jugador no entiende
+--- por que no ocurre nada, que es indistinguible de un boton roto.
+local function refreshBombButton(): boolean
+    if not bombButton or not bombButton.Parent then
+        return false
+    end
+
+    local remaining = Controller.GetBombCooldownRemaining()
+
+    if remaining > 0 then
+        bombButton.BackgroundTransparency = 0.6
+        bombButton.Text = ("%.1fs"):format(remaining)
+        bombButton.AutoButtonColor = false
+    else
+        bombButton.BackgroundTransparency = 0.25
+        bombButton.Text = "BOMBA"
+        bombButton.AutoButtonColor = true
+    end
+
     return true
 end
 
@@ -175,13 +232,17 @@ function Controller.Start(maid: any?): boolean
         end
     )
 
-    -- Tactil: SOLO el boton de la pantalla coloca bomba.
+    -- Tactil: RESERVA, no via principal.
     --
-    -- BUG CORREGIDO: antes se escuchaba `TouchTap` global, asi que
-    -- CUALQUIER toque de la pantalla (abrir un menu, mover la camara,
-    -- tocar un elemento de la UI) colocaba una bomba. En movil eso
-    -- hacia el juego injugable y disparaba el rate limit del servidor.
-    -- Ahora el toque solo cuenta si cae dentro del boton.
+    -- El boton tiene su propio `MouseButton1Click`, que ya cubre movil.
+    -- Este `TouchTap` se conserva unicamente como respaldo por si el
+    -- motor no entrega el toque al boton, y por eso se exige que el
+    -- punto caiga DENTRO del boton.
+    --
+    -- BUG CORREGIDO antes: se escuchaba `TouchTap` global sin mirar el
+    -- boton, de modo que CUALQUIER toque (abrir un menu, mover la
+    -- camara, tocar la UI) colocaba una bomba. En eso el juego era
+    -- injugable y ademas se disparaba el rate limit del servidor.
     connectIfActive(
         UserInputService.TouchTap,
         function(touchPositions: any, gameProcessed: boolean)
@@ -217,7 +278,22 @@ function Controller.Start(maid: any?): boolean
     )
 
     Controller.IsActive = true
-    Logger.Info("InputController listo (F / R2 / toque para colocar bomba).")
+
+    -- Refresco del cooldown del boton. El intervalo es de 100 ms:
+    -- bastante fino para que el contador no parezca congelado y bastante
+    -- grueso para no poner un RenderStepped por frame en cada cliente.
+    --
+    -- El bucle se lanza DESPUES de activar `IsActive` a proposito: si se
+    -- lanzara antes, la condicion `while IsActive` seria falsa en la
+    -- primera vuelta y el hilo terminaria sin refresher nunca.
+    task.spawn(function()
+        while Controller.IsActive do
+            refreshBombButton()
+            task.wait(0.1)
+        end
+    end)
+
+    Logger.Info("InputController listo (F / R2 / boton o toque para colocar bomba).")
 
     return true
 end

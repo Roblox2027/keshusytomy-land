@@ -31,6 +31,7 @@ local SUITES = {
 	{ name = "ServiceStructure", path = "./shared/ServiceStructure.spec" },
 	{ name = "BootWiring", path = "./shared/BootWiring.spec" },
 	{ name = "AIService", path = "./shared/AIService.spec" },
+	{ name = "TestDriverLogic", path = "./shared/TestDriverLogic.spec" },
 }
 
 local loadedSuites = 0

@@ -95,7 +95,11 @@ local SERVICES = {
 	{ name = "PlayerService", module = SERVER.Services.PlayerService, dependencies = { "RoundService", "CombatService" } },
 	{ name = "ExplosionService", module = SERVER.Services.ExplosionService, dependencies = { "DestructionService", "CombatService" } },
 	{ name = "BombService", module = SERVER.Services.BombService, dependencies = { "RoundService", "ExplosionService" } },
-	{ name = "MatchService", module = SERVER.Services.MatchService, dependencies = { "RoundService", "PlayerService", "BombService", "DestructionService" } },
+	-- MatchService NO se declara aqui: se declara mas abajo, despues de
+	-- MonsterService, del que ahora depende para generar la poblacion de la
+	-- ronda. Declararlo en los dos sitios lo registraria DOS veces y el
+	-- registro avisaria de "canal ya registrado", que es la forma mas
+	-- silenciosa de dejar medio sistema sin arrancar.
 	-- PortalService depende de MatchService: para entrar a un mundo hace
 	-- falta saber a donde se teletransporta al jugador, y MatchService es el
 	-- unico que tiene los marcadores de traslado del mapa.
@@ -104,11 +108,53 @@ local SERVICES = {
 	-- servicios ya estan cableados cuando arranca, y su difusion usa
 	-- el mismo registro.
 	{ name = "CoreService", module = SERVER.Services.CoreService, dependencies = {} },
+	-- MonsterService (PvE) va DESPUES de RoundService, CombatService y
+	-- PlayerService: necesita saber si hay ronda para moverse, el unico
+	-- camino de dano para golpear y el servicio que paga las recompensas.
+	-- El orden de arranque no es estetico: `Registry:Get` solo devuelve
+	-- servicios ya arrancados, asi que declararlo antes le daria tres
+	-- inyecciones `nil` sin ningun error visible.
+	{
+		name = "MonsterService",
+		module = SERVER.Services.MonsterService,
+		dependencies = { "RoundService", "CombatService", "PlayerService", "WorldService" },
+	},
+	-- MatchService se mueve DESPUES de MonsterService porque ahora genera
+	-- la poblacion al empezar la ronda. La dependencia se declara de forma
+	-- explicita: el registro resuelve el orden topologico y, sin ella,
+	-- MatchService arrancaria con `monsterService = nil` y la ronda
+	-- terminaria sin un solo monstruo sin un solo error.
+	{
+		name = "MatchService",
+		module = SERVER.Services.MatchService,
+		dependencies = {
+			"RoundService",
+			"PlayerService",
+			"BombService",
+			"DestructionService",
+			"CombatService",
+			"MonsterService",
+			"WorldService",
+		},
+	},
 	-- VisualService va DESPUES de WorldService: lee el mapa (lobby, Core,
 	-- portales y mundos) y enciende las luces de las arenas. Encenderlas
 	-- antes de que el mundo exista las haria perderse: losFolders vacios
 	-- no se recorren.
 	{ name = "VisualService", module = SERVER.Services.VisualService, dependencies = { "WorldService" } },
+
+	-- Herramienta de pruebas. Va al final y NO es critica: sin ella el
+	-- juego es exactamente igual de jugable, solo se pierde la
+	-- capacidad de certificar el camino de entrada del cliente.
+	--
+	-- Se registra como servicio real (y no como script suelto) para que
+	-- herede el ciclo de vida Init/Start/Destroy del registro y para que
+	-- no pueda quedar vivo despues de apagarse el servidor.
+	{
+		name = "TestDriverService",
+		module = SERVER.Services.TestDriverService,
+		dependencies = {},
+	},
 }
 
 --- Conecta las dependencias entre servicios.
@@ -136,6 +182,7 @@ local function wireDependencies(registry: any): { string }
 	local matchService = registry:Get("MatchService")
 	local spawnService = registry:Get("SpawnService")
 	local portalService = registry:Get("PortalService")
+local monsterService = registry:Get("MonsterService")
 
 	-- Declara una conexion y verifica que se pudo hacer de verdad.
 	-- @param label string
@@ -215,9 +262,25 @@ local function wireDependencies(registry: any): { string }
 	)
 
 	connect("MatchService", matchService,
-		{ "RoundService", "PlayerService", "BombService", "DestructionService", "CombatService" },
+		{
+			"RoundService",
+			"PlayerService",
+			"BombService",
+			"DestructionService",
+			"CombatService",
+			"MonsterService",
+			"WorldService",
+		},
 		function(service: any)
-			service.SetDependencies(roundService, playerService, bombService, destructionService, combatService)
+			service.SetDependencies(
+				roundService,
+				playerService,
+				bombService,
+				destructionService,
+				combatService,
+				monsterService,
+				worldService
+			)
 		end
 	)
 
@@ -230,6 +293,29 @@ local function wireDependencies(registry: any): { string }
 			service.SetDependencies(worldService, matchService, roundService, playerService)
 		end
 	)
+
+	-- MonsterService necesita ronda (para saber si hay partida), combate (unico
+	-- camino de dano) y jugador (para pagar la recompensa del monstruo). Se
+	-- cablea DESPUES de los tres, que es la unica forma de que las tres
+	-- inyecciones sean `nil` en vez de un servicio a medio construir.
+	connect("MonsterService", monsterService,
+		{ "RoundService", "CombatService", "PlayerService", "WorldService" },
+		function(service: any)
+			service.SetDependencies(roundService, combatService, playerService, worldService)
+		end
+	)
+
+	-- La flecha va de ExplosionService HACIA MonsterService: sin esto las
+	-- explosiones no encuentro los Humanoids de los monstruos y el PvE no
+	-- recibe dano. Se cablea aqui y no dentro del `connect` anterior porque
+	-- es al reves: MonsterService no depende de ExplosionService, y declarar
+	-- esa dependencia crearia un ciclo en el orden topologico del registro.
+	if explosionService and monsterService then
+		explosionService.SetMonsterService(monsterService)
+		table.insert(report, "[WIRING OK] ExplosionService -> MonsterService")
+	else
+		table.insert(report, "[WIRING FAIL] ExplosionService/MonsterService no disponibles")
+	end
 
 	-- MatchService necesita conocer el mundo por defecto para validar
 	-- a quien puede entrar en el (FASE 18 lo hara con portales).
