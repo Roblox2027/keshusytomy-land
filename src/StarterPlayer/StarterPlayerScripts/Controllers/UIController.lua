@@ -270,10 +270,10 @@ local function refresh()
 
     -- HP. Se lee el Humanoid del PROPIO personaje. Es informacion de
     -- presentacion de si mismo: un cliente puede mentir en su pantalla sin
-    -- El daño lo decide el servidor.
+    -- El dano lo decide el servidor.
     --
     -- (Un cliente puede mentir en su propia pantalla sin ningun efecto: el
-    -- daño, la muerte y la recompensa los resuelve el servidor.)
+    -- dano, la muerte y la recompensa los resuelve el servidor.)
     local hp = _labels.HP
     if hp then
         local character = player.Character
@@ -297,7 +297,7 @@ local function refresh()
         if type(remaining) == "number" then
             bombs.Text = ("BOMBAS %d"):format(remaining)
         else
-            bombs.Text = "BOMBAS ∞"
+            bombs.Text = "BOMBAS *"
         end
     end
 

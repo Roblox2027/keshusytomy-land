@@ -337,7 +337,7 @@ function Service.TryPlaceBomb(player: Player, position: any): (boolean, string?)
 	end
 
 	-- 3. Posicion finita. El gateway ya valida el tipo, pero el servicio
-	--    no confía en una sola comprobacion.
+	--    no confia en una sola comprobacion.
 	local validPosition, positionReason = isValidPosition(position)
 
 	if not validPosition then

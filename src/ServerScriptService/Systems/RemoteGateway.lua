@@ -7,12 +7,12 @@
 	El cliente NUNCA es autoridad. Todo lo que llega por un remoto es
 	una entrada NO CONFIABLE y pasa siempre por esta cadena:
 
-		1. Â¿El servidor esta aceptando trabajo?
-		2. Â¿El emisor es realmente un jugador conectado?
-		3. Â¿El canal esta registrado en este gateway?
-		4. Â¿La accion solicitada esta permitida en el esquema?
-		5. Â¿La frecuencia es aceptable (rate limit)?
-		6. Â¿Los argumentos coinciden con el esquema (tipos/rangos)?
+		1. ?El servidor esta aceptando trabajo?
+		2. ?El emisor es realmente un jugador conectado?
+		3. ?El canal esta registrado en este gateway?
+		4. ?La accion solicitada esta permitida en el esquema?
+		5. ?La frecuencia es aceptable (rate limit)?
+		6. ?Los argumentos coinciden con el esquema (tipos/rangos)?
 
 	Solo si las 6 validaciones pasan se ejecuta el handler.
 

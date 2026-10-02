@@ -101,7 +101,7 @@ Service._playerService = nil
 
 -- Freno anti-spam. El RemoteGateway ya limita por canal, pero el portal
 -- recibe peticiones de una sola accion (`Enter`): un limite propio hace el
--- daño innecesario mas improbable sin depender del externo.
+-- dano innecesario mas improbable sin depender del externo.
 local travelLimiter = RateLimiter.new({ capacity = 3, refillPerSecond = 1 })
 
 --- Estados posibles de un portal. Un portal no abierto no acepta a nadie.

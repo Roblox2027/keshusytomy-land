@@ -58,6 +58,17 @@ function Service.SetDependencies(destructionService: any, combatService: any)
 	Service._combat = combatService
 end
 
+--- Inyecta MonsterService para que las explosiones danen tambien al PvE.
+---
+--- Es una inyeccion APARTE y no un cuarto argumento de `SetDependencies`
+--- porque los monstruos llegaron despues que el cableado original: anadir
+--- un parametro a un metodo que ya llamaban tres sitios habria exigido
+--- tocarlos todos y el forgetting de uno daria un `nil` silencioso.
+--- @param monsterService any
+function Service.SetMonsterService(monsterService: any)
+	Service._monsters = monsterService
+end
+
 --- @return number
 function Service.GetExplosionCount(): number
 	return Service._explosionCount
@@ -233,12 +244,29 @@ function Service.Detonate(center: Vector3, radius: number, sourceUserId: number?
 					CombatMath.FalloffDamage(distance, radius, GameConfig.DefaultBombDamage)
 				)
 
-				if damage > 0 and Service._combat then
-					local applied = Service._combat.ApplyDamage(humanoid, damage, sourceUserId)
-
-					if applied then
+				if damage > 0 then
+					-- PRIMERO se pregunta si es un MONSTRUO. Sin esta
+					-- rama, un monstruo dentro del radio no recibia dano:
+					-- `CombatService.ApplyDamage` busca un Player a partir del
+					-- Humanoid, y un NPC no tiene ninguno, asi que devolvia
+					-- `false` y la bomba pasaba de largo. El PvE era
+					-- invisible en el propio sistema que lo debia ocultar.
+					if Service._monsters and Service._monsters.ApplyDamageToMonster(
+						humanoid,
+						damage,
+						sourceUserId
+					) then
 						affected += 1
-						Logger.Debug(("explosion: %.0f de dano a %s"):format(damage, humanoid.Name))
+					elseif Service._combat then
+						local applied = Service._combat.ApplyDamage(humanoid, damage, sourceUserId)
+
+						if applied then
+							affected += 1
+							Logger.Debug(("explosion: %.0f de dano a %s"):format(
+								damage,
+								humanoid.Name
+							))
+						end
 					end
 				end
 			end

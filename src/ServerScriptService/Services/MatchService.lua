@@ -307,7 +307,7 @@ function Service.OnRoundStateChanged(from: string, to: string)
 		Service.SpawnMonstersForRound()
 
 	elseif to == RoundState.RoundEnding then
-		-- Las bombas que quedaran explotando dañarian a los jugadores
+		-- Las bombas que quedaran explotando danarian a los jugadores
 		-- ya devueltos al lobby.
 		if Service._bombService then
 			Service._bombService.ClearBombs()

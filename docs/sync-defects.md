@@ -315,6 +315,154 @@ bien, sigamos") deja el mapa viejo en el servidor.
 
 ---
 
+## 11. `import_rbxm` duplica en vez de reemplazar
+
+**Medido por:** `tools/dedupe-modules.js` y `get_place_info`
+
+Cuatro modulos existian DOS VECES en el mismo padre:
+
+```
+ReplicatedStorage/Shared/Libraries/AIService        x2
+ReplicatedStorage/Shared/Libraries/TestDriverLogic  x2
+ReplicatedStorage/Shared/MonsterDefinitions         x2
+ServerScriptService/Services/TestDriverService      x2
+```
+
+**Por que no lo ve nadie:**
+
+- Un recuento de instancias da PASS: los dos existen y los dos se llaman
+  igual.
+- `dedupe-scripts.js` recorre los HIJOS DIRECTOS de tres servicios. Estos
+  duplicados estan dos niveles mas abajo, asi que para esa herramienta no
+  existen.
+- `source-runtime-diff.js` SI lo detectaba, pero como "2 sobrantes" sin decir
+  cuales, porque solo tenia en cuenta los que sobran en Studio.
+
+**Por que `require` no es inocuo con un duplicado:** el juego carga el primer
+`FindFirstChild` que encuentre. Si ese es el viejo, se ejecuta codigo que
+nadie ha tocado en semanas, y el sintoma es "el arreglo no funciona" sin
+ningun error en ninguna parte. Un `MonsterService` con dos copias puede
+contener la version de 531 lineas y la de 31 a la vez.
+
+**Correccion:** `tools/dedupe-modules.js`. El disco es la autoridad: se
+conserva la copia cuyo `Source` coincide con el archivo de `src/` y se
+informa del resto. Con `--apply` destruye; sin el, solo informa.
+
+Deliberadamente NO borra un modulo UNICO aunque su fuente no coincida con el
+disco: eso es desincronizacion de fuente y corresponde a `sync-scripts.js`.
+Borrar el unico seria destruir codigo que Rojo reescribe, y el sintoma
+volveria un sinfin de veces.
+
+---
+
+## 12. `set_script_source` del MCP anade un byte delante de cada caracter de doble ancho
+
+**Medido por:** `tools/verify-source-text.js`
+
+Este es el defecto mas caro de los doce, porque **no cambia ni una sola
+instancia del arbol**. Los nombres coinciden, el numero de instancias
+coincide, `verify-structure` da PASS y `verify-wiring` da PASS. Solo el TEXTO
+lo delata.
+
+Prueba controlada: se escribio un ModuleScript con UN solo U+00BF y se releyo:
+
+```text
+CREADO:   ServerScriptService.MojibakeProbe
+ESCRITO:  newSourceLength=48  method=UpdateSourceAsync
+RELEIDO:  len=48 C2BF=1
+  esperado si NO hay doble codificacion: len=47 C2BF=0
+```
+
+La herramienta `set_script_source`, que usa `sync-scripts.js` en cada
+archivo, escribe el texto con el byte `C2` anadido delante de cada caracter de
+doble ancho. `¿` (C2 BF) sale como `Â¿` (C3 82 C2 BF).
+
+**Consecuencia:** las tildes y simbolos del repositorio llegan DOBLEMENTE
+codificados a Studio. Los comentarios quedan ilegibles justo en las reglas de
+seguridad, que es donde mas cuesta leerlos:
+
+```text
+-- no conf├¡a en una sola comprobacion.        (era: no confia)
+--- ┬┐El servidor esta aceptando trabajo?    (era: ?El servidor)
+```
+
+Y `RoundService.lua:564` era peor: "corrutina espiral" llego con seis bytes
+(`EB 82 98 EC 84 A0`, U+B098 U+C120) donde tenia cinco letras. Sin una regla
+general que lo revierta, y sin que haga falta: la palabra se deduce del
+sentido de la frase.
+
+**Correccion:** `tools/ascii-only.js` traduce el fuente a ASCII. Sin `--fix`
+informa y devuelve codigo distinto de 0, para poder usarse como puerta; con
+`--fix` reescribe.
+
+Se elige ASCII y no "arreglar la herramienta" porque el plugin MCP esta fuera
+del repositorio y su version no es nuestra. El ASCII atraviesa su codificacion
+intacto, y ademas el codigo de este proyecto ya estaba escrito casi por entero
+sin acentos ("esta", "aqui", "codigo"): la herramienta solo termina el
+trabajo en vez de cambiar el criterio del proyecto.
+
+**Verificacion:** `tools/verify-source-text.js` recorre todos los scripts de
+Studio contando caracteres no ASCII. Resultado tras el arreglo:
+
+```text
+scripts=74 conNoAscii=0
+```
+
+Que es lo que un recuento de instancias jamas habria dicho.
+
+---
+
+## Desmontaje de dos sondas que mintieron
+
+Durante este bloque dos sondas dieron un veredicto equivocado. Se documenta COMO
+fallaron porque el fallo de una sonda se parece mucho a un fallo del juego, y
+esa confusion es la que cuesta el tiempo:
+
+**1. "SIN MONSTRUOS" durante cuatro minutos.** Una sonda contaba los
+monstruos en `workspace:FindFirstChild("Monsters")`. La carpeta SI existe:
+`MonsterService.GetFolder()` la crea con `Parent = Workspace`. Lo que fallaba
+era la LLAMADA: `eval_server_runtime` suelto responde `"Requested module
+experienced an error while loading"` cuando el servidor esta ocupado, y ese
+texto se lee igual que "la carpeta no existe". Se usa `mcp.serverLuau`, que
+desenvuelve esa capa y distingue un error de transporte de un `false` real.
+
+**2. "El jugador nunca recibe dano" durante toda la sesion.** Es cierto, pero
+no por un bug. Las rondas de ESTA sesion duran menos de un segundo por estado,
+porque el TestDriver acorta los tiempos, y la proteccion de aparicion dura
+unos 1.85 s. La ventana se renueva en cada vuelta a la arena, asi que nunca
+expira: `_blockedDamage` iba por 1580 mientras `_damageEvents` se quedaba en 0.
+
+La prueba que lo aisla llama a la puerta de dano del servidor con el mismo
+`Humanoid` del jugador y compara con y sin proteccion:
+
+```
+estado=Playing  vivos=4  ApplyDamage=false  motivo=invulnerable
+                            sinProteccion=true  motivo=nil  vida=93
+```
+
+Con ronda activa y sin proteccion el dano SE APLICA (100 -> 93). El ataque del
+monstruo y la cadena de dano funcionan; lo que se media era el reloj del
+entorno de prueba.
+
+La leccion general: antes de declarar un fallo hay que comprobar si la propia
+sonda esta midiendo el instante correcto. Una prueba ejecutada en el momento
+equivocado no informa de nada, ni a favor ni en contra.
+
+---
+
+## Reglas que se siguen ahora
+
+1. `node tools/dedupe-modules.js` antes de declarar el arbol sano. Sin
+   `--apply` es un informe.
+2. `node tools/ascii-only.js` sin `--fix` en la puerta: sale distinto de 0 si
+   hay no-ASCII en el fuente.
+3. `node tools/verify-source-text.js` tras sincronizar: si el disco es ASCII y
+   Studio no, el transporte ha vuelto a fallar.
+4. Verificar con el TEXTO y no con los NOMBRES cuando lo que se ha tocado es el
+   fuente. El defecto 12 no cambia ni una instancia del arbol.
+
+---
+
 ## Falso positivo conocido
 
 `tools/verify-wiring.js` falla con:

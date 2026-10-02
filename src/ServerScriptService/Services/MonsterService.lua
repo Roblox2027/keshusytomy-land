@@ -8,24 +8,537 @@
     dependencias minimas que cada servicio necesita.
 ]]
 
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local RunService = game:GetService("RunService")
+local Workspace = game:GetService("Workspace")
+
+local SHARED = ReplicatedStorage:WaitForChild("Shared")
+local CONFIG = SHARED:WaitForChild("Config")
+local UTILS = SHARED:WaitForChild("Utils")
+
+local FeatureConfig = require(CONFIG:WaitForChild("FeatureConfig"))
+local PerformanceConfig = require(CONFIG:WaitForChild("PerformanceConfig"))
+local AIService = require(SHARED:WaitForChild("Libraries"):WaitForChild("AIService"))
+local MonsterDefinitions = require(SHARED:WaitForChild("MonsterDefinitions"))
+local Logger = require(UTILS:WaitForChild("Logger"))
+
 local Service = {}
 
---- Indica si Init ya se ejecuto correctamente.
 Service.IsInitialized = false
 
---- Inicializacion del servicio. Debe ser idempotente.
---- @return boolean success
-function Service.Init(): boolean
-    -- FASE 1+ : preparar estado propio y conexiones de eventos.
-    Service.IsInitialized = true
-    return true
+-- Servicios inyectados por ServerMain.
+Service._roundService = nil
+Service._combatService = nil
+Service._playerService = nil
+Service._worldService = nil
+
+-- Carpeta unica donde viven los monstruos.
+Service._folder = nil
+
+-- monsterId -> { Model, Humanoid, RootPart, Def, Dead }
+Service._monsters = {}
+Service._nextMonsterId = 0
+
+-- Diagnostico.
+Service._spawned = 0
+Service._killed = 0
+
+local MaidRef = nil
+
+--- Carpeta de monstruos, creada una sola vez.
+--- @return Folder?
+function Service.GetFolder(): Folder?
+	if Service._folder and Service._folder.Parent then
+		return Service._folder
+	end
+
+	local folder = Instance.new("Folder")
+	folder.Name = "Monsters"
+	folder:SetAttribute("IsMonsterFolder", true)
+	folder.Parent = Workspace
+
+	Service._folder = folder
+	return folder
 end
 
---- Limpieza del servicio. Debe detener todo lo iniciado en Init.
+--- Inyecta las dependencias del servicio.
+function Service.SetDependencies(
+	roundService: any,
+	combatService: any,
+	playerService: any,
+	worldService: any
+)
+	Service._roundService = roundService
+	Service._combatService = combatService
+	Service._playerService = playerService
+	Service._worldService = worldService
+end
+
+--- Monstruos vivos ahora mismo.
+--- @return number
+function Service.GetAliveCount(): number
+	local count = 0
+	for _ in pairs(Service._monsters) do
+		count += 1
+	end
+	return count
+end
+
+--- Monstruos vivos de un tipo concreto.
+--- @param definitionId string
+--- @return number
+function Service.GetCountOfType(definitionId: string): number
+	local count = 0
+	for _, record in pairs(Service._monsters) do
+		if record.Def.Id == definitionId then
+			count += 1
+		end
+	end
+	return count
+end
+
+--- Construye el cuerpo de un monstruo POR CODIGO.
+---
+--- Y no desde un modelo del mapa, a proposito: un NPC que depende de un
+--- .rbxm en el Workspace es un NPC que desaparece cuando alguien edita el
+--- lugar, y su ausencia no produce ningun error. Aqui, si la construccion
+--- falla, el spawn falla de forma visible.
+--- @param def table
+--- @return Model?
+local function buildMonsterModel(def: any): Model?
+	local folder = Service.GetFolder()
+	if not folder then
+		return nil
+	end
+
+	local root = Instance.new("Part")
+	root.Name = "HumanoidRootPart"
+	root.Size = Vector3.new(2, 2, 1)
+	root.Anchored = true
+	root.CanCollide = false
+	root.CanTouch = false
+	root.CanQuery = false
+	root.Transparency = 1
+
+	local body = Instance.new("Part")
+	body.Name = "Body"
+	body.Size = Vector3.new(3, 3, 3)
+	body.Anchored = true
+	body.CanCollide = true
+	body.Material = def.Material
+	body.Color = def.Color
+	body:SetAttribute("MonsterId", def.Id)
+
+	local humanoid = Instance.new("Humanoid")
+	humanoid.MaxHealth = def.Health
+	humanoid.Health = def.Health
+	humanoid.WalkSpeed = def.Speed
+	humanoid.DisplayName = def.Name
+
+	local model = Instance.new("Model")
+	model.Name = ("Monster_%s"):format(def.Id)
+	model.PrimaryPart = root
+
+	root.Parent = model
+	body.Parent = model
+	humanoid.Parent = model
+	model.Parent = folder
+
+	return model
+end
+
+--- Elimina un monstruo SIN pagar recompensa.
+---
+--- Existe separada de `OnMonsterDied` a proposito: `ClearAll` (fin de
+--- ronda) usa esta. Si `ClearAll` pagase, un jugador que espera al final de
+--- la ronda cobraria el XP de todos los monstruos indefinidamente.
+--- @param monsterId number
+local function despawnMonster(monsterId: number)
+	local record = Service._monsters[monsterId]
+
+	if not record then
+		return
+	end
+
+	Service._monsters[monsterId] = nil
+
+	if record.Model and record.Model.Parent then
+		record.Model:Destroy()
+	end
+end
+
+--- Elimina TODOS los monstruos vivos (fin de ronda, cambio de mundo).
+---
+--- NO paga recompensa: morirse porque acabo la ronda no es una muerte del
+--- jugador, y pagar aqui permitiria farmear XP(selectround) sin limite.
+--- @return number removed
+function Service.ClearAll(): number
+	local removed = Service.GetAliveCount()
+
+	for monsterId in pairs(Service._monsters) do
+		despawnMonster(monsterId)
+	end
+
+	return removed
+end
+
+--- Coloca un monstruo en la arena y lo registra.
+---
+--- Todo se comprueba ANTES de construir nada, para que un spawn fallido no
+--- deje un NPC a medias en el Workspace:
+---   - el PvE esta habilitado,
+---   - la definicion existe,
+---   - no se supera el tope global,
+---   - no se supera el tope por definicion.
+--- @param definitionId string
+--- @param position Vector3
+--- @return number? monsterId nil si no se pudo crear
+function Service.Spawn(definitionId: string, position: Vector3): number?
+	if not FeatureConfig.ENABLE_MONSTER_HUNT then
+		Logger.Debug(("monstruo '%s' no creado: PvE deshabilitado"):format(definitionId))
+		return nil
+	end
+
+	local def = MonsterDefinitions.Get(definitionId)
+
+	if not def then
+		Logger.Error(("definicion de monstruo inexistente: %s"):format(definitionId))
+		return nil
+	end
+
+	local limits = PerformanceConfig.Limits
+
+	if Service.GetAliveCount() >= limits.MaxMonsters then
+		Logger.Warn("MonsterService: tope de monstruos alcanzado; no se genera mas.")
+		return nil
+	end
+
+	if Service.GetCountOfType(definitionId) >= def.MaxAlive then
+		return nil
+	end
+
+	local model = buildMonsterModel(def)
+
+	if not model then
+		Logger.Error("MonsterService: no se pudo construir el modelo del monstruo.")
+		return nil
+	end
+
+	local root = model:FindFirstChild("HumanoidRootPart")
+	local humanoid = model:FindFirstChildOfClass("Humanoid")
+
+	if not root or not humanoid then
+		model:Destroy()
+		Logger.Error("MonsterService: el modelo construido no tiene HumanoidRootPart/Humanoid.")
+		return nil
+	end
+
+	Service._nextMonsterId += 1
+	local monsterId = Service._nextMonsterId
+
+	model:PivotTo(CFrame.new(position))
+
+	Service._monsters[monsterId] = {
+		Id = monsterId,
+		Def = def,
+		Model = model,
+		Humanoid = humanoid,
+		RootPart = root,
+		Dead = false,
+		NextAttackAt = 0,
+	}
+
+	Service._spawned += 1
+
+	-- La muerte la observa ESTE servicio: el monstruo desaparece y paga
+	-- aunque nadie mire.
+	local connection = humanoid.Died:Connect(function()
+		Service.OnMonsterDied(monsterId)
+	end)
+
+	if MaidRef then
+		MaidRef:Add(connection)
+	end
+
+	Logger.Debug(("monstruo %d (%s) creado en (%.0f, %.0f, %.0f)"):format(
+		monsterId,
+		definitionId,
+		position.X,
+		position.Y,
+		position.Z
+	))
+
+	return monsterId
+end
+--- Procesa la muerte de un monstruo y paga UNA vez.
+---
+--- El registro se marca `Dead` y se borra de `_monsters` ANTES de pagar:
+--- una explosion en cadena puede volver a disparar `Died` sobre el mismo
+--- Humanoid, y sin esa marca el XP se cobraria dos veces.
+--- @param monsterId number
+function Service.OnMonsterDied(monsterId: number)
+	local record = Service._monsters[monsterId]
+
+	if not record or record.Dead then
+		return
+	end
+
+	record.Dead = true
+	Service._killed += 1
+
+	-- Quien lo mato lo decide el Humanoid, igual que entre jugadores. Un
+	-- monstruo que muere por su propia explosion no se atribuye a nadie.
+	local sourceId = record.Humanoid:GetAttribute("LastDamageSource")
+	local killer = if type(sourceId) == "number" then Players:GetPlayerByUserId(sourceId) else nil
+	local def = record.Def
+
+	despawnMonster(monsterId)
+
+	if killer and Service._playerService then
+		Service._playerService.AddRewards(killer, def.XP, def.Coins)
+		Logger.Debug(("%s mato a %s: +%d XP +%d monedas"):format(
+			killer.Name,
+			def.Id,
+			def.XP,
+			def.Coins
+		))
+	end
+
+	Logger.Debug(("monstruo %d (%s) eliminado"):format(monsterId, def.Id))
+end
+
+
+--- ?Este Humanoid es un monstruo de este servicio?
+--- @param humanoid Humanoid
+--- @return boolean
+function Service.IsMonsterHumanoid(humanoid: Humanoid): boolean
+	for _, record in pairs(Service._monsters) do
+		if record.Humanoid == humanoid then
+			return true
+		end
+	end
+	return false
+end
+
+
+--- Aplica dano a un monstruo.
+---
+--- Es la entrada que usa `ExplosionService`: comprueba que el Humanoid sea
+--- de un monstruo REAL de este servicio antes de tocarlo. Sin esa
+--- comprobacion, un remoto podria pedir dano para cualquier NPC del mapa.
+--- @param humanoid Humanoid
+--- @param amount number
+--- @param sourceUserId number?
+--- @return boolean applied
+function Service.ApplyDamageToMonster(
+	humanoid: Humanoid,
+	amount: number,
+	sourceUserId: number?
+): boolean
+	for _, record in pairs(Service._monsters) do
+		if record.Humanoid == humanoid and not record.Dead then
+			humanoid:TakeDamage(amount)
+
+			if sourceUserId then
+				humanoid:SetAttribute("LastDamageSource", sourceUserId)
+			end
+			return true
+		end
+	end
+
+	return false
+end
+
+--- Jugador vivo mas cercano dentro del radio.
+---
+--- La eleccion la hace el SERVIDOR sobre los Humanoids reales, y la funcion
+--- NO recibe ningun payload: un cliente no puede "atraer" a un monstruo
+--- pidiendo nada, porque no hay nada que pedir.
+--- @param origin Vector3
+--- @param radius number
+--- @return Player?
+function Service.FindNearestPlayer(origin: Vector3, radius: number): Player?
+	local best: Player? = nil
+	local bestDistance = radius
+
+	for _, player in ipairs(Players:GetPlayers()) do
+		local character = player.Character
+		local humanoid = character and character:FindFirstChildOfClass("Humanoid")
+		local root = character and character:FindFirstChild("HumanoidRootPart")
+
+		if humanoid and root and humanoid.Health > 0 then
+			local distance = (root.Position - origin).Magnitude
+
+			if distance < bestDistance then
+				bestDistance = distance
+				best = player
+			end
+		end
+	end
+
+	return best
+end
+
+
+--- UN SOLO paso de IA para todos los monstruos.
+---
+--- Se llama desde UN Heartbeat del servidor, no uno por monstruo: 30
+--- monstruos con 30 corrutinas moviendose cada frame es la forma rapida de
+--- hundir un servidor, y aqui se evita por construccion.
+---
+--- El `dt` lo pasa quien llama en lugar de usar `Heartbeat:Wait()`: dentro
+--- de un `Heartbeat` eso devolveria 0 y los monstruos no se moverian, y
+--- ademas `Wait()` dentro de la conexion bloquearia a los demas.
+--- @param dt number
+function Service.StepAI(dt: number)
+	if not Service._roundService or not Service._roundService.IsPlaying() then
+		return
+	end
+
+	for _, record in pairs(Service._monsters) do
+		if not record.Dead and record.RootPart and record.RootPart.Parent then
+			local def = record.Def
+			local origin = record.RootPart.Position
+			local target = Service.FindNearestPlayer(origin, def.DetectionRange)
+
+			if target and target.Character then
+				local targetRoot = target.Character:FindFirstChild("HumanoidRootPart")
+				local targetHumanoid = target.Character:FindFirstChildOfClass("Humanoid")
+
+				if targetRoot and targetHumanoid and targetHumanoid.Health > 0 then
+					local step = AIService.Step(origin, targetRoot.Position, def.DetectionRange)
+
+					if step.Move then
+						local speed = AIService.ChaseSpeed(def.Speed, def.ChaseMultiplier)
+						record.RootPart.CFrame = CFrame.new(
+							origin
+								+ Vector3.new(step.Direction.x, 0, step.Direction.z) * speed * dt
+						)
+					end
+
+					-- Ataque por contacto, con su propio tiempo de recarga.
+					--
+					-- El ataque pasa SIEMPRE por CombatService: es la unica
+					-- autoridad de dano del servidor. Si el monstruo
+					-- llamara a TakeDamage sobre el jugador, se saltarian la
+					-- invulnerabilidad y la regla de ronda.
+					if
+						Service._combatService
+						and AIService.ShouldAttack(step.Distance, def.AttackRange)
+						and os.clock() >= (record.NextAttackAt or 0)
+					then
+						record.NextAttackAt = os.clock() + def.AttackCooldown
+						Service._combatService.ApplyDamage(targetHumanoid, def.Damage)
+					end
+				end
+			end
+		end
+	end
+end
+
+
+--- Estado de un monstruo, para pruebas y diagnostico.
+--- @param monsterId number
+--- @return table?
+function Service.GetMonster(monsterId: number): any?
+	local record = Service._monsters[monsterId]
+
+	if not record then
+		return nil
+	end
+
+
+	return {
+		Id = record.Id,
+		DefinitionId = record.Def.Id,
+		Health = record.Humanoid.Health,
+		Position = record.RootPart.Position,
+	}
+end
+
+--- Identificadores de los monstruos vivos.
+--- @return { number }
+function Service.GetAliveIds(): { number }
+	local ids = {}
+	for monsterId in pairs(Service._monsters) do
+		table.insert(ids, monsterId)
+	end
+	table.sort(ids)
+	return ids
+end
+
+--- @param maid any?
+--- @return boolean success
+function Service.Init(maid: any?): boolean
+	if Service.IsInitialized then
+		return true
+	end
+
+	MaidRef = maid
+	Service._monsters = {}
+	Service._nextMonsterId = 0
+	Service._spawned = 0
+	Service._killed = 0
+
+	if not Service.GetFolder() then
+		Logger.Error("MonsterService: no se pudo crear la carpeta de monstruos.")
+		return false
+	end
+
+	Service.IsInitialized = true
+	Logger.Info(("MonsterService: %d definiciones de monstruo"):format(
+		#MonsterDefinitions.GetIds()
+	))
+
+	return true
+end
+
+--- @return boolean success
+function Service.Start(): boolean
+	if not Service.IsInitialized then
+		Logger.Error("MonsterService: Start sin Init")
+		return false
+	end
+
+	if not FeatureConfig.ENABLE_MONSTER_HUNT then
+		-- No es un fallo: el PvE es una bandera de contenido. Se dice en voz
+		-- alta para que "no aparecen monstruos" no se confunda con "se rompio
+		-- el spawn".
+		Logger.Info("MonsterService: PvE deshabilitado por FeatureConfig; no apareceran monstruos.")
+		return true
+	end
+
+	-- Un unico Heartbeat para TODOS los monstruos.
+	if MaidRef then
+		MaidRef:Connect(RunService.Heartbeat, function(dt: number)
+			Service.StepAI(dt)
+		end)
+	end
+
+	Logger.Info("MonsterService listo.")
+	return true
+end
+
+
 --- @return boolean success
 function Service.Destroy(): boolean
-    Service.IsInitialized = false
-    return true
+	Service.ClearAll()
+
+	if Service._folder and Service._folder.Parent then
+		Service._folder:Destroy()
+	end
+
+	Service._folder = nil
+	Service._monsters = {}
+	Service._roundService = nil
+	Service._combatService = nil
+	Service._playerService = nil
+	Service._worldService = nil
+	MaidRef = nil
+	Service.IsInitialized = false
+	return true
 end
 
 return Service
+

@@ -365,8 +365,20 @@ return "movido a " .. best.Name .. ${face ? ' .. ", mirando al Core"' : ""}
 	// la que esta, y ADEMAS exige que la zona se haya podido determinar: un
 	// `zone` vacio significaria que el cliente no ve el mapa, y eso si es un
 	// fallo. Se sigue exigiendo la camara y el PlayerGui.
+	// `visibleLobbyParts` no lo publica `ClientTelemetry`: el informe de
+	//-region mide SIEMPRE `visiblePerRegion`. Preguntar por un campo
+	// inexistente devolvia `undefined`, que `|| 0` convertia en CERO, y la
+	// puerta informaba "el cliente no ve nada" con el jugador mirando el
+	// lobby con 20 Parts a la vista. La zona se lee de `visiblePerRegion`.
+	const perRegion = c.visiblePerRegion || {};
+	const regionVisible = (name) => {
+		const ratio = perRegion[name];
+		if (typeof ratio !== "string") return 0;
+		return parseInt(ratio.split("/")[0], 10) || 0;
+	};
+
 	const inLobby = (c.zone || "").indexOf("Lobby") >= 0;
-	const visibleInZone = inLobby ? (c.visibleLobbyParts || 0) : (c.visibleParts || 0);
+	const visibleInZone = inLobby ? regionVisible("Lobby") : (c.visibleParts || 0);
 
 	const failures = [];
 	if (!c.hasCamera) failures.push("el cliente no tiene CurrentCamera");
@@ -375,7 +387,10 @@ return "movido a " .. best.Name .. ${face ? ' .. ", mirando al Core"' : ""}
 	if (visibleInZone <= 0) {
 		failures.push(
 			"no ve ninguna Part de la zona en la que esta ("
-			+ c.zone + ", lobby=" + (c.visibleLobbyParts || 0) + ")"
+			+ c.zone
+			+ ", visible="
+			+ visibleInZone
+			+ ")"
 		);
 	}
 

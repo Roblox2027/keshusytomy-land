@@ -42,18 +42,33 @@ const path = require("path");
 
 const SERVICES_DIR = path.join(__dirname, "..", "src", "ServerScriptService", "Services");
 
-/** Nombres de los servicios que ServerMain registra. */
-const EXPECTED_SERVICES = [
-	"BombService",
-	"CombatService",
-	"DestructionService",
-	"ExplosionService",
-	"MatchService",
-	"PlayerService",
-	"RoundService",
-	"SpawnService",
-	"WorldService",
-];
+/**
+ * Servicios a comprobar: TODOS los `.lua` de la carpeta, no una lista fija.
+ *
+ * POR QUE DEJO DE SER UNA LISTA FIJA
+ * ---------------------------------
+ * `MonsterService` se implemento, se sincronizo a Studio y arranco "bien"
+ * con un `return Service` perdido. `luau-compile` daba EXIT 0 (el archivo
+ * estaba balanceado: el empalmamiento se llevo el `return`, no un `end`) y
+ * la suite daba 185/185 en verde. Esta puerta, que existe precisamente para
+ * cazar ese caso, NO lo vio: `EXPECTED_SERVICES` tenia 9 nombres fijos y
+ * `MonsterService` no era uno de ellos, asi que nunca se abrio el archivo.
+ *
+ * Una puerta que solo vigila una lista escrita a mano deja de cubrir en
+ * cuanto se anade un servicio, que es justo cuando hacen falta. Se leen
+ * los archivos del disco.
+ */
+function expectedServices() {
+	if (!fs.existsSync(SERVICES_DIR)) {
+		return [];
+	}
+
+	return fs
+		.readdirSync(SERVICES_DIR)
+		.filter((f) => f.endsWith(".lua"))
+		.map((f) => f.replace(/\.lua$/, ""))
+		.sort();
+}
 
 /**
  * Elimina comentarios de bloque y de linea.
@@ -112,15 +127,21 @@ function depthDelta(line) {
 		padded.match(/[^\w_][Ww][Hh][Ii][Ll][Ee][^\n]*\s[Dd][Oo][\s%w]/) || []
 	).length;
 
-	const ifExpressions = (
-		padded.match(
-			/[^\w_][Ii][Ff][^\n]*?\s+[Tt][Hh][Ee][Nn][^\n]*?[^\w_][Ee][Ll][Ss][Ee][^\w]/g
-		) || []
-	).length;
+	// Una EXPRESION `if` (`local x = if cond then a else b`) no lleva
+	// `end`: abre un bloque que el contador no puede cerrar. Es lo que hacia
+	// que la profundidad se fuera UNA UNIDAD ABAJO y que la puerta
+	// informara "falta un end" sobre archivos que Luau compila con EXIT 0.
+	//
+	// Se distinguen de un `if` de BLOQUE por una senal fiable: el `if` de
+	// expresion va precedido de una ASIGNACION (`= if ...`), mientras que el
+	// de bloque empieza una sentencia. Se exige que el `=` no sea de
+	// comparacion (`==`, `~=`, `<=`, `>=`), asi que `if a == b then` no
+	// cuenta como expresion.
+	const ifExpression = (padded.match(/=[^=<>~].*\b[Ii][Ff]\b/g) || []).length;
 
 	const ends = countWord(line, "[Ee][Nn][Dd]");
 
-	return opens - forDo - whileDo - ifExpressions - ends;
+	return opens - forDo - whileDo - ifExpression - ends;
 }
 
 /** Analiza un fuente y devuelve su estructura. */
@@ -166,6 +187,8 @@ function main() {
 	const problems = [];
 	let checked = 0;
 
+	const EXPECTED_SERVICES = expectedServices();
+
 	for (const name of EXPECTED_SERVICES) {
 		const file = path.join(SERVICES_DIR, `${name}.lua`);
 
@@ -175,7 +198,8 @@ function main() {
 		}
 
 		checked += 1;
-		const result = analyze(fs.readFileSync(file, "utf8"));
+		const source = fs.readFileSync(file, "utf8");
+		const result = analyze(source);
 		const where = path.relative(process.cwd(), file);
 
 		if (result.finalDepth !== 0) {
@@ -191,7 +215,22 @@ function main() {
 			);
 		}
 
-		if (result.lastCode !== "return Service") {
+		// El codigo se mira sobre el ORIGINAL, no sobre el ya limpio de
+		// comentarios: un comentario final (como el marcador `@VISUAL:PART2`
+		// con el que se ensambla el archivo) no debe decides que el modulo
+		// no devuelve nada. Se busca el ULTIMO `return Service` real.
+		const rawLines = source.split("\n");
+		let lastReturn = null;
+
+		for (const raw of rawLines) {
+			const trimmed = raw.trim();
+
+			if (trimmed === "return Service") {
+				lastReturn = trimmed;
+			}
+		}
+
+		if (lastReturn !== "return Service") {
 			// Todos los servicios devuelven su tabla local `Service`. Si el
 			// empalmamiento se lleva por delante un `return`, la ultima
 			// linea deja de ser el return del modulo.

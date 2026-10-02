@@ -102,7 +102,7 @@ function Service.GetSpawnPosition(player: Player?): Vector3
 		return Vector3.new(0, 10, 0)
 	end
 
-	-- Se suma un pequeño desplazamiento vertical para que el personaje
+	-- Se suma un pequeno desplazamiento vertical para que el personaje
 	-- no nazca incrustado en el suelo.
 	return (spawnLocation :: SpawnLocation).Position + Vector3.new(0, 3, 0)
 end

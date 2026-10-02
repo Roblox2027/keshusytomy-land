@@ -226,7 +226,7 @@ local function bootReport(): { [string]: any }
 	-- no puede ejecutar nada en el peer del cliente.
 	-- Atributos locales del cliente.
 	--
-	-- Se leen AQUÍ, dentro del cliente, y no en el servidor, porque los
+	-- Se leen AQUI, dentro del cliente, y no en el servidor, porque los
 	-- atributos NO replican de cliente a servidor. `TestDriverResult` lo
 	-- escribe el cliente con `SetAttribute`: el servidor jamas lo vera. Es la
 	-- razon por la que `TestDriverService.GetResult` no puede funcionar tal

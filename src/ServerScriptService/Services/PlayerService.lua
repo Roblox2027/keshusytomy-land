@@ -516,7 +516,7 @@ function Service.OnPlayerAdded(player: Player)
 	-- `player.RespawnTime`. Esa propiedad NO existe en la instancia Player
 	-- y el log del playtest lo confirmaba:
 	--     "RespawnTime is not a valid member of Player Players.SiSoyPapito"
-	-- El error no era cosmético: lanzaba DENTRO de OnPlayerAdded, justo
+	-- El error no era cosmetico: lanzaba DENTRO de OnPlayerAdded, justo
 	-- antes de `bindCharacter`, asi que `CharacterAdded`/`CharacterRemoving`
 	-- nunca se conectaban. El servidor se quedaba sin enterarse de las
 	-- muertes por bomba: el combatimiento autoritativo no arrancaba nunca.

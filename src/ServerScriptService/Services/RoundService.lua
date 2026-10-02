@@ -274,8 +274,8 @@ end
 --- Instantanea del ciclo, para diagnostico externo (`tools/round-probe.js`).
 ---
 --- Expone lo necesario para responder de una vez a lo que antes exigia
---- instrumentar el codigo: ¿esta vivo el bucle?, ¿espera bien o espera una
---- condicion imposible?, ¿hubo algun atasco?, ¿hay jugadores?, ¿cuantos
+--- instrumentar el codigo: ?esta vivo el bucle?, ?espera bien o espera una
+--- condicion imposible?, ?hubo algun atasco?, ?hay jugadores?, ?cuantos
 --- sobreviven?
 --- @return { [string]: any }
 function Service.GetDiagnostics(): { [string]: any }
@@ -561,7 +561,7 @@ Service._diagnostics = {
 		-- POR QUE: este bucle es la UNICA fuente de tiempo de la ronda y
 		-- una excepcion no controlada la mata en silencio. Medido en PLAY:
 		-- la ronda se quedaba en `ReturningToLobby` para siempre, sin un
-		-- solo error en el Output, porque el error de una corrutina 나선
+		-- solo error en el Output, porque el error de una corrutina espiral
 		-- abortada no se propaga a ningun `pcall` de quien la lanzo. El
 		-- sintoma era "el juego se congela en un estado de ronda" sin
 		-- ninguna pista de la causa.
@@ -573,8 +573,8 @@ Service._diagnostics = {
 		Service._loopHeartbeat += 1
 
 			-- PLENO: cuenta de ATASCOS detectados por el vigilante. Es el
-			-- numero que responde a "¿el ciclo se atasca alguna vez?", no a
-			-- "¿el ciclo avanza?".
+			-- numero que responde a "?el ciclo se atasca alguna vez?", no a
+			-- "?el ciclo avanza?".
 			Service._iteration += 1
 
 			-- Se lee el estado ANTES de dormir y se vuelve a leer DESPUES.
@@ -590,10 +590,10 @@ Service._diagnostics = {
 				task.wait(math.min(remaining, GameConfig.RoundTickInterval))
 			end
 
-			-- ¿Cambio el estado mientras dormiamos? Entonces lo que dormimos
+			-- ?Cambio el estado mientras dormiamos? Entonces lo que dormimos
 			-- no era su plazo: se vuelve a medir sin transicionar.
 			if Service.GetState() ~= current then
-				Service._lastReason = ("estado cambiado durante el sueño: %s"):format(current)
+				Service._lastReason = ("estado cambiado durante el sueno: %s"):format(current)
 				return
 			end
 

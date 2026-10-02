@@ -204,7 +204,7 @@ end
 --- Nivel actual publicado por el servidor.
 ---
 --- Se lee del ATRIBUTO, no de nada local: lo escribe el servidor. Sirve
---- solo para ENSEÑAR el nivel actual en el cartel de bloqueo; la
+--- solo para ENSENAR el nivel actual en el cartel de bloqueo; la
 --- comparacion real la hace `PortalService` con la sesion del servidor.
 --- @return number
 function Controller.GetDisplayedLevel(): number
@@ -336,7 +336,7 @@ local function updateNearby()
 
 	_interactButton.Visible = true
 	-- Distancia con unidades: el jugador ve que se acerca al umbral.
-	_interactButton.Text = ("ENTRAR\n%s · %.0f studs"):format(worldId, distance)
+	_interactButton.Text = ("ENTRAR\n%s - %.0f studs"):format(worldId, distance)
 end
 --- Crea el boton de interaccion de portal.
 ---

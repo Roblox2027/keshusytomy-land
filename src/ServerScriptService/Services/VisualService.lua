@@ -222,7 +222,7 @@ function Service.DecorateCore(coreFolder: Instance?): number
 	end
 
 	-- El halo exterior: luz mas suave y SIN sombras, para que la esfera
-	-- quede bañada en verde sin coste de sombras duplicadas.
+	-- quede banada en verde sin coste de sombras duplicadas.
 	local glow = Service.FindPart(coreFolder, Service.CORE_GLOW)
 	if glow then
 		Service.EnsureLight(glow, 1.5, 80, Color3.fromRGB(86, 214, 124), false)
@@ -545,7 +545,7 @@ function Service.DecorateLobby(lobbyFolder: Instance?): number
 	end
 
 	-- Las lamparas de las ocho estaciones. Cada una conserva el color de
-	-- su estación, que el generador ya le dio a la Part.
+	-- su estacion, que el generador ya le dio a la Part.
 	for _, lamp in ipairs(Service.FindPartsByName(lobbyFolder, "Station_", Service.STATION_LAMP_SUFFIX)) do
 		Service.EnsureLight(lamp, 1.4, 24, lamp.Color, false)
 		count += 1

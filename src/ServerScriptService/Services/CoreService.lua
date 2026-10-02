@@ -329,7 +329,7 @@ function Service.HandleInteract(player: Player, _payload: any)
 	end
 end
 
---- Aplica el aspecto segun el estado. Es una FUNCIÓN PURA del nucleo:
+--- Aplica el aspecto segun el estado. Es una FUNCION PURA del nucleo:
 --- cada estado tiene un color y una transparencia, y el nucleo no
 --- acumula efectos: se reescribe el estado, nunca se suma.
 ---
@@ -361,7 +361,7 @@ function Service._applyVisuals()
 		transparency = 0.1
 	end
 
-	-- La carga también se ve: el nucleo se aclara al llenarse.
+	-- La carga tambien se ve: el nucleo se aclara al llenarse.
 	local brightness = 0.6 + (0.4 * fraction)
 	orb.Color = Color3.new(
 		math.min(color.R * brightness + fraction * 0.1, 1),
