@@ -141,6 +141,26 @@ return {
 	SuddenDeathDamageMultiplier = 1.5,
 
 	-- ---------------------------------------------------------------
+	-- Portales (vertical slice 1: lobby -> mundo)
+	-- ---------------------------------------------------------------
+	-- Segundos entre dos intentos de viaje del mismo jugador.
+	--
+	-- El servidor (`PortalService.PORTAL_COOLDOWN`) impone 3 s como
+	-- autoridad. Este valor es el equivalente en el cliente y coincide con
+	-- el del servidor a proposito: si el cliente permitiera mas rapido, cada
+	-- intento llega y se rechaza, y el jugador ve un error por haber
+	-- pulsado dos veces. Que coincidan no concede nada: el servidor sigue
+	-- validando por su cuenta.
+	PortalCooldown = 3,
+	-- Distancia a la que el cliente OFRECE la interaccion.
+	--
+	-- Es MAYOR que `PortalService.MAX_INTERACTION_DISTANCE` (14 studs) a
+	-- proposito: el boton aparece antes de poder usarse, de modo que el
+	-- jugador nunca pulsa dentro del rango del servidor y recibe un
+	-- rechazo sin motivo claro. El cliente noDECIDE nada con esto.
+	PortalInteractionRange = 20,
+
+	-- ---------------------------------------------------------------
 	-- Progresion
 	-- ---------------------------------------------------------------
 	-- XP necesaria por nivel. El nivel NO tiene tope artificial:

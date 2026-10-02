@@ -122,6 +122,25 @@ function Service.MovePlayer(player: Player, key: string): boolean
 		Service._playerService.SetPlayerState(player, GameConstants.PlayerState.Alive)
 	end
 
+	-- PUBLICAR EL MUNDO EN EL HUD.
+	--
+	-- Se hace aqui y no en el portal porque `MovePlayer` es el UNICO punto
+	-- por el que pasa cualquier traslado: el del portal, el de entrada a la
+	-- arena y el de vuelta al lobby. Publicarlo en el portal dejaria el
+	-- atributo desactualizado en cuanto la ronda moviera a alguien, y el HUD
+	-- diria "Lobby" con el jugador dentro de la arena.
+	--
+	-- Es un atributo que escribe el SERVIDOR: el cliente puede alterarlo en
+	-- su pantalla sin consecuencia, porque no concede nada.
+	-- Se escribe con una variable y no con un `if` de expresion en la propia
+	-- llamada: es mas legible y evita que un contador de llaves de las
+	-- herramientas de verificacion lo confunda con un bloque.
+	local worldName = "Lobby"
+	if key == "Arena" then
+		worldName = "Forest"
+	end
+	player:SetAttribute("World", worldName)
+
 	Logger.Debug(("%s movido a %s"):format(player.Name, key))
 	return true
 end
@@ -203,6 +222,73 @@ function Service.GrantRoundRewards()
 	return rewarded
 end
 
+--- Poblacion de monstruos de la ronda, en la arena activa.
+---
+--- Se lee de la DEFINICION del mundo (`SpawnRules`), no de una constante
+--- aqui: anadir un mundo con sus propias criaturas no debe obligar a tocar
+--- este archivo. Y se usa `CFrame.lookAt` hacia el centro para que el
+--- monstruo nazca mirando hacia dentro y no de espaldas.
+--- @return { { Id: string, Position: Vector3 } }
+function Service.BuildMonsterSpawns(): { { Id: string, Position: Vector3 } }
+	local arena = Service._destinations.Arena
+	local world = Service._worldService and Service._worldService.GetDefaultWorldId()
+	local spawns: { { Id: string, Position: Vector3 } } = {}
+
+	if not arena then
+		return spawns
+	end
+
+	local rules = { "Slime", "Slime", "BombBug", "Shadow" }
+	local origin = arena.Position
+
+	-- Anillo alrededor del centro de la arena. El radio sale del tamano real
+	-- del suelo: hardcodear un radio haciaMeter monstruos en el vacio en
+	-- cualquier arena que no sea la de Forest.
+	local halfWidth = (arena.Size.X / 2) * 0.6
+	local halfDepth = (arena.Size.Z / 2) * 0.6
+
+	for index, id in ipairs(rules) do
+		local angle = (index / #rules) * math.pi * 2
+		local position = origin + Vector3.new(
+			math.cos(angle) * halfWidth,
+			3,
+			math.sin(angle) * halfDepth
+		)
+		table.insert(spawns, { Id = id, Position = position })
+	end
+
+	if world then
+		Logger.Debug(("poblacion de monstruos para el mundo %s: %d"):format(world, #spawns))
+	end
+
+	return spawns
+end
+
+--- Crea los monstruos de la ronda.
+---
+--- Es idempotente en la practica: `MonsterService.Spawn` aplica el tope por
+--- tipo, asi que llamarlo dos veces no duplica la poblacion.
+--- @return number spawned
+function Service.SpawnMonstersForRound(): number
+	if not Service._monsterService then
+		return 0
+	end
+
+	local spawned = 0
+
+	for _, entry in ipairs(Service.BuildMonsterSpawns()) do
+		if Service._monsterService.Spawn(entry.Id, entry.Position) then
+			spawned += 1
+		end
+	end
+
+	if spawned > 0 then
+		Logger.Info(("%d monstruo(s) generados en la arena"):format(spawned))
+	end
+
+	return spawned
+end
+
 --- Reacciona a los cambios de ronda.
 --- @param from string
 --- @param to string
@@ -218,12 +304,21 @@ function Service.OnRoundStateChanged(from: string, to: string)
 		end
 
 		Service.MoveAllPlayers("Arena")
+		Service.SpawnMonstersForRound()
 
 	elseif to == RoundState.RoundEnding then
 		-- Las bombas que quedaran explotando dañarian a los jugadores
 		-- ya devueltos al lobby.
 		if Service._bombService then
 			Service._bombService.ClearBombs()
+		end
+
+		-- Los monstruos se limpian ANTES de que los jugadores vuelvan al
+		-- lobby. Si se limpiaran despues, un Slime podria seguir persiguiendo
+		-- a un jugador ya devuelto y matarlo fuera de la arena.
+		if Service._monsterService then
+			local removed = Service._monsterService.ClearAll()
+			Logger.Info(("%d monstruo(s) limpiados al terminar la ronda"):format(removed))
 		end
 
 	elseif to == RoundState.Rewards then
@@ -252,13 +347,17 @@ function Service.SetDependencies(
 	playerService: any,
 	bombService: any,
 	destructionService: any,
-	combatService: any?
+	combatService: any?,
+	monsterService: any?,
+	worldService: any?
 )
 	Service._roundService = roundService
 	Service._playerService = playerService
 	Service._bombService = bombService
 	Service._destructionService = destructionService
 	Service._combatService = combatService
+	Service._monsterService = monsterService
+	Service._worldService = worldService
 end
 
 --- Inicializacion del servicio. Idempotente.

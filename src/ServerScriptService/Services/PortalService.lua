@@ -31,10 +31,15 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Workspace = game:GetService("Workspace")
 
 local SHARED = ReplicatedStorage:WaitForChild("Shared")
+local CONSTANTS = SHARED:WaitForChild("Constants")
 local UTILS = SHARED:WaitForChild("Utils")
 
+-- Necesario para resolver el canal `PortalAction` en `SendVerdict`.
+local GameConstants = require(CONSTANTS:WaitForChild("GameConstants"))
 local Logger = require(UTILS:WaitForChild("Logger"))
 local RateLimiter = require(SHARED:WaitForChild("Libraries"):WaitForChild("RateLimiter"))
+
+local RemoteAction = GameConstants.RemoteAction
 
 local Service = {}
 
@@ -379,10 +384,57 @@ function Service.TryEnter(player: Player, worldId: any): (boolean, string?)
 	return true, nil
 end
 
+--- Envia el veredicto al cliente que pidio el viaje.
+---
+--- Por que hace falta (vertical slice 1): antes el rechazo se registraba
+--- solo en el log del servidor. Para el jugador eso es una interaccion
+--- SILENCIOSA: pulsa el portal, no ocurre nada y no hay forma de saber si
+--- el boton esta roto, si le falta nivel o si hay una ronda en curso. Con
+--- este envio, el motivo llega a la pantalla.
+---
+--- Se viaja por el MISMO `PortalAction`: un `RemoteEvent` es bidireccional
+--- y no hace falta un remoto nuevo para una sola respuesta.
+---
+--- Solo manda INFORMACION: `accepted`, el motivo y el nivel requerido. No
+--- concede nada y no filtra datos de otros jugadores.
+--- @param player Player
+--- @param worldId any
+--- @param accepted boolean
+--- @param reason string?
+--- @return boolean sent
+function Service.SendVerdict(player: Player, worldId: any, accepted: boolean, reason: string?): boolean
+	local remotes = ReplicatedStorage:FindFirstChild("Remotes")
+	local remote = remotes and remotes:FindFirstChild(RemoteAction.Portal)
+
+	if not remote or not remote:IsA("RemoteEvent") then
+		Logger.Warn("PortalService: no hay PortalAction para enviar el veredicto.")
+		return false
+	end
+
+	-- El `worldId` se devuelve como cadena solo si lo es. Con un valor raro
+	-- (el cliente pudo mandar cualquier cosa) se manda un texto neutro, para
+	-- que el cliente nunca forme un nombre de mundo a partir de basura.
+	local safeWorldId = if type(worldId) == "string" then worldId else "?"
+
+	-- El nivel requerido se consulta al portal registrado, no al payload:
+	-- el servidor no le cree al cliente ni le "corrige" su propia peticion.
+	local requiredLevel = 0
+	if type(worldId) == "string" then
+		local portal = Service._portals[worldId]
+		if portal then
+			requiredLevel = portal.RequiredLevel or 0
+		end
+	end
+
+	remote:FireClient(player, "Result", safeWorldId, accepted, reason, requiredLevel)
+	return true
+end
+
 --- Maneja la peticion `Enter` del canal de portales.
 ---
 --- Es lo UNICO que el cliente puede pedir, y solo pide un nombre. El
---- resultado lo decide el servidor por completo.
+--- resultado lo decide el servidor por completo Y se devuelve siempre:
+--- un rechazo sin respuesta seria indistinguible de un portal roto.
 --- @param player Player
 --- @param worldId any
 function Service.HandleEnter(player: Player, worldId: any)
@@ -395,9 +447,13 @@ function Service.HandleEnter(player: Player, worldId: any)
 		return
 	end
 
-	if not success then
-		Logger.Debug(("portal rechazado para %s: %s"):format(player.Name, tostring(reason)))
+	if success then
+		Service.SendVerdict(player, worldId, true, nil)
+		return
 	end
+
+	Logger.Debug(("portal rechazado para %s: %s"):format(player.Name, tostring(reason)))
+	Service.SendVerdict(player, worldId, false, reason)
 end
 
 --- Inicializacion del servicio. Idempotente.
