@@ -15,6 +15,7 @@ local expect = Harness.expect
 local GameConfig = require("../../src/ReplicatedStorage/Shared/Config/GameConfig")
 local PerformanceConfig = require("../../src/ReplicatedStorage/Shared/Config/PerformanceConfig")
 local FeatureConfig = require("../../src/ReplicatedStorage/Shared/Config/FeatureConfig")
+local AudioConfig = require("../../src/ReplicatedStorage/Shared/Config/AudioConfig")
 
 local function isPositiveNumber(value: any): boolean
 	return type(value) == "number" and value > 0
@@ -118,6 +119,91 @@ local function describeGameConfig()
 			expect.toBe(FeatureConfig.ENABLE_ICE, false)
 			expect.toBe(FeatureConfig.ENABLE_VOLCANO, false)
 			expect.toBe(FeatureConfig.ENABLE_CYBER, false)
+		end)
+	end)
+
+	Harness.describe("AudioConfig", function()
+		-- Estos campos son la lista de sonidos que el juego pide. Estar en
+		-- `nil` significa "aun no hay asset subido", y el controller lo
+		-- trata como silencio en vez de inventarse un ID. La prueba fija
+		-- esa regla: si alguien pega un numero, tiene que ser un ID de
+		-- verdad, no unplaceholder.
+		local SFX_FIELDS = {
+			"BombPlaceId",
+			"BombFuseId",
+			"ExplosionId",
+			"BlockDestroyId",
+			"PlayerHurtId",
+			"PlayerDeathId",
+			"PowerUpId",
+			"RoundStartId",
+			"RoundWinId",
+			"CoinRewardId",
+			"CoreIdleId",
+			"CoreChargeId",
+			"CoreActivateId",
+			"PortalOpenId",
+			"PortalDeniedId",
+			"UiClickId",
+			"UiConfirmId",
+		}
+
+		Harness.it("cada efecto es nil o un ID numerico real", function()
+			for _, field in ipairs(SFX_FIELDS) do
+				local value = AudioConfig[field]
+
+				-- `nil` es valido: significa que aun no se ha subido.
+				if value ~= nil then
+					expect.toBe(type(value), "string")
+					-- Un ID de Roblox son digitos. Cualquier otra cosa
+					-- (un nombre, un "placeholder", un 0) haria que el
+					-- cliente pidiera un asset inexistente en cada
+					-- explosion.
+					expect.toBe(
+						tostring(value):match("^%d+$") ~= nil,
+						true
+					)
+				end
+			end
+		end)
+
+		Harness.it("declara los cinco mundos del contrato", function()
+			-- Anadir un mundo no puede obligar a tocar el audio: la clave
+			-- tiene que EXISTIR aunque el mundo aun no tenga musica. Por eso
+			-- se comprueba la presencia de la clave, no su valor.
+			for _, worldId in ipairs({ "Forest", "Desert", "Ice", "Volcano", "Cyber" }) do
+				local found = false
+				for key in pairs(AudioConfig.WorldMusic) do
+					if key == worldId then
+						found = true
+						break
+					end
+				end
+				expect.toBe(found, true)
+				-- `false` = declarado pero sin musica subida. `nil` = la
+				-- entrada no existe, que si seria un fallo.
+				expect.toBe(AudioConfig.WorldMusic[worldId], false)
+			end
+		end)
+
+		Harness.it("los volumenes estan en rango y el de efectos por encima", function()
+			expect.toBe(AudioConfig.MusicVolume > 0 and AudioConfig.MusicVolume <= 1, true)
+			expect.toBe(AudioConfig.SfxVolume > 0 and AudioConfig.SfxVolume <= 1, true)
+			-- La musica no debe tapar los efectos: son los que dan
+			-- feedback de gameplay.
+			expect.toBe(AudioConfig.SfxVolume > AudioConfig.MusicVolume, true)
+		end)
+
+		Harness.it("el pool de efectos tiene un tope util", function()
+			-- Sin tope, una cadena de explosiones abre un `Sound` por
+			-- detonacion. Y un tope de 0 dejaria el juego mudo siempre.
+			expect.toBe(AudioConfig.MaxConcurrentSfx >= 4, true)
+			expect.toBe(AudioConfig.MaxConcurrentSfx <= 64, true)
+		end)
+
+		Harness.it("el fundido de musica es lo bastante corto para no molestar", function()
+			expect.toBe(isPositiveNumber(AudioConfig.MusicFadeTime), true)
+			expect.toBe(AudioConfig.MusicFadeTime <= 5, true)
 		end)
 	end)
 end

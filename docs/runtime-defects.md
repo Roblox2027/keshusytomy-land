@@ -285,3 +285,61 @@ anuncia como disponible: su panel se apaga (gris, sin chispas) y su cartel dice
 informacion falsa en pantalla. El texto sale de `WorldDefinitions`, la misma
 tabla que usa `PortalService` para validar.
 
+---
+
+# P1 - El juego era completamente mudo (0 sonidos) y `AudioController` era un stub
+
+**Sintoma.** El DataModel entero tenia **0 instancias `Sound`**. Ni una
+explosion, ni una bomba, ni musica. Y `AudioController` era un stub de Fase 0:
+una tabla con `Start` que solo hacia `IsActive = true`.
+
+**Por que importa.** El feedback de audio es la mitad del feedback de una
+accion. Sin el, colocar una bomba no se siente distinta de andar, y una ronda
+terminada no tiene recompensa perceptible.
+
+**Causa.** Nunca se escribio el controlador, y no hay ningun asset de audio en
+el repositorio: `assets/sounds` y `assets/music` solo contienen `.gitkeep`.
+
+**Correccion.** `AudioController` completo: pool de efectos con
+`MaxConcurrentSfx` ranuras, musica con fundido al cambiar de zona, eleccion de
+pista por zona desde `AudioConfig`, y `Destroy` que destruye la carpeta entera
+para que no quede ninguna `Sound` huerfana.
+
+**LA REGLA QUE MANDA AQUI: un sonido sin asset no se suena.**
+
+`AudioConfig` declara sus IDs en `nil` porque no hay assets. El controller NO
+inventa ninguno: cuando el ID falta, cuenta el intento y sale. Poner un numero
+placeholder haria que cada explosion pidiera un recurso inexistente a los
+servidores de Roblox: errores rojos en el Output y trafico de red para nada.
+
+Asi el sistema queda completo y honesto: en cuanto se peguen los IDs reales en
+`AudioConfig`, el sonido suena sin tocar una linea del controlador.
+
+**Limite honesto.** El audio NO se ha podido OIR en PLAY. El peer del cliente
+de este entorno queda colgado de forma intermitente: `capture_screenshot`,
+`eval_client_runtime` y `get_runtime_logs` agotan el tiempo de espera incluso
+con `return 1+1`, y el cliente mudo no es distinguible de un cliente que no
+arranca. Por eso la logica de prestamo se extrajo a `AudioPool`, modulo PURO
+que si se ejecuta con `luau.exe`.
+
+---
+
+# P2 - Una tabla con todos los valores en `nil` esta VACIA
+
+**Sintoma.** `AudioConfig.WorldMusic` se declaraba con los cinco mundos en
+`nil`. La suite nueva fallo: `declara los cinco mundos del contrato`.
+
+**Causa.** En Luau, `{ Forest = nil, Desert = nil }` es una tabla **sin claves**:
+asignar `nil` no crea la entrada. El comentario del archivo decia "se declaran
+cinco mundos", pero la tabla no declaraba ninguno: `AudioConfig.WorldMusic`
+era `{}`. Anadir un mundo no habria hecho nada y ningun mundo tendria musica
+aunque se le pusiera.
+
+**Correccion.** Se usa `false` como valor explicito de "declarado, sin musica
+subida", que si crea la clave. `SetZoneMusic` trata `false` y `nil` igual
+(silencio) y `AudioConfig.spec` comprueba que las cinco claves EXISTEN.
+
+**Leccion.** Un comentario no declara nada. Si el contrato dice "hay cinco
+mundos", la prueba tiene que preguntar por las CLAVES, no por los valores.
+
+

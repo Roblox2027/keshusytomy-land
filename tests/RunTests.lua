@@ -23,6 +23,7 @@ local SUITES = {
 	{ name = "CoreRules", path = "./shared/CoreRules.spec" },
 	{ name = "RemoteSchema", path = "./shared/RemoteSchema.spec" },
 	{ name = "GameConfig", path = "./shared/GameConfig.spec" },
+	{ name = "AudioPool", path = "./shared/AudioPool.spec" },
 	{ name = "CombatMath", path = "./shared/CombatMath.spec" },
 	{ name = "Destruction", path = "./shared/Destruction.spec" },
 	{ name = "Gameplay", path = "./shared/Gameplay.spec" },
