@@ -50,15 +50,33 @@ Nunca "casi terminado", "deberia funcionar" ni "probablemente funciona".
 | 39   | Beta            | 38         |
 | 40   | Release         | 39         |
 
-## Fases completadas
+## Estado actual
 
-| Fase | Nombre     | Estado | Documento               |
-| ---- | ---------- | ------ | ----------------------- |
-| 0    | Bootstrap  | PASS   | `phase-00-bootstrap.md` |
-| 1    | Foundation | PASS\* | `phase-01-foundation.md` |
+| Fase | Nombre     | Estado   | Evidencia |
+| ---- | ---------- | -------- | --------- |
+| 0    | Bootstrap  | PASS     | `phase-00-bootstrap.md` |
+| 1    | Foundation | BLOCKED  | diseño PASS, **runtime sin verificar** |
+| 2–8  | —          | BLOCKED  | dependen de 1 |
+| 9+   | —          | NO INICIADA | regla: no empezar sin cerrar 0–8 |
 
-\* PASS sobre logica pura, build de Rojo y sintaxis. La verificacion
-en Roblox Studio sigue `BLOCKED` hasta que se ejecute manualmente.
+### Bloqueo activo
+
+El lugar abierto en Roblox Studio (`KeshusyTomy-LanD.rbxl`) está **vacío**:
+`ServerScriptService` con 0 hijos, `ReplicatedStorage` con 0, `Workspace` con
+la `Baseplate` por defecto. El proyecto de Rojo construye correctamente 170
+instancias, pero **no están en el lugar que se ejecuta**.
+
+Por eso nada de las fases 1–8 puede declararse PASS: no hay ejecución que
+verificar. Detalle y evidencia en `full-system-audit.md`.
+
+### Acción requerida (humana)
+
+1. En Studio: `File → Open → Project` → `default.project.json`
+   (o mantener el plugin de Rojo conectado a `localhost:34872` y pulsar Sync).
+2. Verificar que `ServerScriptService.ServerMain` aparece en el Explorer.
+3. Pulsar **Play** y seguir los pasos 1–7 de `studio-diagnostic.md`.
+
+Sin el paso 1, ninguna puerta de runtime puede evaluarse.
 
 ## Formato de reporte de fase
 
