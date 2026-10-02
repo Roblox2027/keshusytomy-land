@@ -60,6 +60,12 @@ ServerMain.CriticalServices = {
 	-- El Core es critico: es el corazon del lobby y sin el la pantalla
 	-- de carga no tiene sentido. Si no arranca, el lobby esta degradado.
 	"CoreService",
+	-- VisualService no es critico para PODER JUGAR (sin el, el juego corre
+	-- a oscuras pero no se rompe). Se lista igualmente entre los servicios
+	-- de arranque para que su ausencia salga en el informe en vez de pasar
+	-- desapercibida: un lobby sin luz es un fallo de producto, no un
+	-- detalle, y tiene que verse en el log.
+	"VisualService",
 }
 
 --- Resultado del cableado de dependencias de la ultima arrancada.
@@ -98,6 +104,11 @@ local SERVICES = {
 	-- servicios ya estan cableados cuando arranca, y su difusion usa
 	-- el mismo registro.
 	{ name = "CoreService", module = SERVER.Services.CoreService, dependencies = {} },
+	-- VisualService va DESPUES de WorldService: lee el mapa (lobby, Core,
+	-- portales y mundos) y enciende las luces de las arenas. Encenderlas
+	-- antes de que el mundo exista las haria perderse: losFolders vacios
+	-- no se recorren.
+	{ name = "VisualService", module = SERVER.Services.VisualService, dependencies = { "WorldService" } },
 }
 
 --- Conecta las dependencias entre servicios.
@@ -185,9 +196,13 @@ local function wireDependencies(registry: any): { string }
 		end
 	)
 
-	connect("PlayerService", playerService, { "RoundService", "CombatService", "MatchService" },
+	-- `spawnService` se inyecta ADEMAS de los tres anteriores: sin el,
+	-- `player.RespawnLocation` queda en `nil` y Roblox decide el punto de
+	-- reaparicion por su cuenta (el origen, que aqui esta en mitad del
+	-- vacio entre el lobby y la arena).
+	connect("PlayerService", playerService, { "RoundService", "CombatService", "MatchService", "SpawnService" },
 		function(service: any)
-			service.SetDependencies(roundService, combatService, matchService)
+			service.SetDependencies(roundService, combatService, matchService, spawnService)
 		end
 	)
 

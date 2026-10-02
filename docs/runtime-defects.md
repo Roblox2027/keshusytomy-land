@@ -1,6 +1,6 @@
 # Defectos encontrados verificados en runtime
 
-Fecha: 2026-10-02
+Fecha: 2026-10-02 (iteracion 2: identidad visual)
 Alcance: fallos detectados ejecutando el juego en Roblox Studio, no leyendo el
 codigo. Todos estan corregidos y comprobados con evidencia de ejecucion.
 
@@ -153,3 +153,135 @@ dejarlo escrito:
 
 En ambos casos el dato decisivo no fue leer mas codigo, sino **construir la
 prueba minima que separase las dos hipotesis**.
+
+---
+
+# P0 - El mundo no emitia NADA de luz: 0 luces, 0 particulas, 0 sonidos
+
+**Sintoma.** El lobby existia (98 Partes), el Core existia (15 Partes) y los
+cinco portales existian (7 Partes cada uno). Y aun asi, al darle PLAY, lo que
+se veia era un mapa de cajas: exactamente el fallo que el diseno prohibe.
+
+**Medicion en runtime** (no lectura de codigo), con `eval_server_runtime`:
+
+| Que se midio | Antes | Despues |
+| --- | --- | --- |
+| Luces en el mundo | **0** | **35** |
+| `Sparkles` | **0** | **6** |
+| GUI 3D (`SurfaceGui`/`BillboardGui`) | **0** | **5** |
+| `Ambient` / `OutdoorAmbient` | `0.274` / `0.274` (iguales) | `0.27,0.31,0.41` / `0.59,0.62,0.69` |
+| Niebla | ninguna (`FogEnd` 100000) | `FogStart` 180, `FogEnd` 900 |
+| Portales con nombre visible | 0 de 5 | 5 de 5 |
+
+**Causa.** El mapa se generaba con Partes `Neon`, que NO emiten luz: `Neon` es
+solo un material. Ademas `Lighting` estaba en los valores de Studio por defecto,
+con `Ambient` identico a `OutdoorAmbient`, que es exactamente la combinacion que
+aplana el relieve. Y los portales eran siete cajas de color sin una sola letra:
+el jugador no podia saber a donde llevaba cada uno ni que nivel exigia.
+
+**Correccion.** Nuevo `VisualService`, que anade PRESENTACION en runtime:
+`PointLight` en farolas, stations, Core, portales y arena; `Sparkles` en el
+nucleo y los portales; `SurfaceGui` + `TextLabel` con nombre y nivel en cada
+portal; y una configuracion de `Lighting` con ambiente diferenciado y niebla
+suave. El Core pulsa y sus dos anillos giran.
+
+**Por que en runtime y no en `default.project.json`.** El pipeline de
+sincronizacion importa el mapa con `import_rbxm`, y esa via pierde las
+posiciones de todas las Partes (el P0 de mas arriba). Anadir hijos no-BasePart
+al JSON los meteria por ese mismo camino. La GEOMETRIA sigue teniendo una unica
+fuente de verdad (`tools/generate-project.js`, 162/162 en su sitio); aqui solo
+se anade presentacion, que es lo que debe poder cambiar sin mover un stud.
+
+**Verificacion.** En PLAY: `16 luces en el lobby, 9 del Core, 5 de portales,
+5 de arena, 5 carteles`, y el nucleo measured en 8.52 de lado frente a 8.0 base,
+es decir, pulsando de verdad.
+
+---
+
+# P1 - `player.RespawnLocation` nunca se asignaba
+
+**Sintoma.** El mapa tenia 6 `SpawnLocation` HABILITADOS en el lobby y, a la
+vez, `player.RespawnLocation = nil` en la sesion en vivo.
+
+**Por que importa.** Sin esa propiedad, Roblox decide el punto de reaparicion
+por su cuenta. En este mapa eso significa el ORIGEN, que esta en mitad del
+vacio entre el lobby (0,0,0) y la arena (500,0,0): el jugador cae, `SpawnService`
+lo rescata y reaparece otra vez, en bucle. Ademas, al morir en la ronda, nunca
+vuelve al lobby.
+
+**Causa.** `SpawnService` recogia y repartia spawns, y `PlayerService` no pedia
+ninguno: nadie asignaba la propiedad. `SetDependencies` de `PlayerService`
+recibia `roundService`, `combatService` y `matchService`, y no `spawnService`.
+
+**Correccion.** `PlayerService.SetDependencies` acepta `spawnService`,
+`AssignRespawnLocation` fija el punto al ENTRAR (no en cada muerte: durante una
+ronda el renacimiento lo decide `MatchService`), y `ServerMain` lo cablea.
+
+**Verificacion.** `respawnLocation` paso de `NIL` a
+`Workspace.SpawnLocations.LobbySpawn1`.
+
+---
+
+# P1 - El plugin de Rojo duplicaba servicios, librerias y remotos
+
+**Sintoma.** `source-runtime-diff` no llegaba a PASS y reportaba homonimos:
+`CoreRules[2]`, `CoreAction[2]` y, en cuanto se anadio `VisualService`,
+`VisualService[2]`.
+
+**Causa raiz (medida).** El plugin de Rojo esta CONECTADO a esta sesion de
+Studio y sincroniza por su cuenta, mientras `tools/sync-scripts.js` escribe a
+mano. Los dos caminos crean la instancia y el que llega segundo deja un
+homonimo. Por eso los duplicados aparecian justo en los ficheros tocados por un
+`sync-all` reciente.
+
+**Por que no es cosmetico.** `FindFirstChild("CoreRules")` y
+`WaitForChild("VisualService")` devuelven el PRIMERO que encuentran, no el
+correcto. Con dos `CoreAction`, un `WaitForChild` puede cablearse al remoto
+huerfano y `CoreService` deja de funcionar SIN NINGUN ERROR: el `require` es
+correcto y el juego, no.
+
+**Correccion.** Nuevo `tools/dedupe-code.lua`, ejecutado dos veces en
+`sync-all.js`: antes de escribir los scripts y otra vez despues, porque el
+plugin puede crear un homonimo en cualquier momento. Es RECURSIVO: la primera
+version solo bajaba dos niveles y dejaba vivo `CoreRules`, que vive tres
+niveles abajo (`ReplicatedStorage > Shared > Libraries`). El propio script
+reporta la cuenta final, asi que un fallo se ve en vez de pasar.
+
+**Verificacion.** `RESULTADO: PASS` con 0 faltantes, 0 sobrantes.
+
+---
+
+# P1 - `Orientation + 360` reventaba el arranque de `VisualService`
+
+**Sintoma.** `Init de 'VisualService' fallo: ...:288: attempt to perform
+arithmetic (add) on Vector3 and number`. El error abortaba `Init` ANTES de
+encender portales y lobby, y el servicio se quedaba a medias.
+
+**Causa.** `BasePart.Orientation` es un Vector3 de Euler, no un numero. Sumarle
+`360` es una suma de Vector3 con number.
+
+**Correccion.** Se anima `CFrame` (`ring.CFrame * CFrame.Angles(...)`), que gira
+la pieza sobre su propio centro y es la forma correcta. Cada anillo gira en un
+eje distinto.
+
+**Verificacion.** El log pasa a `16 luces en el lobby, 9 del Core, 5 de
+portales, 5 de arena, 5 carteles` y `VisualService Started`.
+
+---
+
+# P2 - El candado de los portales bloqueados salia como caracteres rotos
+
+**Sintoma.** El cartel de los mundos deshabilitados mostraba `ƒöÆ` en vez del
+emoji de candado.
+
+**Causa.** `GothamBold` no tiene ese glifo, y el emoji llegaba ya corrupto por la
+capa de texto.
+
+**Correccion.** Texto plano: `BLOQUEADO`.
+
+**Nota de diseno aplicada.** Un mundo deshabilitado por `FeatureConfig` no se
+anuncia como disponible: su panel se apaga (gris, sin chispas) y su cartel dice
+`BLOQUEADO`. Mostrar "Nivel 1" sobre un portal que el servidor rechaza seria
+informacion falsa en pantalla. El texto sale de `WorldDefinitions`, la misma
+tabla que usa `PortalService` para validar.
+

@@ -107,6 +107,13 @@ function main() {
 	// 3-5. Fusionar, colapsar duplicados y arreglar el contenedor.
 	lua(path.join("tools", "merge-workspace.lua"));
 	lua(path.join("tools", "dedupe-workspace.lua"));
+	// El plugin de Rojo esta conectado a esta sesion y sincroniza por su
+	// cuenta, mientras `sync-scripts.js` escribe a mano. Los dos caminos
+	// crean instancias y el segundo deja un HOMONIMO. Sin esta pasada,
+	// `Services.VisualService` (y antes `CoreRules` y `CoreAction`)
+	// acababan duplicados y `FindFirstChild` podia devolver el
+	// equivocado sin dar ningun error.
+	lua(path.join("tools", "dedupe-code.lua"));
 	lua(path.join("tools", "fix-starterscripts.lua"));
 
 	// 5-bis. COLOCAR LA GEOMETRIA.
@@ -128,6 +135,16 @@ function main() {
 		console.log("Sincronizacion incompleta: fallaron scripts.");
 		process.exit(1);
 	}
+
+	// 6-bis. Segunda pasada de duplicados, DESPUES de escribir los scripts.
+	//
+	// La de antes no basta: el plugin de Rojo esta conectado y sincroniza
+	// por su cuenta, asi que puede crear un homonimo en cualquier momento,
+	// incluso entre los pasos 3-5 y el 6. Ejecutandolo aqui, ya con los
+	// scripts en su sitio, la limpieza pisa a la ultima carrera y el paso 7
+	// mide un arbol ya limpio. Sin esta segunda pasada, `CoreRules` quedaba
+	// duplicado y `source-runtime-diff` no llegaba a PASS.
+	lua(path.join("tools", "dedupe-code.lua"));
 
 	// 7. La prueba de verdad.
 	const verified = run("source-runtime-diff.js");

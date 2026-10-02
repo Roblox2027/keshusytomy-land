@@ -46,6 +46,7 @@ Service.IsInitialized = false
 Service._roundService = nil
 Service._combatService = nil
 Service._matchService = nil
+Service._spawnService = nil
 
 -- UserId -> estado de sesion.
 Service._sessions = {}
@@ -180,10 +181,51 @@ end
 --- @param roundService any
 --- @param combatService any
 --- @param matchService any?
-function Service.SetDependencies(roundService: any, combatService: any, matchService: any?)
+--- @param spawnService any? servicio que reparte los puntos de aparicion
+function Service.SetDependencies(roundService: any, combatService: any, matchService: any?, spawnService: any?)
 	Service._roundService = roundService
 	Service._combatService = combatService
 	Service._matchService = matchService
+	Service._spawnService = spawnService
+end
+--- Asigna al jugador un `SpawnLocation` de la zona segura.
+---
+--- POR QUE EXISTE (defecto medido en PLAY)
+--- --------------------------------------
+--- Con el mapa ya construido, la sesion mostraba 6 `SpawnLocation`
+--- HABILITADOS en el lobby y, a la vez, `player.RespawnLocation = nil`.
+--- Sin esa propiedad, Roblox decide el punto de reaparicion por su cuenta
+--- y el jugador puede nacer en el ORIGEN, que esta en mitad del vacio
+--- entre el lobby y la arena: cae, lo rescatan y reaparece otra vez en
+--- un bucle. Ademas, al morir en la ronda, el renacimiento no vuelve
+--- nunca al lobby.
+---
+--- Se asigna al ENTRAR y no en cada muerte: durante una ronda el jugador
+--- debe reaparecer en la arena (eso lo decide `MatchService`), no en el
+--- lobby. Fijar aqui el punto del lobby es lo que garantiza que el
+---CharacterAutoLoads arranque en la zona segura.
+--- @param player Player
+function Service.AssignRespawnLocation(player: Player)
+	local spawnService = Service._spawnService
+	local location
+
+	if spawnService and spawnService.PickSpawnLocation then
+		location = spawnService.PickSpawnLocation(player)
+	end
+
+	-- Sin `SpawnService` (arranque degradado) se busca directamente en el
+	-- mapa: es mejor un punto valido por la via larga que ninguno.
+	if not location then
+		local folder = game:GetService("Workspace"):FindFirstChild("SpawnLocations")
+		if folder then
+			location = folder:FindFirstChildWhichIsA("SpawnLocation")
+		end
+	end
+
+	if location then
+		player.RespawnLocation = location
+		Logger.Debug(("spawn asignado a %s: %s"):format(player.Name, location.Name))
+	end
 end
 
 --- Recalcula el nivel a partir del XP acumulado y notifica la subida.
@@ -461,6 +503,11 @@ function Service.OnPlayerAdded(player: Player)
 		Players.RespawnTime = GameConfig.RespawnTime
 	end
 
+	-- El punto de reaparicion se fija ANTES de que nazca el personaje:
+	-- sin esto, `player.RespawnLocation` queda en nil y Roblox elige el
+	-- origen, que en este mapa esta en mitad del vacio.
+	Service.AssignRespawnLocation(player)
+
 	-- El ciclo del personaje (nacimiento y muerte) se conecta aqui: sin
 	-- esto el servidor no se entera de las muertes por bomba.
 	bindCharacter(player)
@@ -530,6 +577,7 @@ function Service.Destroy(): boolean
 	Service._roundService = nil
 	Service._combatService = nil
 	Service._matchService = nil
+	Service._spawnService = nil
 	Service.IsInitialized = false
 	return true
 end
