@@ -452,9 +452,18 @@ local function bindCharacter(player: Player)
 		end
 
 		local roundService = Service._roundService
-		local playing = roundService ~= nil and roundService.IsPlaying()
+		-- BUG CORREGIDO (medido en PLAY): se usaba `IsPlaying()`, que solo es
+		-- cierta en `Playing` y `SuddenDeath`. El traslado a la arena ocurre en
+		-- `RoundStarting`, asi que durante esos 3 s un reaparicion mandaba al
+		-- jugador al LOBBY y deshacia el traslado. El log lo repetia en cada
+		-- ronda: "movido a Arena" seguido de "movido a Lobby".
+		--
+		-- `IsRoundActive` cubre `RoundStarting`, `Playing` y `SuddenDeath`: la
+		-- pregunta correcta no es "se puede jugar ya" sino "este jugador
+		-- pertenece a la arena".
+		local inArena = roundService ~= nil and roundService.IsRoundActive()
 
-		if playing then
+		if inArena then
 			Service.SetPlayerState(player, PlayerState.Alive)
 
 			-- Invulnerabilidad breve: sin ella, una bomba que explota en

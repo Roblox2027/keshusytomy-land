@@ -27,8 +27,27 @@ rojo-*/
 .gitattributes.bak
 
 # Editores
-.vscode/
+# `settings.json` es configuracion de la maquina de cada uno y NO se
+# versiona. Las recomendaciones de extensiones y las tareas SI: son
+# parte del entorno reproducible del proyecto.
+#
+# OJO: hay que usar `.vscode/*` y NO `.vscode/`. Git no desciende en
+# un directorio ignorado, asi que con `.vscode/` las reglas `!` de
+# abajo nunca se evaluan y `extensions.json` seguiria ignorado.
+# Verificado con `git check-ignore -v`.
+.vscode/*
+!.vscode/extensions.json
+!.vscode/tasks.json
 .idea/
+
+# Bootstrap IA
+# Se versiona: .ai/AI_CONTEXT.md, .ai/spec/, .ai/qa/  (contrato de producto)
+# Se ignora: artefactos locales de ejecucion
+.ai/runtime/
+.ai/snapshots/
+.ai/reports/
+.ai/plans/
+.ai-bootstrap-backup/
 
 # Herramientas / caches del entorno
 .cache/

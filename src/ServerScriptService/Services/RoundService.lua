@@ -75,6 +75,35 @@ function Service.IsPlaying(): boolean
 	return state == RoundState.Playing or state == RoundState.SuddenDeath
 end
 
+--- Indica si la ronda esta EN CURSO O A PUNTO DE EMPEZAR.
+---
+--- BUG CORREGIDO (medido en PLAY): `IsPlaying` solo es cierta en `Playing` y
+--- `SuddenDeath`, y `PlayerService` la usaba para decidir a donde va un
+--- personaje que acaba de reaparecer. El teletransporte a la arena ocurre en
+--- `RoundStarting`, que NO es `Playing`: durante esos 3 s, si el personaje
+--- reaparecia, `bindCharacter` lo mandaba al LOBBY, deshaciendo el traslado a
+--- la arena. Medido en el log, en CADA ronda:
+---
+---   ronda: Countdown -> RoundStarting (3s)
+---   DEBUG: SiSoyPapito movido a Arena
+---   DEBUG: SiSoyPapito movido a Lobby<-- aqui
+---   ronda: RoundStarting -> Playing (180s)
+---
+--- El sintoma era un jugador que el log daba por movido a la arena pero que en
+--- realidad se quedaba en el lobby, con los monstruos a 500 studs: no podia
+--- jugar.
+---
+--- La diferencia con `IsPlaying` es INTENCIONAL y no un matiz: "se puede
+--- colocar una bomba" (juego) y "el jugador pertenece a la arena" (pertenencia)
+--- no son la misma pregunta.
+--- @return boolean
+function Service.IsRoundActive(): boolean
+	local state = Service.GetState()
+	return state == RoundState.RoundStarting
+		or state == RoundState.Playing
+		or state == RoundState.SuddenDeath
+end
+
 --- Jugadores conectados que siguen VIVOS en la ronda actual.
 ---
 --- Se cuenta por el Humanoid, no por el estado de sesion: el estado
@@ -170,6 +199,9 @@ function Service.Transition(target: string): boolean
 	-- visita arrastra el tiempo del anterior y el vigilante no puede
 	-- distinguir "lleva 140 s en RoundEnding" de "acabo de entrar".
 	Service._stateStartedAt = os.clock()
+	-- El margen de atasco se reinicia con cada estado: cuenta lo que lleva
+	-- VENCIDO el nuevo, no lo que lleva existiendo.
+	Service._expiredFor = 0
 	Service._lastReason = ("transicion: %s -> %s"):format(previous, target)
 	Service._diagnostics.LastTransitionAt = Service._stateStartedAt
 	Service._diagnostics.LastReason = Service._lastReason
@@ -398,6 +430,7 @@ function Service.Init(maid: any?): boolean
 	Service._lastReason = "inicializado"
 	Service._endRequested = false
 	Service._endReason = nil
+	Service._expiredFor = 0
 	Service._diagnostics = {
 		AliveCount = 0,
 		PlayerCount = 0,
@@ -597,6 +630,30 @@ Service._diagnostics = {
 				return
 			end
 
+			-- P0 REAL (medido en PLAY, no deducido): el bucle consultaba
+			-- `decideNextState` en CADA rebanada, sin mirar si el plazo del
+			-- estado habia vencido. Consecuencia medida: la ronda 1369 paso
+			-- del Waiting al Rewards en menos de 15 s con `RoundDuration = 180`,
+			-- y el historial mostraba 1400+ rondas completadas en minutos.
+			--
+			-- Por que rompia tanto: `decideNextState` incluye la regla "si
+			-- solo queda un vivo, la ronda se decide ya". Con un solo jugador
+			-- conectado esa condicion es CIERTA desde el primer instante de
+			-- `Playing`, asi que la ronda terminaba al instante y nunca habia
+			-- tiempo de jugar: ni bombas, ni monstruos, ni destruccion.
+			--
+			-- La regla correcta es la de cualquier juego de ronda: el estado
+			-- AVANZA cuando su plazo vence, o antes si alguien pide terminar
+			-- explicitamente (`RequestEnd`, que es la via de `PlayerService`
+			-- al morir el ultimo vivo).
+			if remaining > 0 and not Service.IsEndRequested() then
+				Service._lastReason = ("esperando el plazo de %s (%.1fs)"):format(
+					current,
+					remaining
+				)
+				return
+			end
+
 			-- VIGILANTE DE ATASCO.
 			--
 			-- Red de seguridad, no mecanismo normal. Si el plazo del estado
@@ -608,14 +665,33 @@ Service._diagnostics = {
 			--
 			-- No se oculta el fallo: se cuenta en `_stallCount` y se dice en
 			-- el log. Un ciclo estable da `_stallCount = 0` siempre.
-			local overdue = Service.GetTimeSinceStateStart()
+			--
+			-- BUG CORREGIDO (medido en PLAY): el vigilante comparaba el
+			-- tiempo TOTAL desde el inicio del estado contra el margen. Con
+			-- el bucle respetando los plazos, los 180 s reales de `Playing`
+			-- llegaban al vigilante con `overdue = 180`, muy por encima del
+			-- margen de 5 s, y se contabilizaban como "atasco" en CADA ronda
+			-- normal: el log gritaba ERROR y `_stallCount` crecia sin que
+			-- hubiera ningun fallo. Un vigilante que suena en el camino
+			-- normal es un vigilante que nadie oye.
+			--
+			-- Lo que de verdad se mide es el GRACE: cuanto tiempo lleva el
+			-- estado vencido SIN que el bucle haya logrado transicionar.
+			-- `remaining` ya es 0 en cuanto el plazo vence, asi que el
+			-- grace se lleva con un contador que se reinicia al entrar en
+			-- cada estado y avanza solo mientras el plazo esta vencido.
+			if remaining > 0 then
+				Service._expiredFor = 0
+			else
+				Service._expiredFor = (Service._expiredFor or 0) + GameConfig.RoundTickInterval
+			end
 
-			if remaining <= 0 and overdue > Service.GetStallTimeout() then
+			if remaining <= 0 and Service._expiredFor > Service.GetStallTimeout() then
 				Service._stallCount += 1
-				Logger.Error(("el estado %s lleva %.1fs vencido y no avanza; "
+				Logger.Error(("el estado %s lleva %.1fs vencido sin avanzar; "
 					.. "se fuerza la salida (atasco %d). Ultima razon: %s"):format(
 					current,
-					overdue,
+					Service._expiredFor,
 					Service._stallCount,
 					tostring(Service._lastReason)
 				))

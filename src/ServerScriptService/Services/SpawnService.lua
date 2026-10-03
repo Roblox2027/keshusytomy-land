@@ -160,7 +160,14 @@ end
 local function resolveRescueTarget(player: Player): Vector3?
 	local roundService = Service._roundService
 
-	if roundService and roundService.IsPlaying() and Service._matchService then
+	-- BUG CORREGIDO (medido en PLAY): la pregunta es "¿este jugador es de la
+	-- arena?", no "¿se puede jugar ya?". Con `IsPlaying`, un jugador que caia
+	-- al vacio durante `RoundStarting` era devuelto al LOBBY, a 500 studs de
+	-- donde estan los monstruos y el resto de la partida: el rescate lo
+	-- sacaba de su propia ronda. Es el mismo error que el de
+	-- `PlayerService.bindCharacter`, y por eso usan la misma consulta.
+	if roundService and roundService.IsRoundActive and roundService.IsRoundActive()
+		and Service._matchService then
 		local arena = Service._matchService.GetDestination("Arena")
 
 		if arena then

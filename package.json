@@ -1,0 +1,19 @@
+{
+  "name": "keshusytomy-land-tools",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Tooling local de KeshusyTomy-LanD. Sin dependencias: solo scripts que envuelven las herramientas de tools/ y tools/luau/.",
+  "scripts": {
+    "test": "tools\\luau\\luau.exe tests\\RunTests.lua",
+    "analyze": "node tools/analyze.js",
+    "verify:structure": "node tools/verify-structure.js",
+    "verify:wiring": "node tools/verify-wiring.js",
+    "verify:env": "node tools/verify-environment.js",
+    "rojo:build": "rojo\\rojo.exe build default.project.json -o .ai\\runtime\\latest.rbxlx",
+    "rojo:serve": "rojo\\rojo.exe serve default.project.json",
+    "runtime:scan": "node tools/diagnostics/runtime-scan.js",
+    "mcp:list": "node tools/studio-mcp.js list",
+    "context": "node tools/generate-ai-context.js",
+    "verify": "npm run verify:structure && npm run verify:wiring && npm test && npm run rojo:build && npm run verify:env && npm run context"
+  }
+}
