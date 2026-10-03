@@ -14,10 +14,10 @@ defecto del juego ni al reves.
 
 | Elemento | Estado | Evidencia |
 | --- | --- | --- |
-| `HEAD` | `022c286` | `git rev-parse HEAD` |
-| `HEAD == origin/main` | SI | ambos `022c286` |
+| `HEAD` | `d3fcb13` | `git rev-parse HEAD` |
+| `HEAD == origin/main` | SI | ambos `d3fcb13` |
 | Arbol | limpio salvo `Install-RobloxAIKit.ps1` (bootstrap preexistente, NO tocar) | `git status --short` |
-| Suite Luau | **350/350 PASS** | `npm test` |
+| Suite Luau | **372/372 PASS** | `npm test` |
 | verify-structure | PASS (33/33) | `node tools/verify-structure.js` |
 | verify-wiring | PASS (20 en SERVICES, 13 conexiones, 36 llamadas) | `node tools/verify-wiring.js` |
 | analyze.js | **FAIL (714)** | `node tools/analyze.js` |
@@ -46,30 +46,59 @@ entorno. `NO IMPLEMENTADO` = no existe.
 
 | Categoria | Estado | Evidencia / bloqueo |
 | --- | --- | --- |
-| UNIT | PASS | 350/350 `npm test` |
+| UNIT | PASS | 372/372 `npm test` |
 | STRUCTURE | PASS | `verify-structure.js` 33/33 |
 | WIRING | PASS | `verify-wiring.js` |
 | BUILD | PASS | `rojo build` |
 | SYNC | PASS | `sync-scripts.js` 0 fallidos |
-| SERVER RUNTIME | PASS | `probes/snapshot.lua`: ronda 43 en curso, 4 monstruos, 48 bloques |
-| PLAYER RUNTIME | PARTIAL | jugador real presente y con vida/posicion; lado cliente BLOCKED |
-| ROUND | PARTIAL | historico `Waiting>Countdown>RoundStarting>Playing>RoundEnding>Rewards>ReturningToLobby` correcto; faltan bloques de 25/50/100 rondas |
+| SERVER RUNTIME | PASS | `probes/snapshot.lua`: ronda 169 en curso, 4 monstruos, 48 bloques, 0 atascos |
+| PLAYER RUNTIME | PARTIAL | jugador real presente; lado cliente BLOCKED |
+| ROUND | PARTIAL | historico correcto y 169 rondas seguidas sin atascos; faltan bloques de 25/50/100 **con metricas** |
 | BOMB | PARTIAL | servicio presente; falta la prueba de 100 explosiones sin residuos |
-| DESTRUCTION | PARTIAL | 48 bloques vivos / 0 destruidos en el snapshot; falta la prueba de destruccion real encadenada |
-| MONSTER | PARTIAL | 4 monstruos vivos; falta medir muerte simultanea y limpieza |
-| COMBAT | PARTIAL | servicios reales; falta evidencia de daño y muerte en PLAY |
-| REWARD | PASS (logica) | cadena `VALIDATE->AUTHORIZE->GRANT->RECORD` en `EconomyRules` + pruebas |
+| DESTRUCTION | PARTIAL | 48 bloques vivos / 0 destruidos; falta destruccion encadenada medida |
+| MONSTER | PARTIAL | 4 monstruos vivos; falta muerte simultanea y limpieza |
+| COMBAT | PARTIAL | servicios reales; falta evidencia de dano/muerte en PLAY |
+| REWARD | PASS (logica) | cadena `VALIDATE->AUTHORIZE->GRANT->RECORD` probada |
 | ECONOMY | PASS | pruebas + `economy-cert` |
-| INVENTORY | PASS (logica) | pruebas de equipar/desequipar/apilado |
-| PROGRESSION | PASS | pruebas de subida multiple de nivel |
+| INVENTORY | PASS (logica) | equipar/desequipar/apilado |
+| PROGRESSION | PASS | subida multiple de nivel |
 | SHOP | PASS (logica) | idempotencia, cobro antes de entregar, devolucion |
-| PORTAL | PARTIAL | controlador y veredicto de servidor existen; **no** se puede observar el lado cliente (p adherido, overlay) |
-| UI | **BLOCKED** | requiere `eval_client_runtime` para observar HUD, aperturas y cierres |
+| **CODES (reglas)** | **PASS** | `CodeRules` 22 pruebas + 14/14 en runtime real |
+| **CODES (servicio)** | **NOT IMPLEMENTADO** | `CodeService` sigue siendo un stub: las reglas existen y estan probadas, pero no hay servicio que las conecte a `EconomyService` ni al remoto |
+| PORTAL | PARTIAL | controlador y veredicto de servidor existen; no observable desde el cliente |
+| UI | **BLOCKED** | requiere `eval_client_runtime` |
 | CLEANUP | PARTIAL | Maid/RateLimiter probados; falta medir en runtime tras N rondas |
-| SECURITY | **PASS (nuevo)** | `PayloadGuard` 10/10 vectores en runtime real + 26 pruebas |
+| SECURITY | **PASS (nuevo)** | `PayloadGuard` 10/10 vectores en runtime + 26 pruebas |
 | PERFORMANCE | BLOCKED | exige minutos de juego continuo observado |
 | RECOVERY | PARTIAL | hay `Maid` y `Destroy`; falta la matriz de fallos simulados |
 | REGRESSION | PASS (esta pasada) | esta matriz |
+
+## 3-bis. Codigos: que esta probado y que NO
+
+Muy importante para no leer de mas lo hecho:
+
+**PROBADO (logica pura + runtime)**
+
+| Propiedad | Evidencia |
+| --- | --- |
+| El mismo codigo no se paga dos veces | 100 intentos -> 1 recompensa |
+| 50 repeticiones seguidas -> 1 recompensa | probe en runtime |
+| Variantes de escritura cuelan igual (`keshusy-2026`) | `already_used` |
+| El canje sobrevive a la reconexion | perfil recargado, sigue rechazado |
+| Otros jugadores si pueden canjearlo | 3 jugadores -> contador global 3 |
+| `MaxRedemptions` agota para todos | 4o jugador -> `exhausted` |
+| Codigo caducado rechazado | `expired` |
+| Codigo inexistente sin dejar rastro | `unknown` |
+| Recompensa negativa/fraccionaria/NaN rechazada al DEFINIR el codigo | `bad_amount` |
+| Perfil viejo sin las tablas no rompe | migracion |
+| Estado corrupto rechazado sin conceder | `invalid_state` |
+
+**NO PROBADO (y no se da por hecho)**
+
+- `CodeService` sigue siendo un stub. Las reglas son correctas, pero
+  ningun remoto las invoca todavia, asi que **un jugador no puede
+  canjear un codigo todavia**. Las reglas son la pieza critica, no el
+  sistema completo.
 
 ## 4. Seguridad: vectores probados en runtime
 

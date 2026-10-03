@@ -13,7 +13,7 @@
 
 | Ambito | Estado | Evidencia |
 | --- | --- | --- |
-| Suite de logica pura | PASS | 350/350 con `tools\luau\luau.exe tests\RunTests.lua` |
+| Suite de logica pura | PASS | 372/372 con `tools\luau\luau.exe tests\RunTests.lua` |
 | Estructura de servicios | PASS | `node tools/verify-structure.js` |
 | Wiring remotos | PASS | `node tools/verify-wiring.js` |
 | Analisis estatico | **FAIL** | `node tools/analyze.js` -> 714 incidencias (691 TypeError). Preexistente; ver nota abajo |
@@ -114,6 +114,28 @@ no esta certificada.
 
 ## SOCIAL
 [ ] Crear party  ·  [ ] Unirse  ·  [ ] Salir  ·  [ ] Flujo de servidor privado
+
+## SECURITY: PAYLOADS
+[x] `NaN` rechazado  ·  [x] `Infinity` rechazado
+[x] Cantidad negativa rechazada  ·  [x] Cantidad enorme rechazada
+[x] Cadena de 5000 caracteres rechazada  ·  [x] Codigo de control en cadena rechazado
+[x] Tabla ciclica rechazada (recursion infinita)  ·  [x] Tabla profunda rechazada
+[x] Clave no permitida rechazada (lista blanca)  ·  [x] Aridad incorrecta rechazada
+
+> Evidencia: 26 pruebas en `tests/shared/PayloadGuard.spec.lua` y
+> `node tools/probe.js tools/probes/payload-guard.lua server`, que ejecuta
+> los 10 vectores contra el SERVIDOR EN EJECUCION (10/10 rechazados).
+
+## CODES
+[x] Codigo valido se canjea  ·  [x] Invalido rechazado
+[x] **Nunca entrega dos veces** (100 intentos -> 1 recompensa)
+[x] Caducado rechazado  ·  [x] Agotado (`MaxRedemptions`)
+[x] Canje sobrevive a la reconexion  ·  [x] Limite de frecuencia en el remoto
+[ ] **Canje desde el juego** — `CodeService` sigue siendo un stub: las
+    reglas existen y estan probadas, pero ningun remoto las invoca
+
+> Evidencia: 22 pruebas en `tests/shared/CodeRules.spec.lua` y
+> `node tools/probe.js tools/probes/code-double-grant.lua server` (14/14).
 
 ## MOBILE
 [ ] Controles tactiles  ·  [ ] HUD responsivo  ·  [ ] Sin solapamiento

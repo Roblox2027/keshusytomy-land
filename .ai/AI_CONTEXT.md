@@ -1,6 +1,6 @@
 # KESHUSYTOMY-LAN-D - CONTEXTO IA
 
-Generado: 2026-10-03T02:02:10.397Z
+Generado: 2026-10-03T02:14:39.233Z
 
 > Este archivo es un INDICE generado, no una fuente de verdad.
 > La fuente de verdad del estado del desarrollo es `docs/phases.md`.
@@ -9,7 +9,7 @@ Generado: 2026-10-03T02:02:10.397Z
 ## Git
 
 - Rama: `main`
-- Commit: `022c286` - test(seguridad): probe que ejecuta PayloadGuard en el servidor real
+- Commit: `d3fcb13` - feat(codigos): CodeRules con canje atomico que impide pagar dos veces
 - Arbol: CON CAMBIOS SIN COMMITear
 
 ## FUENTES DE VERDAD (leer antes de decidir)
@@ -48,10 +48,10 @@ Generado: 2026-10-03T02:02:10.397Z
 
 ## Inventario de fuente
 
-- Luau total: 134
+- Luau total: 137
 - Servicios de servidor: 33
 - Controllers de cliente: 12
-- Suites de prueba: 21
+- Suites de prueba: 22
 
 ## REGLA INNEGOCIABLE
 
