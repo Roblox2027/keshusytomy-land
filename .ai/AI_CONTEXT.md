@@ -1,6 +1,7 @@
 # KESHUSYTOMY-LAN-D - CONTEXTO IA
 
-Generado: 2026-10-03T02:14:39.233Z
+Generado: 2026-10-03T02:14:39.233Z (actualizado manualmente tras los bloques
+de codigos, misiones, anti-exploit y party)
 
 > Este archivo es un INDICE generado, no una fuente de verdad.
 > La fuente de verdad del estado del desarrollo es `docs/phases.md`.
@@ -9,8 +10,15 @@ Generado: 2026-10-03T02:14:39.233Z
 ## Git
 
 - Rama: `main`
-- Commit: `d3fcb13` - feat(codigos): CodeRules con canje atomico que impide pagar dos veces
+- Commit local: `3dd70d5` - feat(party): PartyRules con las condiciones de carrera
 - Arbol: CON CAMBIOS SIN COMMITear
+- PUSH: **BLOCKED**. `git ls-remote` responde en segundos (la red y las
+  credenciales de LECTURA funcionan), pero `git push` se queda colgado
+  indefinidamente y hay que matarlo a los 120-150 s. No es un problema del
+  repositorio ni de los commits: los tres bloques anteriores SI llegaron
+  (`2f22e71`, `712805e`, `10d7177`). Es infraestructura de escritura.
+  **Consecuencia: `HEAD` NO coincide con `origin/main` hasta que se
+  resuelva.** Todo el trabajo esta COMMITteado en local y no se pierde.
 
 ## FUENTES DE VERDAD (leer antes de decidir)
 
@@ -46,12 +54,36 @@ Generado: 2026-10-03T02:14:39.233Z
   `luau-analyze` pelado, produce cientos de falsos positivos)
 - Rojo local: `rojo\rojo.exe` (ignorado por git a proposito)
 
-## Inventario de fuente
+## Inventario de fuente (MEDIDO, no supuesto)
 
-- Luau total: 137
-- Servicios de servidor: 33
-- Controllers de cliente: 12
-- Suites de prueba: 22
+- Servicios de servidor: 33 -> **23 reales, 10 stub**
+- Controllers de cliente: 12 -> **6 reales, 6 stub**
+- Suites de prueba: 29
+- Pruebas: **499 pasan / 0 fallan**
+
+### Los 10 servicios de servidor que SIGUEN siendo stub
+
+Se identifican por tener menos de 40 lineas (los implementados tienen mas):
+
+Analytics, Announcement, Badge, Event, Matchmaking, Moderation,
+Monetization, Party, Report, Teleport.
+
+> `PartyService` sigue siendo un stub, pero su LOGICA ya esta implementada y
+> probada en `PartyRules` (30 pruebas). Falta el servicio que la aplique.
+
+### Los 6 controllers de cliente que siguen siendo stub
+
+Camera, Effects, Inventory, Mobile, Party, Shop.
+
+> `InventoryController` y `ShopController` son los dos que bloquean la UI de
+> inventario y de tienda. Hasta que existan, la UI NO puede certificarse.
+
+### Bloqueos de infraestructura (NO son fallos de codigo)
+
+- `git push` cuelga indefinidamente (lectura OK). Ver seccion Git.
+- DataStore real: sin lugar publicado -> **HARNESS**, nunca PASS.
+- Cliente MCP: agota el tiempo de espera -> **BLOCKED**. Sin el no hay
+  certificacion visual ni prueba de input real.
 
 ## REGLA INNEGOCIABLE
 
