@@ -10,15 +10,13 @@ de codigos, misiones, anti-exploit y party)
 ## Git
 
 - Rama: `main`
-- Commit local: `3dd70d5` - feat(party): PartyRules con las condiciones de carrera
-- Arbol: CON CAMBIOS SIN COMMITear
-- PUSH: **BLOCKED**. `git ls-remote` responde en segundos (la red y las
-  credenciales de LECTURA funcionan), pero `git push` se queda colgado
-  indefinidamente y hay que matarlo a los 120-150 s. No es un problema del
-  repositorio ni de los commits: los tres bloques anteriores SI llegaron
-  (`2f22e71`, `712805e`, `10d7177`). Es infraestructura de escritura.
-  **Consecuencia: `HEAD` NO coincide con `origin/main` hasta que se
-  resuelva.** Todo el trabajo esta COMMITteado en local y no se pierde.
+- Commit local: `9887e47` - fix(juego): el lobby ya tiene salidas y las bombas
+  funcionan en los cinco mundos
+- Arbol: limpio salvo `docs/README.md` y `Install-RobloxAIKit.ps1`, que son
+  preexistentes y ajenos a este bloque
+- PUSH: **FUNCIONA**. El bloqueo documentado antes (`git push` colgaba) ya no se
+  reproduce: `e9a12b0..9887e47 main -> main` en menos de 100 s. `HEAD` y
+  `origin/main` coinciden en `9887e47`.
 
 ## FUENTES DE VERDAD (leer antes de decidir)
 
@@ -78,12 +76,17 @@ Camera, Effects, Inventory, Mobile, Party, Shop.
 > `InventoryController` y `ShopController` son los dos que bloquean la UI de
 > inventario y de tienda. Hasta que existan, la UI NO puede certificarse.
 
-### Bloqueos de infraestructura (NO son fallos de codigo)
+## Bloqueos de infraestructura (NO son fallos de codigo)
 
-- `git push` cuelga indefinidamente (lectura OK). Ver seccion Git.
 - DataStore real: sin lugar publicado -> **HARNESS**, nunca PASS.
-- Cliente MCP: agota el tiempo de espera -> **BLOCKED**. Sin el no hay
-  certificacion visual ni prueba de input real.
+- Cliente MCP: **RESUELTO (2026-10-03)**. El "bloqueo" era que el servidor MCP
+  no estaba arrancado. Se arranca con `npx -y @chrrxs/robloxstudio-mcp@latest`
+  y con eso `eval_server_runtime`, `eval_client_runtime` y
+  `simulate_keyboard_input` responden. La certificacion de jugador con teclado
+  REAL ya se hizo: ver `.ai/reports/CURRENT_VISUAL_STATE.md`.
+- `capture_screenshot` sigue sin capturar el viewport del cliente en marcha
+  (`StudioCaptureService cannot capture this DataModel right now`). La
+  certificacion VISUAL continua pendiente.
 
 ## REGLA INNEGOCIABLE
 
