@@ -368,9 +368,25 @@ function Service.TryEnter(player: Player, worldId: any): (boolean, string?)
 	end
 
 	-- Destino SEGURO: nunca la posicion que envio el cliente, sino el
-	-- marcador que elige el servidor. `Forest` es el unico mundo con arena
-	-- construida; el resto devuelven al lobby, que siempre existe.
-	local destinationKey = portal.WorldId == "Forest" and "Arena" or "Lobby"
+	-- marcador que elige el servidor.
+	--
+	-- Antes era `portal.WorldId == "Forest" and "Arena" or "Lobby"`: la
+	-- arena era la de Forest y TODO lo demas caia en el lobby. Con cuatro
+	-- mundos construidos, entrar por el portal de Desert devolvia al
+	-- jugador al lobby. Medido en PLAY.
+	--
+	-- Ahora cada portal viaja a SU arena, `Arena_<WorldId>`, resuelta por
+	-- `MatchService`. Si esa arena no estuviera en el mapa, el jugador se
+	-- queda en el lobby: es preferible no moverlo antes que moverlo al
+	-- vacio.
+	local destinationKey = matchService.GetArenaKey(portal.WorldId)
+	local destination = matchService.GetDestination(destinationKey)
+
+	if not destination then
+		Logger.Warn(("no hay arena para el mundo '%s'; el viaje no se realiza"):format(portal.WorldId))
+		return false, "destino no encontrado"
+	end
+
 	local moved = matchService.MovePlayer(player, destinationKey)
 
 	if not moved then

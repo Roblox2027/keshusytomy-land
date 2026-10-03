@@ -164,15 +164,106 @@ class McpSession {
 }
 
 /**
- * Quita el prefijo `N: ` que antepone `get_script_source`.
+ * Lee la firma del fuente REAL de un script dentro de Studio.
  *
- * El servidor numera cada linea ("12: \tlocal x = 1"). Sin quitarlo,
- * el texto de Studio jamas coincide con el del disco y la comprobacion
- * de "ya esta al dia" siempre da negativo: los 63 scripts se reescriben
- * en cada pase y Studio recompila todo.
+ * POR QUE NO SE USA `get_script_source`
+ * -------------------------------------
+ * Esa herramienta esta capada a 300 lineas y antepone numeros de linea, asi
+ * que no permite afirmar nada sobre el final del archivo, que es justo donde
+ * vive el `return` que decide que modulo se carga. Con ella, `EconomyRules`
+ * (787 lineas) daba FALLO aunque estuviera escrito y fuera IDENTICO, porque
+ * la comprobacion era de prefijo y el final se escapaba sin verificar.
+ *
+ * Aqui se lee `Script.Source`, que no tiene ese limite, y se devuelve solo
+ * la longitud y el hash: traer 26 KB por la red en cada comparacion no
+ * hace falta para saber si el archivo es el del disco.
+ *
+ * TRAMPA DEL SANDBOX: el codigo se compila en un entorno que NO acepta
+ * operadores de bits (`~`, `&`) ni `table.concat` sobre una tabla de numeros.
+ * Por eso el hash es aritmetico puro y se hace en una sola pasada. Cuando
+ * la sonda no compila se AVISA en vez de devolver `null` en silencio: si no,
+ * un error de compilacion se camuflaba como "el script no existe" y hacia
+ * falta un falso positivo mucho mas dificil de ver.
+ *
+ * @param {object} session Sesion MCP viva.
+ * @param {string} instancePath Ruta en el DataModel.
+ * @returns {Promise<{chars: number, hash: string}|null>}
  */
-function stripLineNumbers(source) {
-	return source.replace(/^\s*\d+:\s?/gm, "");
+async function readSourceSignature(session, instancePath) {
+	const code = [
+		`local inst = ${instancePath}`,
+		`if not inst then return "AUSENTE" end`,
+		`if not inst:IsA("LuaSourceContainer") then return "NOESFUENTE" end`,
+		`local s = inst.Source`,
+		// Studio no normaliza los saltos de linea de forma uniforme: unos
+		// scripts quedan con CRLF y otros con LF segun como se escribieron.
+		// Sin quitar los CR la comparacion fallaba por el retorno de carro y
+		// no por el codigo.
+		`local h = 5381`,
+		`local P = 1000000007`,
+		`local n = 0`,
+		`for i = 1, #s do`,
+		`	local b = s:byte(i)`,
+		`	if b ~= 13 then`,
+		`		n = n + 1`,
+		`		h = (h * 33 + b) % P`,
+		`	end`,
+		`end`,
+		`return tostring(n) .. ":" .. tostring(h)`,
+	].join("\n");
+
+	try {
+		const obj = await session.callObject("execute_luau", { code });
+		if (obj && obj.success === false) {
+			warnOnce("la sonda de fuente no compila: " + (obj.error || "?"));
+			return null;
+		}
+		const value = obj && typeof obj.returnValue === "string" ? obj.returnValue : null;
+		if (!value) {
+			warnOnce("la sonda de fuente no devolvio valor");
+			return null;
+		}
+		const sep = value.indexOf(":");
+		if (sep === -1) {
+			warnOnce("la sonda de fuente devolvio un formato raro: " + value);
+			return null;
+		}
+		return { chars: Number(value.slice(0, sep)), hash: value.slice(sep + 1) };
+	} catch (err) {
+		warnOnce("la sonda de fuente lanzo: " + err.message);
+		return null;
+	}
+}
+
+/** Informa un problema de la sonda una sola vez, para no inundar la salida. */
+function warnOnce(message) {
+	if (warnOnce.done) return;
+	warnOnce.done = true;
+	console.log("AVISO: " + message);
+}
+
+/**
+ * Firma del fuente tal como se mide dentro de Studio: BYTES UTF-8, sin CR.
+ *
+ * Studio cuenta bytes (`#s`, `s:byte`), no caracteres, asi que en JS hay que
+ * trabajar sobre los bytes UTF-8 y no sobre el string: con acentos o un BOM
+ * (3 bytes) las dos cuentas difieren y el gate reportaba una divergencia que
+ * no existia. Los CR se quitan por el mismo motivo que en la sonda.
+ *
+ * @param {string} text Texto del disco.
+ * @returns {{chars: number, hash: string}}
+ */
+function diskSignature(text) {
+	const bytes = Buffer.from(text.replace(/\r\n?/g, "\n"), "utf8");
+
+	// djb2 con un primo: el mismo algoritmo que corre dentro de Studio.
+	const P = 1000000007;
+	let h = 5381;
+	for (let i = 0; i < bytes.length; i += 1) {
+		h = (h * 33 + bytes[i]) % P;
+	}
+
+	return { chars: bytes.length, hash: String(h) };
 }
 
 /** Llamada puntual, con sesion propia. Se usa desde `sync-all.js`. */
@@ -197,19 +288,6 @@ function walk(dir, out = []) {
 		else out.push(full);
 	}
 	return out;
-}
-
-/**
- * Texto sin espacios ni saltos de linea.
- *
- * Sirve para comparar el fuente del disco con lo que devuelve MCP:
- * `get_script_source` entrega el texto escapado dentro de un JSON, de
- * modo que un salto de linea real y un `\n` literal son cosas
- * distintas. Normalizar ambos lados elimina esa diferencia sin tener
- * que reconstruir el escapado.
- */
-function normalize(text) {
-	return text.replace(/\s+/g, "");
 }
 
 /**
@@ -240,57 +318,38 @@ async function main() {
 	let same = 0;
 	let dry = 0;
 	const failed = [];
-	// Lecturas que la herramienta truncó a 300 líneas: el final del archivo
-	// NO se pudo verificar en esos casos, y se informa en vez de disimularlo.
-	let truncatedReads = 0;
-	const truncatedPaths = [];
 
 	for (const file of files) {
 		const instancePath = "game." + instancePathFor(file);
 		const source = fs.readFileSync(file, "utf8");
 
-		// Comprobacion de "ya esta al dia".
+		// Comprobacion de "ya esta al dia", por hash del fuente completo.
 		//
-		// Se compara el texto NORMALIZADO (sin espacios), immune a las dos
-		// representaciones del salto de linea y a los numeros de linea que
-		// antepone `get_script_source`.
+		// ANTES (1): una huella de 300 CARACTERES. La cabecera de cada archivo
+		// (`--!strict` y el bloque `--[[ ... ]]`) es identica antes y despues
+		// de cualquier cambio de logica, asi que el prefijo SIEMPRE coincidia y
+		// el script informaba "ya iguales" sin escribir nada. Seis divergencias
+		// reales siguieron invisibles durante varias pasadas.
 		//
-		// ANTES ERA UNA HUELLA DE 300 CARACTERES y era un fallo grave: la
-		// cabecera de cada archivo (el comentario `--!strict` y el bloque
-		// `--[[ ... ]]`) es identica antes y despues de cualquier cambio de
-		// logica, asi que el prefijo SIEMPRE coincidia y el script informaba
-		// "ya iguales" sin escribir nada. Seis divergencias reales siguieron
-		// invisibles durante varias pasadas.
+		// ANTES (2): `get_script_source`, que esta capada a 300 lineas. Todo
+		// archivo mayor se declaraba divergido y se reescribia en cada pase,
+		// recalculando Studio entero sin motivo, y aun asi el final del
+		// archivo se quedaba sin verificar.
 		//
-		// AHORA: se compara la lectura COMPLETA cuando esta disponible. Si la
-		// herramienta la devuelve truncada a 300 lineas, no se puede afirmar
-		// nada del final del archivo, y en ese caso se REESCRIBE siempre: es
-		// preferible una escritura de mas a dar por bueno un archivo que
-		// podria estar divergido en su ultima linea sin que nadie lo note.
-		let current = "";
-		let readTruncated = false;
-		try {
-			const res = await session.callObject("get_script_source", { instancePath });
-			if (res && typeof res.source === "string" && !res.error) {
-				current = stripLineNumbers(res.source);
-				readTruncated = res.truncated === true;
-			}
-		} catch {
-			current = "";
-		}
+		// AHORA: hash del texto completo leido DENTRO de Studio. Exacto en los
+		// dos sentidos: no se pierde ninguna divergencia y no se reescribe lo
+		// que ya esta bien.
+		const live = await readSourceSignature(session, instancePath);
+		const disk = diskSignature(source);
 
-		const diskNormalized = normalize(source);
-
-		// Solo se da por al dia si la lectura NO esta truncada y coincide
-		// enteramente. Con lectura truncada se cae en la escritura de abajo.
-		if (current && !readTruncated && normalize(current) === diskNormalized) {
+		if (live && live.chars === disk.chars && live.hash === disk.hash) {
 			same += 1;
 			continue;
 		}
 
 		if (DRY) {
 			dry += 1;
-			console.log("DIFERENTE  " + instancePath);
+			console.log("DIFERENTE  " + instancePath + (live ? "" : "  [no existe en Studio]"));
 			continue;
 		}
 
@@ -300,39 +359,29 @@ async function main() {
 
 			// COMPROBACION DE INTEGRIDAD POST-ESCRITURA.
 			//
-			// Se relee lo que hay en Studio y se compara con el disco, para no
-			// dar por buena una escritura que la herramienta haya truncado.
+			// Se comprueba el hash del fuente REAL contra el del disco. Con
+			// `get_script_source` esto no era posible de conclusion: la
+			// herramienta esta capada a 300 lineas, asi que la comparacion era
+			// de prefijo y el final del archivo (donde vive el `return`) se
+			// escapaba sin verificar. Por eso `EconomyRules` daba FALLO
+			// estando escrito y siendo identico.
 			//
-			// OJO CON EL LIMITE DE LECTURA: `get_script_source` devuelve como
-			// maximo 300 lineas y lo marca con `truncated`. Una comparacion
-			// literal daria FALSO NEGATIVO en cuanto un archivo pase de ahi (6
-			// de 63 ya lo hacen), y el gate reportaria fallos inexistentes en
-			// lugar de detectar nada real.
-			//
-			// Por eso la comparacion es de PREFIJO: se verifica que Studio
-			// contenga el inicio exacto del archivo. Lo que la lectura truncada
-			// NO permite comprobar (el final del archivo) se declara
-			// explicitamente en vez de darse por bueno.
-			const check = await session.callObject("get_script_source", { instancePath });
-			if (!check || typeof check.source !== "string") {
-				throw new Error("no se pudo releer el script para verificar la escritura");
+			// Comparar el hash entero sube el liston en vez de bajarlo: ahora
+			// el gate afirma, con fundamento, que lo que corre en Studio es el
+			// archivo del repositorio.
+			const check = await readSourceSignature(session, instancePath);
+			if (!check) {
+				throw new Error("no se pudo leer el fuente real en Studio para verificar la escritura");
 			}
-
-			const after = stripLineNumbers(check.source);
-			const disk = normalize(source);
-			const seen = normalize(after);
-
-			if (!disk.startsWith(seen.slice(0, Math.min(seen.length, disk.length)))) {
-				throw new Error("la escritura no coincide con el disco al inicio del archivo");
-			}
-
-			if (check.truncated) {
-				truncatedReads += 1;
-				truncatedPaths.push(instancePath);
+			if (check.chars !== disk.chars || check.hash !== disk.hash) {
+				throw new Error(
+					`el fuente en Studio no es el del disco (Studio ${check.chars} bytes / ${check.hash}, ` +
+						`disco ${disk.chars} bytes / ${disk.hash})`,
+				);
 			}
 
 			written += 1;
-			console.log("ESCRITO    " + instancePath);
+			console.log("ESCRITO    " + instancePath + "  [" + disk.chars + " bytes verificados]");
 		} catch (err) {
 			failed.push(instancePath + ": " + err.message);
 			console.log("FALLO      " + instancePath + " -> " + err.message);
@@ -346,14 +395,10 @@ async function main() {
 	else console.log(`ya iguales: ${same}`);
 	console.log(`fallidos: ${failed.length}`);
 
-	// Se declara lo que no se pudo verificar. Ocultarlo seria repetir el
-	// mismo tipo de fallo que este script ya ha sufrido dos veces: dar por
-	// buena una sincronizacion que nadie ha comprobado del todo.
-	if (truncatedReads) {
-		console.log(`verificacion parcial: ${truncatedReads} lectura(s) truncadas por la herramienta`);
-		console.log("  el FINAL de estos archivos no pudo comprobarse:");
-		for (const p of truncatedPaths) console.log("    " + p);
-	}
+	// Cada escritura se verifico por hash contra el fuente real de Studio, y
+	// cada "ya igual" tambien. No queda nada sin comprobar, asi que ya no hace
+	// falta el aviso de "verificacion parcial" que se emitia antes, cuando la
+	// lectura truncada dejaba el final de cada archivo grande sin verificar.
 
 	if (failed.length) {
 		console.log("RESULTADO: FAIL");

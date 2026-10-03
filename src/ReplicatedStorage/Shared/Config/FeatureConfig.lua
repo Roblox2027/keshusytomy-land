@@ -11,12 +11,18 @@
 ]]
 
 return {
-	-- Mundos (FASE 19 los habilita uno a uno segun readiness)
+	-- Mundos.
+	--
+	-- Los cinco estan habilitados porque los cinco tienen ARENA CONSTRUIDA
+	-- en el mapa (`tools/generate-project.js` -> `tools/worlds.js`). Antes
+	-- solo Forest lo estaba, y los otros cuatro eran carpetas vacias: un
+	-- portal a un mundo deshabilitado se veia apagado y rechazaba el viaje,
+	-- lo cual era correcto para un mundo que no existia y ya no lo es.
 	ENABLE_FOREST = true,
-	ENABLE_DESERT = false,
-	ENABLE_ICE = false,
-	ENABLE_VOLCANO = false,
-	ENABLE_CYBER = false,
+	ENABLE_DESERT = true,
+	ENABLE_ICE = true,
+	ENABLE_VOLCANO = true,
+	ENABLE_CYBER = true,
 
 	-- Keshusy Core (el corazon del lobby)
 	ENABLE_CORE = true,

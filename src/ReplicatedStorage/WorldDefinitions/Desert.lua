@@ -1,8 +1,19 @@
---!strict
+﻿--!strict
 --[[
-    Desert
-    Definicion de mundo (WorldData). Solo datos: ninguna logica aqui.
-    El mapa, los monstruos y el boss se construyen en fases posteriores.
+Desert
+Definicion de mundo (WorldData). Solo datos: ninguna logica aqui.
+
+DisplayName es el texto que el jugador LEE en el cartel del portal y en
+el HUD. Antes los cinco ponian el id crudo ("Ice", "Desert"), de modo que
+el cartel mostraba un nombre interno en vez del nombre del mundo.
+
+SpawnRules es la poblacion de monstruos de la arena: la lee
+MatchService.BuildMonsterSpawns. Antes era una tabla vacia, asi que el
+servicio recurria a una lista fija de monstruos de Forest en cualquier
+mundo.
+
+MapFolder es el nombre de la carpeta en Workspace.Worlds, y
+BossDefinitionId el boss que espera en la plataforma del norte.
 ]]
 
 export type WorldDefinition = {
@@ -25,16 +36,14 @@ export type WorldDefinition = {
 local World: WorldDefinition = {
     Id = "Desert",
     Name = "Desert",
-    DisplayName = "Desert",
+    DisplayName = "Boom Desert",
     RequiredLevel = 10,
     Theme = "Desert",
     Difficulty = 2,
     MusicId = nil,
-    MapFolder = nil,
-    BossDefinitionId = nil,
-    SpawnRules = {
-        -- FASE 16 : reglas concretas de spawn por zona.
-    },
+    MapFolder = "Desert",
+    BossDefinitionId = "DesertSandBeast",
+    SpawnRules = { "Hunter", "Hunter", "Guardian", "Slime" },
     Rewards = {
         XP = 20,
         Coins = 10,

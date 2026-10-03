@@ -13,6 +13,9 @@
 const fs = require("fs");
 const path = require("path");
 
+const Worlds = require("./worlds");
+const Portals = require("./portals");
+
 const ROOT = path.join(__dirname, "..");
 const PROJECT = path.join(ROOT, "default.project.json");
 
@@ -310,59 +313,26 @@ const coreParts = [
 //
 // Si se renombra cualquiera de los dos, el servicio deja de encontrar el
 // portal y todos los viajes se rechazan.
+// Los cinco portales NO son el mismo modelo recoloreado: cada uno se
+// construye con la silueta de su mundo (arco de madera, obeliscos de
+// arenisca, agujas de hielo, chimeneas de basalto, pilonas de neon). Ver
+// `tools/portals.js`, que es donde vive esa construccion.
+//
+// El contrato de nombres con `PortalService` y `VisualService` no cambia:
+// `Portal_<WorldId>`, `PortalPanel` (umbral, sin colision) y `Sign`.
+//
+// El `level` de la tabla NO pinta nada: el cartel lo escribe
+// `VisualService.SetPortalSign` leyendo `WorldDefinitions`, de modo que la
+// cifra de la pantalla y la que exige el servidor no puedan divergir.
 const PORTAL_DEFS = [
-	{ id: "Forest", x: -32, level: 1, color: KESHUSY },
-	{ id: "Desert", x: -16, level: 10, color: TOMY },
-	{ id: "Ice", x: 0, level: 20, color: [140, 214, 245] },
-	{ id: "Volcano", x: 16, level: 35, color: [240, 110, 72] },
-	{ id: "Cyber", x: 32, level: 50, color: [190, 120, 255] },
+	{ id: "Forest", x: -32, color: KESHUSY, style: "Forest" },
+	{ id: "Desert", x: -16, color: [236, 168, 72], style: "Desert" },
+	{ id: "Ice", x: 0, color: [140, 214, 245], style: "Ice" },
+	{ id: "Volcano", x: 16, color: [240, 110, 72], style: "Volcano" },
+	{ id: "Cyber", x: 32, color: [190, 120, 255], style: "Cyber" },
 ];
 
-const portalModels = [];
-
-for (const p of PORTAL_DEFS) {
-	const z = -34;
-	const frame = [86, 96, 114];
-
-	portalModels.push(
-		model("Portal_" + p.id, [
-			part("Base", {
-				position: [p.x, 0.5, z], size: [12, 1, 8],
-				material: "Slate", color: frame,
-			}),
-			part("Lintel", {
-				position: [p.x, 9, z], size: [12, 1.2, 8],
-				material: "Slate", color: frame,
-			}),
-			part("PostL", {
-				position: [p.x - 5.5, 4.75, z], size: [1.2, 8.5, 8],
-				material: "Slate", color: frame,
-			}),
-			part("PostR", {
-				position: [p.x + 5.5, 4.75, z], size: [1.2, 8.5, 8],
-				material: "Slate", color: frame,
-			}),
-
-			// El umbral: la hoja central, translucida y sin colision.
-			decor("PortalPanel", {
-				position: [p.x, 4.75, z], size: [10, 8, 0.4],
-				color: p.color, transparency: 0.55,
-			}),
-			decor("Glow", {
-				position: [p.x, 4.75, z], size: [7, 5, 0.3],
-				color: p.color, transparency: 0.3,
-			}),
-
-			// Rotulo del nivel exigido: visible en el cartel, no en un
-			// atributo invisible. `PortalService` lo lee para validar
-			// server-side.
-			part("Sign", {
-				position: [p.x, 10.6, z], size: [10, 1.6, 0.4],
-				material: "SmoothPlastic", color: p.color,
-			}),
-		])
-	);
-}
+const portalModels = Portals.buildPortals({ part: part, decor: decor, model: model }, PORTAL_DEFS, -34);
 
 // ---------------------------------------------------------- ESTACIONES
 // Anillo de servicios alrededor del Core. Cada estacion es una placa neon
@@ -1422,6 +1392,57 @@ const lobbySpawns = SPAWN_LAYOUT.map((entry) => {
 	return spawn;
 });
 
+// ------------------------------------------------------- MUNDOS 2 A 5
+//
+// Los cuatro mundos que NO son Forest se construyen aqui, con el generico de
+// `tools/worlds.js`.
+//
+// POR QUE ANTES NO EXISTIAN
+// -------------------------
+// Estaban declarados como `folder("Desert", [])`: una carpeta VACIA. Medido
+// en PLAY, entrar por el portal de Desert teletransportaba al jugador de
+// vuelta al lobby, porque `PortalService` solo tenia destino de arena para
+// Forest. Cuatro de los cinco portales no llevaban a ninguna parte: habia un
+// nombre en el codigo y no habia nada en el juego.
+//
+// QUE APORTA CADA UNO
+// -------------------
+// Suelo, muro perimetral, bloques destructibles (`Block_<Id>_<n>`), relicario
+// central, terreno, peligros, decoracion propia, spawn de monstruos, spawns
+// de powerup, plataforma de boss y salida. Todo con los nombres que ya leen
+// `MatchService`, `VisualService` y `DestructionService`.
+//
+// LAS POSICIONES
+// --------------
+// Se reparten en cruz alrededor del lobby, a 400 studs de separacion entre
+// arenas: distancia de sobra para que no se toquen y la justa para no
+// obligar a cruzar el mapa entero entre un portal y el siguiente.
+//
+// Forest conserva su posicion historica (500, 0): cambiarla invalidaria las
+// posiciones ya verificadas por `tools/verify-*`.
+const EXTRA_ARENA_HALF = 90;
+
+const extraWorlds = [
+	{ id: "Desert", cx: -400, cz: 400, seedBase: 1000 },
+	{ id: "Ice", cx: 400, cz: 400, seedBase: 2000 },
+	{ id: "Volcano", cx: -400, cz: -400, seedBase: 3000 },
+	{ id: "Cyber", cx: 400, cz: -400, seedBase: 4000 },
+].map(function (w) {
+	return Worlds.buildWorld(
+		{ part: part, decor: decor, marker: marker, folder: folder, perimeter: perimeter },
+		{
+			id: w.id,
+			cx: w.cx,
+			cz: w.cz,
+			half: EXTRA_ARENA_HALF,
+			wallDistance: 45,
+			seedBase: w.seedBase,
+			palette: Worlds.PALETTES[w.id],
+			decorate: Worlds.DECORATORS[w.id],
+		}
+	);
+});
+
 // ---------------------------------------------------------------- PROYECTO
 // Los servicios que aun no tienen codigo NO se montan: un Folder vacio
 // es inofensivo, un Script roto tumba el arranque.
@@ -1483,27 +1504,9 @@ const project = {
 				folder("KeshusyCore", coreParts),
 				folder("Portals", portalModels),
 			])).node,
-			// Los cinco mundos del contrato se declaran TODOS aqui.
-			//
-			// Antes solo se declaraba `Forest` y los otros cuatro existian
-			// unicamente como carpetas vacias en `src/Workspace/`, que no
-			// esta mapeado en `default.project.json` (no tiene `$path`) y
-			// por eso Rojo nunca las entrega. El resultado era una
-			// divergencia SOURCE/RUNTIME real: el build tenia 1 mundo y el
-			// mundo vacio tampoco, pero el contrato y `WorldService`
-			// esperan los cinco.
-			//
-			// Un mundo sin contenido es un Folder vacio: es inocuo, no
-			// rompe el arranque y da destino a las fases futuras. Es
-			// exactamente el mismo criterio que ya se aplica a los
-			// servicios sin codigo.
 			Worlds: folder("Worlds", [
 				folder("Forest", arenaChildren),
-				folder("Desert", []),
-				folder("Ice", []),
-				folder("Volcano", []),
-				folder("Cyber", []),
-			]).node,
+			].concat(extraWorlds)).node,
 		},
 
 		// ------------------------------------------------------------ LIGHTING

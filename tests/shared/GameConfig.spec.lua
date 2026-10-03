@@ -113,12 +113,17 @@ local function describeGameConfig()
 			expect.toBe(FeatureConfig.ENABLE_MONETIZATION, false)
 		end)
 
-		Harness.it("Forest es el unico mundo habilitado inicialmente", function()
+		-- Esta prueba SOSTIENE el contrato de los cinco mundos, asi que se
+		-- actualiza junto con `FeatureConfig`. Antes afirmaba que Forest era
+		-- el unico habilitado: era una verdad sobre un mundo vacio, no una
+		-- regla del juego. Los cinco tienen arena construida, asi que los
+		-- cinco han de estar habilitados y los cinco han de ser `true`.
+		Harness.it("los cinco mundos estan habilitados", function()
 			expect.toBe(FeatureConfig.ENABLE_FOREST, true)
-			expect.toBe(FeatureConfig.ENABLE_DESERT, false)
-			expect.toBe(FeatureConfig.ENABLE_ICE, false)
-			expect.toBe(FeatureConfig.ENABLE_VOLCANO, false)
-			expect.toBe(FeatureConfig.ENABLE_CYBER, false)
+			expect.toBe(FeatureConfig.ENABLE_DESERT, true)
+			expect.toBe(FeatureConfig.ENABLE_ICE, true)
+			expect.toBe(FeatureConfig.ENABLE_VOLCANO, true)
+			expect.toBe(FeatureConfig.ENABLE_CYBER, true)
 		end)
 	end)
 

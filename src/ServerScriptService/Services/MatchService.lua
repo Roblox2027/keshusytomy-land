@@ -45,8 +45,21 @@ Service._combatService = nil
 -- mision "ganar una ronda" no avanza.
 Service._questService = nil
 
--- Destinos por nombre: "Lobby" / "Arena".
+-- Destinos por nombre: "Lobby" y "Arena_<WorldId>".
+--
+-- Antes solo existia `Arena`, y apuntaba SIEMPRE a Forest. Con eso, entrar por
+-- el portal de Desert no llevaba a Desert: `PortalService` caia en el
+-- `else` y teletransportaba al lobby. Medido en PLAY: cuatro de los cinco
+-- portales no llegaban a ninguna parte.
+--
+-- Ahora hay un destino por mundo, `Arena_<Id>`, construido desde el marcador
+-- `ArenaCenter` que el generador escribe en cada arena. `Arena` se conserva
+-- como alias del mundo por defecto porque el ciclo de ronda lo usa y anadir
+-- el concepto de "mundo activo" al round es un cambio mayor del que esta
+-- correccion necesita.
 Service._destinations = {}
+-- Mundo por defecto -> id de destino. Consultado por `GetArenaKey`.
+Service._defaultArenaKey = "Arena"
 
 --- Busca los marcadores de traslado en el mapa.
 --- @return number found
@@ -59,11 +72,29 @@ function Service.CollectDestinations(): number
 		Service._destinations.Lobby = lobbyCenter :: BasePart
 	end
 
+	-- Un destino por mundo. El mundo se recorre por la clave del mapa, no
+	-- por una lista constante: anadir un mundo al generador lo hace
+	-- jugable sin tocar este archivo.
 	local worlds = Workspace:FindFirstChild("Worlds")
-	local forest = worlds and worlds:FindFirstChild("Forest")
-	local arenaCenter = forest and forest:FindFirstChild("ArenaCenter")
-	if arenaCenter and arenaCenter:IsA("BasePart") then
-		Service._destinations.Arena = arenaCenter :: BasePart
+	local defaultWorld = Service._worldService and Service._worldService.GetDefaultWorldId()
+
+	if worlds then
+		for _, worldFolder in ipairs(worlds:GetChildren()) do
+			local arenaCenter = worldFolder:FindFirstChild("ArenaCenter")
+
+			if arenaCenter and arenaCenter:IsA("BasePart") then
+				local key = "Arena_" .. worldFolder.Name
+				Service._destinations[key] = arenaCenter :: BasePart
+
+				if defaultWorld and worldFolder.Name == defaultWorld then
+					-- Alias para el codigo que aun pide "Arena" a secas
+					-- (el ciclo de ronda). Apunta al MISMO Part, asi que
+					-- no hay dos destinos que puedan divergir.
+					Service._destinations.Arena = arenaCenter :: BasePart
+					Service._defaultArenaKey = key
+				end
+			end
+		end
 	end
 
 	local found = 0
@@ -72,6 +103,55 @@ function Service.CollectDestinations(): number
 	end
 
 	return found
+end
+
+--- Clave de destino de la arena de un mundo.
+---
+--- Acepta tanto el id (`Desert`) como la clave ya construida (`Arena_Desert`),
+--- para que el llamante no tenga que saber como se nombra internamente.
+--- @param worldId string
+--- @return string key
+function Service.GetArenaKey(worldId: string): string
+	if worldId and worldId ~= "" and not string.match(worldId, "^Arena_") then
+		return "Arena_" .. worldId
+	end
+
+	return worldId
+end
+
+--- Destino de la arena de un mundo, con caida al del mundo por defecto.
+---
+--- El `fallback` importa: un mundo cuyo mapa no llego al lugar debe llevar
+--- al jugador a una arena REAL, no dejarlo en el lobby. Es mejor una arena
+--- equivocada que ninguna.
+--- @param worldId string?
+--- @return BasePart?
+function Service.GetWorldArena(worldId: string?): BasePart?
+	if worldId then
+		local arena = Service._destinations[Service.GetArenaKey(worldId)]
+		if arena then
+			return arena
+		end
+	end
+
+	return Service._destinations.Arena
+end
+
+--- Nombre del mundo al que corresponde una clave de destino.
+--- @param key string
+--- @return string worldId "Lobby" si el destino es el lobby
+function Service.GetWorldOfDestination(key: string): string
+	if key == "Lobby" then
+		return "Lobby"
+	end
+
+	local worldId = string.match(key, "^Arena_(.+)$")
+
+	if worldId and Service._destinations["Arena_" .. worldId] then
+		return worldId
+	end
+
+	return "Lobby"
 end
 
 --- Destino solicitado por nombre ("Lobby" / "Arena").
@@ -120,7 +200,14 @@ function Service.MovePlayer(player: Player, key: string): boolean
 	-- explotaria en ese instante y mataria al jugador antes de que
 	-- pueda moverse: es la misma razon por la que existe
 	-- `SpawnProtectionTime` en el reaparicion.
-	if key == "Arena" and Service._combatService then
+	-- La invulnerabilidad se concede al entrar en CUALQUIER arena, no solo
+	-- en la del mundo por defecto. La comprobacion es `GetWorldOfDestination`
+	-- porque comparar contra `"Arena"` a secas solo cubria Forest: con las
+	-- cinco arenas construidas, entrar por el portal de Cyber dejaba al
+	-- jugador con una bomba ya plantada en el punto de llegada.
+	local worldOfMove = Service.GetWorldOfDestination(key)
+
+	if worldOfMove ~= "Lobby" and Service._combatService then
 		Service._combatService.GrantInvulnerability(player, GameConfig.SpawnProtectionTime)
 	end
 
@@ -136,15 +223,13 @@ function Service.MovePlayer(player: Player, key: string): boolean
 	-- atributo desactualizado en cuanto la ronda moviera a alguien, y el HUD
 	-- diria "Lobby" con el jugador dentro de la arena.
 	--
+	-- El nombre sale de la PROPIA clave de destino, no de un literal. Antes
+	-- ponia "Forest" para cualquier arena, asi que entrar en Desert hacia
+	-- que el HUD dijera Forest.
+	--
 	-- Es un atributo que escribe el SERVIDOR: el cliente puede alterarlo en
 	-- su pantalla sin consecuencia, porque no concede nada.
-	-- Se escribe con una variable y no con un `if` de expresion en la propia
-	-- llamada: es mas legible y evita que un contador de llaves de las
-	-- herramientas de verificacion lo confunda con un bloque.
-	local worldName = "Lobby"
-	if key == "Arena" then
-		worldName = "Forest"
-	end
+	local worldName = worldOfMove
 	player:SetAttribute("World", worldName)
 
 	Logger.Debug(("%s movido a %s"):format(player.Name, key))
@@ -234,55 +319,130 @@ end
 --- aqui: anadir un mundo con sus propias criaturas no debe obligar a tocar
 --- este archivo. Y se usa `CFrame.lookAt` hacia el centro para que el
 --- monstruo nazca mirando hacia dentro y no de espaldas.
+---
+--- ANTES: la poblacion era SIEMPRE `{ Slime, Slime, BombBug, Shadow }`, la
+--- de Forest, calculada sobre el `ArenaCenter` de Forest. Los otros cuatro
+--- mundos, aunque existen, generaban la fauna equivocada en el sitio
+--- equivocado. Ahora salen de `SpawnRules` del mundo y de SU arena.
+---
+--- Si un mundo no declara reglas, no se inventa poblacion: es mejor un mundo
+--- sin monstruos que un mundo con slimes de otro bioma.
 --- @return { { Id: string, Position: Vector3 } }
-function Service.BuildMonsterSpawns(): { { Id: string, Position: Vector3 } }
-	local arena = Service._destinations.Arena
-	local world = Service._worldService and Service._worldService.GetDefaultWorldId()
+function Service.BuildMonsterSpawns(worldId: string?): { { Id: string, Position: Vector3 } }
 	local spawns: { { Id: string, Position: Vector3 } } = {}
+
+	local world = worldId
+		or (Service._worldService and Service._worldService.GetDefaultWorldId())
+
+	if not world then
+		return spawns
+	end
+
+	local definition = Service._worldService and Service._worldService.GetWorld(world)
+
+	if not definition then
+		Logger.Debug(("poblacion de monstruos: el mundo '%s' no esta registrado"):format(world))
+		return spawns
+	end
+
+	local rules = definition.SpawnRules or {}
+
+	if #rules == 0 then
+		Logger.Debug(("el mundo '%s' no declara SpawnRules; no hay poblacion"):format(world))
+		return spawns
+	end
+
+	-- La arena es la de ESE mundo, no la del mundo por defecto.
+	local arena = Service.GetWorldArena(world)
 
 	if not arena then
 		return spawns
 	end
 
-	local rules = { "Slime", "Slime", "BombBug", "Shadow" }
+	-- Los puntos de spawn declarados en el mapa mandan sobre el anillo
+	-- calculado: el generador escribe cuatro por mundo, y son la fuente de
+	-- verdad de la densidad de cada arena.
+	local declared = Service.CollectMonsterSpawnPoints(world)
 	local origin = arena.Position
 
-	-- Anillo alrededor del centro de la arena. El radio sale del tamano real
-	-- del suelo: hardcodear un radio haciaMeter monstruos en el vacio en
-	-- cualquier arena que no sea la de Forest.
+	-- El anillo sale del tamano real del suelo: hardcodear un radio echaria
+	-- monstruos al vacio en cualquier arena que no sea cuadrada.
 	local halfWidth = (arena.Size.X / 2) * 0.6
 	local halfDepth = (arena.Size.Z / 2) * 0.6
 
 	for index, id in ipairs(rules) do
-		local angle = (index / #rules) * math.pi * 2
-		local position = origin + Vector3.new(
-			math.cos(angle) * halfWidth,
-			3,
-			math.sin(angle) * halfDepth
-		)
+		local position
+
+		if declared[index] then
+			position = declared[index].Position + Vector3.new(0, 2, 0)
+		else
+			local angle = (index / #rules) * math.pi * 2
+			position = origin + Vector3.new(
+				math.cos(angle) * halfWidth,
+				3,
+				math.sin(angle) * halfDepth
+			)
+		end
+
 		table.insert(spawns, { Id = id, Position = position })
 	end
 
-	if world then
-		Logger.Debug(("poblacion de monstruos para el mundo %s: %d"):format(world, #spawns))
-	end
+	Logger.Debug(("poblacion de monstruos para el mundo %s: %d"):format(world, #spawns))
 
 	return spawns
+end
+
+--- Puntos de spawn de monstruo declarados en el mapa de un mundo.
+---
+--- Los escribe `tools/worlds.js` como `MonsterSpawn_<Id>_<n>`. Se leen por
+--- prefijo y no con una lista fija para que anadir un punto no obligue a tocar
+--- este archivo.
+--- @param worldId string
+--- @return { BasePart }
+function Service.CollectMonsterSpawnPoints(worldId: string): { BasePart }
+	local points: { BasePart } = {}
+
+	local worlds = Workspace:FindFirstChild("Worlds")
+	local worldFolder = worlds and worlds:FindFirstChild(worldId)
+	local spawnsFolder = worldFolder and worldFolder:FindFirstChild("MonsterSpawns")
+
+	if not spawnsFolder then
+		return points
+	end
+
+	for _, child in ipairs(spawnsFolder:GetChildren()) do
+		if child:IsA("BasePart") then
+			table.insert(points, child :: BasePart)
+		end
+	end
+
+	-- Orden estable: el recorrido de `GetChildren` no esta garantizado, y
+	-- el orden decide que monstruo va en que punto.
+	table.sort(points, function (a, b)
+		return a.Name < b.Name
+	end)
+
+	return points
 end
 
 --- Crea los monstruos de la ronda.
 ---
 --- Es idempotente en la practica: `MonsterService.Spawn` aplica el tope por
 --- tipo, asi que llamarlo dos veces no duplica la poblacion.
+---
+--- `worldId` permite poblar una arena distinta de la del mundo por defecto:
+--- es lo que hace que entrar por el portal de Volcano tenga monstruos de
+--- Volcano y no los de Forest.
+--- @param worldId string?
 --- @return number spawned
-function Service.SpawnMonstersForRound(): number
+function Service.SpawnMonstersForRound(worldId: string?): number
 	if not Service._monsterService then
 		return 0
 	end
 
 	local spawned = 0
 
-	for _, entry in ipairs(Service.BuildMonsterSpawns()) do
+	for _, entry in ipairs(Service.BuildMonsterSpawns(worldId)) do
 		if Service._monsterService.Spawn(entry.Id, entry.Position) then
 			spawned += 1
 		end
