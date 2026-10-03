@@ -139,40 +139,92 @@ function bar(name, opts) {
 // icono; con hermanos, `UIController` localiza cada panel por nombre y
 // actualiza sin depender de la estructura interna de los demas.
 
-function statRow(name, y, tint, prefix) {
+// MEDIDO con `tools/probe-hud.js` (shot-04): antes esta fila era un unico
+// TextLabel con `Position = [0, 26, 0, y]` y el prefijo como HIJO en
+// `[0, 0, 0, 0]`. Un hijo con posicion CERO se coloca en el ORIGEN de su
+// padre, no en el del panel: los dos acababan en el MISMO pixel
+//
+//   Bombs [TextLabel] pos=(38,330)
+//     Icon [TextLabel] pos=(38,330)
+//
+// y la letra "B" tapaba la cifra entera. La pantalla muestrava solo "B" y "P".
+//
+// El arreglo NO es restar 26 px: es dejar de anidar. La fila pasa a ser un Frame
+// hermano con `Icon` y `Value` COLGANDO DEL PANEL, igual que ya hace
+// `currencyPanel`. Asi cada uno mide su posicion desde el mismo sitio y no
+// pueden solaparse por construccion.
+function statRow(name, y, tint, prefix, caption) {
 	return {
 		name: name,
 		node: {
-			$className: "TextLabel",
+			$className: "Frame",
 			$properties: {
 				BackgroundTransparency: 1,
 				BorderSizePixel: 0,
-				Font: "GothamBold",
 				Position: [0, 12, 0, y],
-				Size: [1, -24, 0, 18],
-				Text: "",
-				TextColor3: tint,
-				TextSize: 14,
-				TextScaled: false,
-				TextXAlignment: "Left",
-				TextYAlignment: "Center",
-				TextWrapped: false,
+				Size: [1, -24, 0, 22],
 			},
-			// El prefijo viaja como HIJO, no dentro del texto. Asi el icono
-			// se puede cambiar sin reescribir la cadena del valor.
-			Icon: {
+			Symbol: {
 				$className: "TextLabel",
 				$properties: {
 					BackgroundTransparency: 1,
 					BorderSizePixel: 0,
 					Font: "GothamBold",
-					Position: [0, -24, 0, 0],
-					Size: [0, 24, 1, 0],
+					Position: [0, 0, 0, 0],
+					Size: [0, 22, 1, 0],
 					Text: prefix,
 					TextColor3: tint,
 					TextSize: 15,
 					TextScaled: false,
 					TextXAlignment: "Left",
+					TextYAlignment: "Center",
+					TextWrapped: false,
+				},
+			},
+			// El nombre del recurso es lo que hace legible la cifra: una "B"
+			// suelta no dice si es un contador de bombas o un boton.
+			Caption: {
+				$className: "TextLabel",
+				$properties: {
+					BackgroundTransparency: 1,
+					BorderSizePixel: 0,
+					Font: "GothamBold",
+					Position: [0, 24, 0, 0],
+					Size: [1, -80, 1, 0],
+					Text: caption,
+					TextColor3: THEME.textDim,
+					TextSize: 12,
+					TextScaled: false,
+					TextXAlignment: "Left",
+					TextYAlignment: "Center",
+					TextWrapped: false,
+				},
+			},
+			// El prefijo viaja como hermano, no dentro del texto. Asi el icono
+			// se puede cambiar sin reescribir la cadena del valor.
+			Value: {
+				$className: "TextLabel",
+				$properties: {
+					BackgroundTransparency: 1,
+					BorderSizePixel: 0,
+					Font: "GothamBold",
+					// La cifra vive en su PROPIA columna, anclada a la derecha.
+					//
+					// BUG CORREGIDO (medido con probe-hud en PLAY): `Caption` y
+					// `Value` compartian `Position = [0, 24, 0, 0]`, o sea los dos
+					// ocupan exactamente el mismo rectangulo. Solo se veia bien
+					// porque `Caption` va a la izquierda y `Value` a la derecha:
+					// con una etiqueta larga o una cifra ancha se pisaban. Es el
+					// mismo fallo que se corrigio anadiendo `Symbol`, repetido un
+					// nivel mas abajo, asi que la separacion se hace aqui de
+					// verdad y no por alineacion.
+					Position: [1, -52, 0, 0],
+					Size: [0, 52, 1, 0],
+					Text: "--",
+					TextColor3: tint,
+					TextSize: 16,
+					TextScaled: false,
+					TextXAlignment: "Right",
 					TextYAlignment: "Center",
 					TextWrapped: false,
 				},
@@ -187,27 +239,77 @@ function currencyPanel() {
 		position: [1, -196, 0, 12],
 		size: [0, 184, 0, 72],
 	});
+
+	// Fila de recurso: un icono y su cifra.
+	//
+	// MEDIDO en la captura del cliente: los dos labels de texto salian
+	// SUELTOS ("0" y "0" sin ninguna pista de que era cada uno) y el icono
+	// de `statRow` se salia del panel por `Position = [0, -24, ...]`,
+	// dejandolo pegado al borde de la pantalla. Un recurso sin etiqueta es
+	// un numero que el jugador no sabe interpretar, asi que cada cifra
+	// lleva delante su simbolo y su nombre.
+	const resourceRow = function(name, y, tint, symbol, caption) {
+		return {
+			$className: "Frame",
+			$properties: {
+				BackgroundTransparency: 1,
+				BorderSizePixel: 0,
+				Position: [0, 12, 0, y],
+				Size: [1, -24, 0, 22],
+			},
+			Symbol: {
+				$className: "TextLabel",
+				$properties: {
+					BackgroundTransparency: 1, BorderSizePixel: 0,
+					Font: "GothamBold",
+					Position: [0, 0, 0, 0], Size: [0, 22, 1, 0],
+					Text: symbol, TextColor3: tint, TextSize: 17,
+					TextScaled: false, TextXAlignment: "Left",
+					TextYAlignment: "Center", TextWrapped: false,
+				},
+			},
+			// El NOMBRE del recurso es lo que hace legible la cifra. Sin
+			// el, "0" y "0" son dos numeros sin significado.
+			Caption: {
+				$className: "TextLabel",
+				$properties: {
+					BackgroundTransparency: 1, BorderSizePixel: 0,
+					Font: "GothamBold",
+					Position: [0, 24, 0, 0], Size: [1, -62, 1, 0],
+					Text: caption, TextColor3: THEME.textDim, TextSize: 12,
+					TextScaled: false, TextXAlignment: "Left",
+					TextYAlignment: "Center", TextWrapped: false,
+				},
+			},
+			Value: {
+				$className: "TextLabel",
+				$properties: {
+					BackgroundTransparency: 1, BorderSizePixel: 0,
+					Font: "GothamBold",
+					// Columna propia, anclada a la derecha: `Caption` y `Value`
+					// NO pueden compartir rectangulo. Mismo criterio que en
+					// `statRow`, y el motivo esta medido con probe-hud: antes
+					// los dos ocupaban `Position = [0, 24, 0, 0]` y solo se
+					// veian separados porque uno alinea a la izquierda y el
+					// otro a la derecha.
+					Position: [1, -34, 0, 0], Size: [0, 34, 1, 0],
+					Text: "--", TextColor3: tint, TextSize: 16,
+					TextScaled: false, TextXAlignment: "Right",
+					TextYAlignment: "Center", TextWrapped: false,
+				},
+			},
+		};
+	};
+
 	// `Coins` y `Gems` cuelgan DIRECTAMENTE del panel, no de un contenedor
 	// intermedio. Rojo exige que todo nodo del proyecto tenga `$className`, y
 	// un Folder "Stat" sin clase lo hacia fallar el build entero.
-	p.node.Coins = {
-		$className: "TextLabel",
-		$properties: {
-			BackgroundTransparency: 1, BorderSizePixel: 0, Font: "GothamBold",
-			Position: [0, 12, 0, 8], Size: [1, -24, 0, 20],
-			Text: "", TextColor3: THEME.coin, TextSize: 15, TextScaled: false,
-			TextXAlignment: "Left", TextYAlignment: "Center", TextWrapped: false,
-		},
-	};
-	p.node.Gems = {
-		$className: "TextLabel",
-		$properties: {
-			BackgroundTransparency: 1, BorderSizePixel: 0, Font: "GothamBold",
-			Position: [0, 12, 0, 32], Size: [1, -24, 0, 20],
-			Text: "", TextColor3: THEME.gem, TextSize: 15, TextScaled: false,
-			TextXAlignment: "Left", TextYAlignment: "Center", TextWrapped: false,
-		},
-	};
+	//
+	// Cada uno es un Frame con `Symbol`, `Caption` y `Value`. El nombre de
+	// la fila es `Coins`/`Gems` (el que busca `UIController`) y la cifra
+	// vive en `Value`.
+	p.node.Coins = resourceRow("Coins", 6, THEME.coin, "$", "MONEDAS");
+	p.node.Gems = resourceRow("Gems", 34, THEME.gem, "◆", "GEMAS");
 	return p;
 }
 
@@ -274,14 +376,127 @@ function buildHudTree() {
 	// ---- BombStats: bombas y poder del Core.
 	const bombStats = panel("BombStats", {
 		position: [0, 12, 1, -196],
-		size: [0, 260, 0, 60],
+		size: [0, 260, 0, 72],
 	});
-	bombStats.node.Bombs = statRow("Bombs", 8, THEME.bomb, "B").node;
-	bombStats.node.Power = statRow("Power", 32, THEME.accent, "P").node;
+	// Estas filas son Frames con `Symbol`, `Caption` y `Value`, igual que las
+	// de `Currency`: el icono NO es hijo de la cifra (ver `statRow`).
+	bombStats.node.Bombs = statRow("Bombs", 6, THEME.bomb, "B", "BOMBAS").node;
+	bombStats.node.Power = statRow("Power", 34, THEME.accent, "P", "PODER").node;
+
+	// ---- ActiveBombs: las bombas VIVAS del jugador.
+	//
+	// "BOMBAS" ya cuenta las que tiene colocadas. Lo que falta para el jugador
+	// es "cuantas de esas me van a explotar encima", y confundirlas con el
+	// contador de disponibles es como se pierde la nocion de peligro.
+	//
+	// Se oculta por defecto: un "x0" permanente es ruido.
+	//
+	// COLOCACION (medida contra el boton tactil): el boton de bomba que crea
+	// `InputController` ocupa `(1, -32)` con 96x96, o sea X [-128, -32] y
+	// Y [-128, -32]. Este panel se pone a la IZQUIERDA de ese boton
+	// (X [-260, -140]) para que el contador de bombas activas no tape el
+	// control que coloca bombas: un HUD que tapa el boton es un HUD roto.
+	const activeBombs = panel("ActiveBombs", {
+		position: [1, -260, 1, -40],
+		size: [0, 120, 0, 40],
+	});
+	activeBombs.node.$properties.Visible = false;
+	activeBombs.node.Symbol = {
+		$className: "TextLabel",
+		$properties: {
+			BackgroundTransparency: 1, BorderSizePixel: 0, Font: "GothamBold",
+			Position: [0, 10, 0, 8], Size: [0, 22, 0, 24],
+			Text: "B", TextColor3: THEME.bomb, TextSize: 18,
+			TextScaled: false, TextXAlignment: "Left", TextYAlignment: "Center",
+			TextWrapped: false,
+		},
+	};
+	activeBombs.node.Caption = {
+		$className: "TextLabel",
+		$properties: {
+			BackgroundTransparency: 1, BorderSizePixel: 0, Font: "GothamBold",
+			Position: [0, 34, 0, 4], Size: [1, -46, 0, 12],
+			Text: "ACTIVAS", TextColor3: THEME.textDim, TextSize: 10,
+			TextScaled: false, TextXAlignment: "Left", TextYAlignment: "Center",
+			TextWrapped: false,
+		},
+	};
+	activeBombs.node.Value = {
+		$className: "TextLabel",
+		$properties: {
+			BackgroundTransparency: 1, BorderSizePixel: 0, Font: "GothamBold",
+			Position: [0, 34, 0, 16], Size: [1, -46, 0, 20],
+			Text: "0", TextColor3: THEME.bomb, TextSize: 20,
+			TextScaled: false, TextXAlignment: "Left", TextYAlignment: "Center",
+			TextWrapped: false,
+		},
+	};
+
+	// ---- DamageVignette: borde ROJO al recibir dano.
+	//
+	// Oscurecer TODA la pantalla es un castigo, no un aviso. Aqui solo se
+	// enrojece el BORDE y se desvanece solo: dice "te han pegado" sin tapar
+	// el combate, que es justo lo que el jugador necesita ver en ese
+	// instante.
+	const damageVignette = panel("DamageVignette", {
+		position: [0, 0, 0, 0],
+		size: [1, 0, 1, 0],
+	});
+	damageVignette.node.$properties.BackgroundTransparency = 1;
+	damageVignette.node.$properties.Active = false;
+	damageVignette.node.$properties.ZIndex = 30;
+	damageVignette.node.UIStroke.$properties.Transparency = 1;
+	damageVignette.node.UIStroke.$properties.Thickness = 26;
+	damageVignette.node.UIStroke.$properties.Color = color(255, 40, 60);
+	damageVignette.node.UIStroke.$properties.ApplyStrokeMode = "Border";
+
+	// ---- DamageNumbers: contenedor de numeros flotantes.
+	//
+	// Vacio de serie: los numeros aparecen al recibir o hacer dano y se
+	// autodestruyen. Un contenedor permanente con texto permanente satura la
+	// pantalla.
+	const damageNumbers = panel("DamageNumbers", {
+		position: [0, 0, 0, 0],
+		size: [1, 0, 1, 0],
+	});
+	damageNumbers.node.$properties.BackgroundTransparency = 1;
+	damageNumbers.node.$properties.Active = false;
+	damageNumbers.node.$properties.ZIndex = 25;
+	damageNumbers.node.UIStroke.$properties.Transparency = 1;
+
+	// ---- PowerupRow: efectos temporales activos (ESCUDO, VELOCIDAD...).
+	//
+	// Sin esta fila el powerup se recoge, hace algo invisible y el jugador
+	// cree que no funciona. El HUD es quien convierte un efecto invisible
+	// en un efecto creible.
+	//
+	// Va en la columna IZQUIERDA, justo encima del panel de bombas y debajo
+	// del de vida, porque los tres cuentan "lo que tengo ahora".
+	const powerupRow = panel("PowerupRow", {
+		position: [0, 12, 1, -124],
+		size: [0, 260, 0, 26],
+	});
+	powerupRow.node.$properties.Visible = false;
+	powerupRow.node.Text = {
+		$className: "TextLabel",
+		$properties: {
+			BackgroundTransparency: 1, BorderSizePixel: 0, Font: "GothamBold",
+			Position: [0, 12, 0, 4], Size: [1, -24, 0, 18],
+			Text: "", TextColor3: THEME.crystal, TextSize: 13,
+			TextScaled: false, TextXAlignment: "Left", TextYAlignment: "Center",
+			TextWrapped: false,
+		},
+	};
 
 	// ---- Objective: que hay que hacer ahora.
+	//
+	// POSICION (medida en la captura del cliente): antes estaba en
+	// `[1, -292, 1, -104]`, es decir en la franja Y [-104, -56]. Ahi vive el
+	// boton `BOMBA` de 96x96 anclado en (1,-32,1,-32), que ocupa
+	// Y [-128, -32]: los dos se solapaban y el boton tapaba el objetivo. Se
+	// sube la columna derecha para que nada se pise.
 	const objective = panel("Objective", {
-		position: [1, -292, 1, -104],
+		position: [1, -292, 1, -152],
 		size: [0, 280, 0, 48],
 	});
 	objective.node.Title = {
@@ -305,8 +520,13 @@ function buildHudTree() {
 	};
 
 	// ---- Mission: progreso de misiones (dato real de `QuestService`).
+	//
+	// Antes en `[1, -292, 1, -156]`: caia ENCIMA de `Objective` (que ocupaba
+	// Y [-104, -56]) y ambos se pisaban. Ahora la columna derecha es una
+	// pila limpia: Mission arriba, Objective debajo, y el boton de bomba
+	// debajo de las dos sin tocarlas.
 	const mission = panel("Mission", {
-		position: [1, -292, 1, -156],
+		position: [1, -292, 1, -204],
 		size: [0, 280, 0, 44],
 	});
 	mission.node.Text = {
@@ -383,6 +603,10 @@ function buildHudTree() {
 		currencyPanel(),
 		playerStats,
 		bombStats,
+		activeBombs,
+		powerupRow,
+		damageNumbers,
+		damageVignette,
 		objective,
 		mission,
 		timer,

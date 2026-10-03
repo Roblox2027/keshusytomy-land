@@ -290,6 +290,10 @@ local SERVICES = {
 		module = SERVER.Services.MonsterService,
 		dependencies = { "RoundService", "CombatService", "PlayerService", "WorldService" },
 	},
+	-- PowerupService: los objetos que el jugador recoge en la arena. No
+	-- depende de nadie para GENERARLOS (solo del mapa), asi que se declara
+	-- despues de WorldService para no leer `Worlds` antes de que exista.
+	{ name = "PowerupService", module = SERVER.Services.PowerupService, dependencies = { "WorldService" } },
 	-- MatchService se mueve DESPUES de MonsterService porque ahora genera
 	-- la poblacion al empezar la ronda. La dependencia se declara de forma
 	-- explicita: el registro resuelve el orden topologico y, sin ella,
@@ -305,6 +309,7 @@ local SERVICES = {
 			"DestructionService",
 			"CombatService",
 			"MonsterService",
+			"PowerupService",
 			"WorldService",
 		},
 	},
@@ -354,6 +359,7 @@ local function wireDependencies(registry: any): { string }
 	local spawnService = registry:Get("SpawnService")
 	local portalService = registry:Get("PortalService")
 local monsterService = registry:Get("MonsterService")
+local powerupService = registry:Get("PowerupService")
 
 	-- Los seis de economia, inventario, progresion, perfil, datos y tienda.
 	local dataService = registry:Get("DataService")
@@ -558,6 +564,24 @@ local monsterService = registry:Get("MonsterService")
 			service.SetDependencies(roundService, combatService, playerService, worldService)
 		end
 	)
+
+	-- PowerupService: solo necesita el mundo para saber cual es el
+	-- directorio por defecto cuando la ronda no indica otro.
+	connect("PowerupService", powerupService, { "WorldService" },
+		function(service: any)
+			service.SetDependencies(worldService)
+		end
+	)
+
+	-- MatchService -> PowerupService: la ronda es quien genera los powerups
+	-- de la arena. Sin esta flecha, `SpawnPowerupsForRound` devolveria 0 en
+	-- silencio y nadie sabria por que no hay nada que recoger.
+	if matchService and powerupService then
+		matchService.SetPowerupService(powerupService)
+		table.insert(report, "[WIRING OK] MatchService -> PowerupService")
+	else
+		table.insert(report, "[WIRING FAIL] MatchService/PowerupService no disponibles")
+	end
 
 	-- La flecha va de ExplosionService HACIA MonsterService: sin esto las
 	-- explosiones no encuentro los Humanoids de los monstruos y el PvE no

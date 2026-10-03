@@ -48,6 +48,10 @@ local COMPONENTS = {
     "PlayerStats",
     "Currency",
     "BombStats",
+    "ActiveBombs",
+    "PowerupRow",
+    "DamageNumbers",
+    "DamageVignette",
     "Objective",
     "Mission",
     "Timer",
@@ -357,12 +361,22 @@ local function refresh()
     end
 
     --- Escribe un texto si el panel existe. Nunca falla en silencio.
-    local function setText(panelName, childName, text)
+--- @param subPath string? descentra el nombre dentro del hijo (ej. "Value")
+    local function setText(panelName, childName, text, subPath)
         local panel = _panels[panelName]
         if not panel then
             return
         end
         local target = panel:FindFirstChild(childName)
+
+        -- `subPath` existe porque hay hijos que ya no son TextLabel: las filas
+        -- de recurso (`Currency.Coins`) son Frames con `Symbol`, `Caption` y
+        -- `Value`. Sin este salto, escribir en la fila no haria NADA y el
+        -- panel mostraria el "--" de serie para siempre.
+        if subPath and target then
+            target = target:FindFirstChild(subPath)
+        end
+
         if target and target:IsA("TextLabel") then
             target.Text = text
         end
@@ -388,7 +402,24 @@ local function refresh()
             if type(max) == "number" and max > 0 and type(value) == "number" then
                 ratio = math.clamp(value / max, 0, 1)
             end
-            fill.Size = UDim2.fromScale(ratio, 0)
+
+            -- La barra se ANIMA, no salta.
+            --
+            -- MEDIDO en PLAY: la barra de vida se escribia directa y el ancho
+            -- caia de golpe. El jugador veia "estaba al 80 y ahora al 20" sin
+            -- ningun instante intermedio, y el impacto del dano se perdia. Con
+            -- un tween corto la bajada se LEE, que es justo lo que hace falta
+            -- para entender que le acaba de pegar una bomba.
+            local current = fill.Size.X.Scale
+            local target = ratio
+
+            if math.abs(current - target) > 0.001 then
+                TweenService:Create(
+                    fill,
+                    TweenInfo.new(0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
+                    { Size = UDim2.fromScale(target, 0) }
+                ):Play()
+            end
         end
         local captionLabel = bar:FindFirstChild("Text")
         if captionLabel and captionLabel:IsA("TextLabel") then
@@ -413,10 +444,16 @@ local function refresh()
     end
 
     -- ------------------------------------------------------------- Currency
+    --
+    -- Las filas son Frames con `Symbol`, `Caption` y `Value`. Se escribe en
+    -- `Value`: el nombre del recurso ("MONEDAS", "GEMAS") ya esta puesto en
+    -- `Caption` por el generador, y asi la cifra se lee sola. Antes eran dos
+    -- TextLabel con la cifra suelta, y en pantalla eran dos "0" que no
+    -- decian nada.
     local coins = attr("Coins")
     local gems = attr("Gems")
-    setText("Currency", "Coins", (if type(coins) == "number" then ("%d"):format(coins) else "--"))
-    setText("Currency", "Gems", (if type(gems) == "number" then ("%d"):format(gems) else "--"))
+    setText("Currency", "Coins", (if type(coins) == "number" then ("%d"):format(coins) else "--"), "Value")
+    setText("Currency", "Gems", (if type(gems) == "number" then ("%d"):format(gems) else "--"), "Value")
 
     -- ---------------------------------------------------------- PlayerStats
     -- HP viene del Humanoid del PROPIO personaje. Es presentacion de si
@@ -442,8 +479,71 @@ local function refresh()
     -- Bombas: las que le quedan. El contador lo lleva el SERVIDOR. Sin
     -- atributo se muestra "*" y no "0": 0 quiere decir "no te quedan" y es un
     -- dato que todavia no tenemos.
+    --
+    -- MEDIDO con tools/probe-hud.js (shot-04): las filas de este panel son
+    -- Frames con `Symbol`, `Caption` y `Value`, igual que las de `Currency`.
+    -- Antes eran TextLabels con el icono como HIJO en posicion [0,0], o
+    -- sea en el ORIGEN de la propia cifra: icono y valor acababan en el
+    -- mismo pixel y la letra tapaba la cifra entera. Por eso se escribe
+    -- en `Value` y no en la fila.
     local bombs = attr("Bombs")
-    setText("BombStats", "Bombs", (if type(bombs) == "number" then ("%d"):format(bombs) else "*"))
+    setText("BombStats", "Bombs", (if type(bombs) == "number" then ("%d"):format(bombs) else "*"), "Value")
+
+    -- ------------------------------------------------------------ ActiveBombs
+    --
+    -- "BOMBAS" cuenta las que TIENES colocadas. Lo que falta para jugar bien
+    -- es "cuantas de esas siguen vivas y van a explotar". Sin este dato el
+    -- jugador no puede decidir si meter otra bomba o salir corriendo, que es
+    -- la decision basica del juego.
+    --
+    -- El panel se OCULTA cuando no hay ninguna: un "x0" permanente en pantalla
+    -- es ruido que el jugador aprende a no mirar.
+    local active = _panels["ActiveBombs"]
+
+    if active then
+        if type(bombs) == "number" and bombs > 0 then
+            active.Visible = true
+
+            local activeValue = active:FindFirstChild("Value")
+
+            if activeValue and activeValue:IsA("TextLabel") then
+                activeValue.Text = ("x%d"):format(bombs)
+            end
+        else
+            active.Visible = false
+        end
+    end
+
+    -- ----------------------------------------------------------- PowerupRow
+    --
+    -- Los efectos temporales (escudo, velocidad) se publican como atributos
+    -- con el instante en que caducan. Si no se muestran, un powerup hace algo
+    -- invisible y el jugador concluye que no funciona.
+    local powerupRow = _panels["PowerupRow"]
+
+    if powerupRow then
+        local effects = {}
+        local now = os.clock()
+
+        if type(attr("PowerupShieldUntil")) == "number" and (attr("PowerupShieldUntil") :: number) > now then
+            table.insert(effects, "ESCUDO")
+        end
+
+        if type(attr("PowerupSpeedUntil")) == "number" and (attr("PowerupSpeedUntil") :: number) > now then
+            table.insert(effects, "VELOCIDAD")
+        end
+
+        if type(attr("PowerupFireUntil")) == "number" and (attr("PowerupFireUntil") :: number) > now then
+            table.insert(effects, "PODER")
+        end
+
+        if #effects > 0 then
+            powerupRow.Visible = true
+            setText("PowerupRow", "Text", table.concat(effects, "  +  "))
+        else
+            powerupRow.Visible = false
+        end
+    end
 
     local coreState = attr("CoreState")
     local charge = attr("CoreCharge")
@@ -451,9 +551,9 @@ local function refresh()
         setText("BombStats", "Power", ("%s%s"):format(
             tostring(coreState),
             if type(charge) == "number" then (" (%d)"):format(charge) else ""
-        ))
+        ), "Value")
     else
-        setText("BombStats", "Power", "--")
+        setText("BombStats", "Power", "--", "Value")
     end
 
     -- ------------------------------------------------------------ Objective

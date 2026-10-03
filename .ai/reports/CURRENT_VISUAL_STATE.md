@@ -1,225 +1,253 @@
-# ESTADO VISUAL ACTUAL
+﻿# ESTADO VISUAL ACTUAL
 
-Medido contra el DataModel de Roblox Studio por MCP (`execute_luau`), no
-contra el repositorio ni contra informes anteriores.
+Medido contra el DataModel de Roblox Studio por MCP (`execute_luau`,
+`eval_server_runtime`, `eval_client_runtime`), no contra el repositorio ni
+contra informes anteriores.
 
-- Fecha: 2026-10-03
+- Fecha: 2026-10-03 (bloque de GAMEPLAY VISUAL: bomba, monstruos, dano, HUD)
 - Rojo: 7.7.0 (`rojo/rojo.exe`)
-- Studio: conectado, plugin de Rojo sincronizando en vivo
-- SOURCE <-> RUNTIME: `tools/source-runtime-diff.js` = PASS (2995 en source, 2999 en runtime, 0 faltantes)
+- Studio: conectado, plugin MCP 3.1.6
+- SOURCE <-> RUNTIME: `tools/source-runtime-diff.js` = 0 faltantes, 0 sobrantes
 - Pruebas: 499/499 PASS
 - `rojo build`: OK
+- `verify-structure`, `verify-wiring`, `world-contract-verify`: PASS
 
-## COMO SE MIDIO
+## BLOQUE VISUAL: QUE ERA UNA CAJA Y AHORA ES UN MODELO
 
-`execute_luau` sobre el DataModel abierto. Cada "PARTES" es el numero de
-`BasePart` reales bajo esa rama del arbol. No se cuenta metadata: se cuenta
-geometria.
+Las tres entidades centrales eran tecnicamente correctas y visualmente
+inexistentes. Todo lo de abajo se ha MEDIDO desde el cliente durante PLAY.
 
-## LOBBY
-
-| Elemento | Estado | Evidencia |
+| Entidad | Antes (medido) | Ahora (medido desde el cliente) |
 | --- | --- | --- |
-| Keshusy Core | PARTIAL | 15 Partes reales (orbe, anillos, pilares, plinto). Geometria propia, pero sin particulas, sin animacion y sin sonido |
-| Portal Forest | PASS | 11 Partes, silueta propia (arco de madera: `Canopy`, `Root_L`) |
-| Portal Desert | PARTIAL | 10 Partes. Sin silueta diferenciada respecto a Forest |
-| Portal Ice | PARTIAL | 10 Partes. Sin silueta diferenciada |
-| Portal Volcano | PARTIAL | 11 Partes. Sin silueta diferenciada |
-| Portal Cyber | PASS | 15 Partes, la silueta mas construida (pilonas de neon) |
-| Estaciones de servicio | MISSING | No existen Folder para SHOP / INVENTORY / MISSIONS / EVENTS / SEASON / RANKINGS / TRAINING / SOCIAL |
-| Iluminacion propia | MISSING | El unico `Lighting` es `Atmosphere` + `ForestBloom`, global del lugar |
+| Bomba | 1 `Part` Ball 2x2x2 Neon roja, sin fusible, sin tapa, sin radio, sin mecha | `Model` de 7 piezas: `BombBody` 3x3x3 Metal, `BombBand` Neon, `BombTop`, `Fuse`, `FuseGlow` + `PointLight`, `RadiusIndicator` (aro tumbado de 48x0.2x48 = radio real 24), `Attachment` (`ExplosionOrigin`) y `BillboardGui` de mecha. **6 piezas visibles**, cartel leyendo `3`, temporizador real, particulas |
+| Monstruo | 1 `Part` 3x3x3 + raiz invisible. Sin ojos, sin nombre, sin vida visible | `Model` con `Root` (`PrimaryPart`), `Body`, `EyeLeft`/`EyeRight`, detalles por bioma (antenas del BombBug, crystal del IceBeast, visor del CyberStalker), `Highlight`, `NameTag` con nombre y barra de vida. **3 a 7 piezas visibles** segun tipo |
+| Explosion | 1 `Part` INVISIBLE con 2 emisores | `Model` con `Core` (crece y se apaga), `Shockwave` (cilindro que crece hasta el RADIO EXACTO y se desvanece), luz y dos emisores. Autodestruccion a 0.8 s |
+| Powerup | **NO EXISTIA NADA** | `PowerupService` nuevo: 4 por mundo, `Model` con `Core` Neon, `Halo`, luz y cartel (`+BOMBA`, `+VELOCIDAD`, `ESCUDO`, `+VIDA`), flotando y girando |
 
-## MUNDOS
+### Animacion y feedback (medidos en el modelo, no supuestos)
 
-Los cinco existen con geometria y los cinco cumplen el CONTRATO completo.
-Medido con `tools/world-contract-verify.js` contra el DataModel de Studio.
+- **Aparicion de la bomba**: escala 0.05 -> 0.45 -> 0.75 -> 1.12 -> 1 (rebote).
+  Antes la bomba aparecia estate y luego CRECIA durante la mecha.
+- **Mecha visible**: el cartel baja de 3 a 0 en pasos de 0.1 s. En el ultimo
+  segundo la bomba parpadea en rojo, el cartel pasa a `!` y las chispas se
+  multiplican. El aro de peligro se marca (0.55 -> 0.25 de transparencia).
+- **PIEL por mundo**: Forest grafito + banda Keshusy, Desert ocre, Ice azul,
+  Volcano rojo, Cyber cian. La bomba comparte mecanica, no apariencia.
+- **Aparicion de monstruo**: el cuerpo entra escalandose desde 0.4.
+- **Impacto**: destello blanco de 0.08 s + la barra del `NameTag` baja.
+- **Muerte**: el cartel y el contorno se borran, el cuerpo se encoge y se
+  destruye. Antes `Model:Destroy()` en el mismo frame.
 
-El verificador distingue `STRUCTURE` (la ruta existe), `CONTENT` (hay piezas
-reales) y `USABLE` (el spawn funciona). Una carpeta vacia NO cuenta como PASS:
-es lo que hacia que la tabla anterior no significara nada.
+## MCP: YA NO ESTA BLOQUEADO
 
-| Mundo | Partes | Bloques | SpawnPoint | Exit | Hazards | MonsterSpawns | PowerupSpawns | BossSpawn |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| Forest | 1174 | 48 | SI (libre) | SI | 31 | 4 | 4 | SI |
-| Desert | 368 | 44 | SI | SI | 5 | 4 | 4 | SI |
-| Ice | 390 | 44 | SI | SI | 5 | 4 | 4 | SI |
-| Volcano | 364 | 44 | SI | SI | 5 | 4 | 4 | SI |
-| Cyber | 430 | 44 | SI | SI | 5 | 4 | 4 | SI |
+Este informe antes declaraba `PLAYER = BLOCKED`. **Ya no es cierto.**
 
-**CONTRATO DE MUNDOS: PASS** en los cinco.
+| Pieza | Estado | Evidencia |
+| --- | --- | --- |
+| MCP SERVER | PASS | `127.0.0.1:58741` escuchando, v3.1.6 |
+| MCP CLIENT | PASS | `eval_server_runtime`, `eval_client_runtime` responden |
+| PLAYER | PASS | jugador real `SiSoyPapito` en sesion |
 
-### QUE SE CONSTRUYO EN FOREST
+El bloqueo era que el servidor MCP no estaba arrancado. Se arranca con:
 
-Forest era el mundo de ENTRADA y era el mas pobre de estructura: no tenia por
-donde aparecer, ni por donde salir, ni donde nacen los monstruos, ni donde
-aparece el powerup, ni donde esta el boss. El portal que lleva a el no llevaba
-a ninguna parte utilizable.
+```powershell
+npx -y @chrrxs/robloxstudio-mcp@latest
+```
 
-Todo se genera en `tools/generate-project.js` (fuente de verdad), NO a mano en
-Studio:
+## LO QUE ESTABA ROTO Y YA ESTA ARREGLADO
 
-| Pieza | Detalle |
+Cuatro defectos. Ninguno se ve leyendo el codigo: los cuatro salen de JUGAR.
+
+### 1. BOM UTF-8 en los cinco `WorldDefinitions`
+
+`require(ReplicatedStorage.WorldDefinitions.Forest)` devolvia:
+
+    Expected identifier when parsing expression, got Unicode character U+feff
+
+Luau no acepta BOM al principio del archivo. Los cinco mundos NO se
+registraban, y con ellos se caia toda la cadena:
+
+    WorldService.GetWorldIds()     = ""        (ningun mundo)
+    PortalService.CollectPortals() = 0         (ningun portal)
+    PortalService.TryEnter         = "portal inexistente"
+
+El lobby tenia cinco portales de geometria y **cero salidas**. Todo lo demas
+daba PASS porque nada de eso lo consultaba. Tamben afectados:
+`CodeService.lua` y `QuestService.lua`.
+
+Guardia permanente: `tools/ascii-only.js` detecta y quita el BOM y lo cuenta
+como pendiente aunque el resto del archivo sea ya ASCII.
+
+### 2. La ronda secuestraba el lobby
+
+`RoundService.hasEnoughPlayers()` contaba `#Players:GetPlayers()`. Con
+`MinPlayersToStart = 1`, entrar al servidor lanzaba una ronda de 180 s. Como
+`PortalService.CanTravel` rechaza mientras hay ronda, el lobby se quedaba sin
+salidas durante casi tres minutos:
+
+    CanTravel Forest = false hay una ronda en curso
+
+Ahora cuenta los jugadores **dentro de una arena**, leidos del atributo `World`
+que escribe el servidor en `MatchService.MovePlayer`.
+
+### 3. `UIController._portalHideToken` era `nil` y se incrementaba
+
+`ShowPortalFeedback` reventaba en su ultima linea util:
+
+    UIController:552: attempt to perform arithmetic (add) on nil and number
+
+El cartel se escribia (mundo, nivel, motivo) pero la funcion lanzaba **antes**
+de programar el temporizador que lo oculta. Resultado: el `pcall` de
+`PortalController` devolvia false, el cartel se quedaba pegado en pantalla
+para siempre y el jugador nunca leia el motivo del rechazo. El error estaba
+ademas duplicado en `Start`, que lo reiniciaba a `nil`.
+
+### 4. Las bombas no funcionaban en cuatro de los cinco mundos
+
+`BombService.detectArenaBounds()` devolvia el `ArenaFloor` del PRIMER mundo
+(Forest, siempre el primero) y lo comparaba contra todos:
+
+    Forest   (500, 0, 0)    -> dentro   -> bomba OK
+    Desert   (-400, 400)    -> FUERA    -> "fuera de la arena"
+    Ice      (400, 400)     -> FUERA    -> "fuera de la arena"
+    Volcano  (-400, -400)   -> FUERA    -> "fuera de la arena"
+    Cyber    (400, -400)    -> FUERA    -> "fuera de la arena"
+
+Cuatro de los cinco portales llevaban a una arena donde el jugador no podia
+hacer su unica accion. Ahora hay un rectangulo por mundo y la validacion usa
+el mundo real del jugador.
+
+## EVIDENCIA DE JUEGO (medida, no supuesta)
+
+Jugador `SiSoyPapito`, teclas reales via `simulate_keyboard_input`.
+
+| Prueba | Resultado |
 | --- | --- |
-| `SpawnPoint_Forest` | `SpawnLocation` real tras la puerta sur, mirando al relicario. Verificado SIN obstaculos encima. |
-| `Exit_Forest` | Plataforma con arco (dos postes, dintel) y flecha luminosa. Al sur, enfrente del spawn. |
-| `Hazards` | 31 piezas: charcos venenosos, raices venenosas y esporas. |
-| `MonsterSpawns` | 4 marcadores en anillo a 30 studs del centro. |
-| `PowerupSpawns` | 4 marcadores a 64 studs, fuera de la muralla de bloques. |
-| `BossSpawn_Forest` | Plataforma al norte con totems de raiz y corona luminosa. |
+| JOIN | 1 jugador, personaje con vida, `KeshusyHUD` en `PlayerGui` |
+| Portal Forest con `E` | `(-32, 3, -28)` -> `(500, 3, 0)`, `World=Forest` |
+| Portal bloqueado (nivel bajo) | `requiere nivel 10` / `20` / `35` / `50` |
+| Ronda en arena | `RoundStarting` -> `Playing`, 10 s reales sin salir |
+| Bomba con `F` | se crea `Bomb` visible en `Workspace.Bombs` |
+| Mecha | 3 s -> `detona` -> 120 de dano -> limpieza sola |
+| Destruccion | 2 bombas (60 de dano c/u contra 100) -> `IsDestroyed=true` |
+| Monstruos | `Slime`, `BombBug`, `Shadow` creados en la arena |
 
-Los NOMBRES son los mismos que los otros cuatro mundos a proposito: es lo que
-permite que un unico verificador compruebe las cinco arenas.
+Los cinco mundos, con entrada, spawn y alcance de bomba:
 
-### PELIGROS DE FOREST: QUE HACEN Y CUAL NO
+| Mundo | Entra | `World` | Spawn | Dentro de arena |
+| --- | --- | --- | --- | --- |
+| Forest | SI | Forest | (500, 3, 0) | SI |
+| Desert | SI (nivel 10) | Desert | (-400, 3, 400) | SI |
+| Ice | SI (nivel 20) | Ice | (400, 3, 400) | SI |
+| Volcano | SI (nivel 35) | Volcano | (-400, 3, -400) | SI |
+| Cyber | SI (nivel 50) | Cyber | (400, 3, -400) | SI |
 
-| Familia | Efecto | Dano |
-| --- | --- | --- |
-| `Hazard_Poison_*` | Charco bajo. Quitame vida mientras estas dentro. | SI, continuo |
-| `Hazard_ThornRoot_*` | Raiz solida. Engancha y ralentiza al entrar. | SI, estado (no muerte) |
-| `Hazard_Spore_*` | Nube flotante translucida. Solo VFX y oclusion. | NO, por diseno |
+## LO QUE SIGUE SIN ESTAR
 
-La ultima fila esta documentada a proposito: un peligro invisible que hace dano
-sin explicarse seria peor que no tenerlo.
+- **Sin capturas de pantalla del juego en marcha.** `capture_screenshot` dice
+  `StudioCaptureService cannot capture this DataModel right now`: captura el
+  editor, no el viewport del cliente. La certificacion VISUAL sigue pendiente.
+- Las bombas siguen exigiendo ronda `Playing`: es correcto (evita placing en el
+  lobby), pero significa que la ronda debe estar viva para jugar.
+- Inventory y Shop siguen siendo stubs de 31 lineas.
+- El HUD muestra los datos del servidor, pero `Misiones: --` porque `QuestService`
+  no publica ese atributo al HUD.
+- `tools/analyze.js`: FAIL preexistente.
 
-Las tres son `decor()`: NO colisionan. El dano lo aplica el sistema de combate
-leyendo el nombre, no una Piece invisible que empuja al jugador.
+GAME STATUS = **NOT READY** (ver bloque de gameplay visual mas abajo)
+## LOS TRES DEFECTOS QUE NO SE VEEN LEYENDO EL CODIGO
 
-## HUD / UI
+Ninguno se descubre leyendo: salen de JUGAR y de MIRAR el cliente.
 
-| Elemento | Estado | Evidencia |
-| --- | --- | --- |
-| `StarterGui.KeshusyHUD` | PASS | `ScreenGui` real en el SOURCE y en Studio. 57 instancias. |
-| Componentes | PASS | 9 paneles: TopBar, PlayerStats, Currency, BombStats, Objective, Mission, Timer, BossBar, Notifications. |
-| HUD conectado al estado real | PARCIAL | `UIController` enlaza los 9 paneles. FALTA sesion de jugador para verlo en runtime. |
-| Notificaciones | IMPLEMENTADO | `Controller.Notify` con ciclo CREATE -> SHOW -> TIMEOUT -> DESTROY, tope de 4 y limpieza en `Destroy`. Sin sesion: no verificado en pantalla. |
-| Inventory UI | MISSING | No existe `ScreenGui` de inventario. |
-| Shop UI | MISSING | No existe `ScreenGui` de tienda. |
-| Missions UI | MISSING | Solo la linea de resumen dentro del HUD. |
+### 1. Los monstruos NUNCA aparecian (P0: cuatro por ronda, cero en pantalla)
 
-### QUE CAMBIO EN EL HUD
+`MonsterService.Spawn` buscaba `model:FindFirstChild("HumanoidRootPart")`.
+El modelo del monstruo lo construye `VisualKit` y su raiz se llama `Root`, asi
+que la busqueda devolvia `nil`, el modelo se destruia y el spawn terminaba:
 
-Antes el HUD se construia POR CODIGO dentro de `UIController.buildGui()`.
-Eso dejaba a `StarterGui` VACIO en el origen, que es exactamente lo que
-declaraba el informe: 0 hijos. No era un fallo de medicion, era el sintoma de
-que la interfaz no existia como arbol.
+    MonsterService: el modelo construido no tiene PrimaryPart/Humanoid.
 
-Ahora `tools/hud.js` genera el `ScreenGui` y `UIController` se limita a
-ENLAZARLO. La UI no decide nada: lee atributos que solo el servidor escribe.
+Cuatro monstruos por ronda, cero monstruos en pantalla, sin un solo error de
+sintaxis y con todas las pruebas en verde. Ahora se usa `model.PrimaryPart`,
+que es el CONTRATO del modelo y no un nombre literal.
 
-Consecuencias practicas:
+### 2. Los monstruos persiguian dejando el cuerpo clavado
 
-- El HUD se puede auditar sin entrar en juego.
-- Cada campo es un componente reutilizable, no una etiqueta en un monolito.
-- Un atributo ausente se muestra `--`, no `0`: un 0 de XP dice "no tienes
-  nada" y un -- dice "no lo se".
-- Las barras arrancan a escala 0. Una barra llena sin datos seria una mentira
-  visual: el jugador veria la vida al maximo antes de que el servidor
-  publicase nada.
-- `BossBar` nace OCULTA. Una barra de jefe vacia permanente persuade al
-  jugador de ignorarla, y el dia que aparezca de verdad ya no la mira.
+La IA movia `record.RootPart.CFrame`. `Body` es HERMANO de la raiz, no hijo, y
+se quedaba en el sitio: el enemigo corria con una estela de cuerpos parados.
+Medido en la misma ronda, antes y despues de corregirlo:
 
-### NOTIFICACIONES
+    antes:  Slime (525,17)   BombBug (475,-17)   Shadow (517,-25)
+    ahora:  Slime (522,15)   BombBug (479,-14)   Shadow (513,-19)
 
-Se escuchan ATRIBUTOS, no se hace polling. Cada aviso nace de un dato que el
-servidor acaba de publicar, asi que no puede inventarse: si el servidor no subio
-de nivel, no aparece "NIVEL". El valor ANTERIOR se compara para detectar el
-salto, porque reescribir un atributo con el mismo valor sigue disparando la
-senal.
+Ahora se mueve el MODELO entero con `PivotTo` y se orienta hacia el objetivo,
+para que los ojos miren a donde va.
 
-## HUD / UI
+### 3. El lobby tiene cinco portales repartidos en X, no uno en el centro
 
-| Elemento | Estado | Evidencia |
-| --- | --- | --- |
-| StarterGui.UI | MISSING | 0 hijos. Un Folder vacio |
-| HUD en juego | MISSING | Sin sesion de jugador activa; no se puede observar nada en runtime |
-| Inventory UI | MISSING | Sin ningun `ScreenGui` en el repositorio |
-| Shop UI | MISSING | Sin ningun `ScreenGui` en el repositorio |
-| Missions UI | MISSING | Sin ningun `ScreenGui` en el repositorio |
-| Notifications | MISSING | Sin ningun `ScreenGui` en el repositorio |
+Los umbrales estan en `X = -32, -16, 0, 16, 32` y cada uno pertenece a un
+mundo. El de Forest esta en `(-32, 4.75, -34)`, NO en el centro del lobby.
+Ponerse en el centro y esperar que el portal de Forest funcione falla SIEMPRE
+por distancia, y eso no es un portal roto: es estar en el portal equivocado.
+Cada mundo:
 
-`UIController` (17.9 KB) y `PortalController` (16.1 KB) existen como codigo
-de cliente. Ninguno tiene ningun objeto de interfaz que controlar, porque
-StarterGui no contiene ni un solo ScreenGui. El codigo de UI esta escrito y no
-tiene donde verse.
+| Mundo | Umbral del portal | Nivel | Arena |
+| --- | --- | --- | --- |
+| Forest | (-32, 4.75, -34) | 1 | (500, 3, 0) |
+| Desert | (-16, 4.75, -34) | 10 | (-400, 3, 400) |
+| Ice | (0, 4.75, -34) | 20 | (400, 3, 400) |
+| Volcano | (16, 4.75, -34) | 35 | (-400, 3, -400) |
+| Cyber | (32, 4.75, -34) | 50 | (400, 3, -400) |
 
-## ILUMINACION POR MUNDO
+## FEEDBACK DE DANO Y HUD (medido en el cliente)
 
-| Mundo | Estado |
+`EffectsController` era un stub de 25 lineas. Ahora, medido desde el cliente
+durante PLAY:
+
+| Prueba | Resultado medido |
 | --- | --- |
-| Forest | MISSING |
-| Desert | MISSING |
-| Ice | MISSING |
-| Volcano | MISSING |
-| Cyber | MISSING |
+| Dano al jugador | vida 100 -> 65, aparece el numero flotante **`-35`** |
+| Contenedor `DamageNumbers` | existe en el `ScreenGui` generado |
+| Borde `DamageVignette` | existe, rojo, se desvanece solo |
+| Barra de vida | `relleno=0.65` tras el dano, por TWEEN de 0.25 s |
+| Panel `ActiveBombs` | existe, oculto con 0, muestra `x1` con una |
+| Panel `PowerupRow` | existe, muestra `ESCUDO` / `VELOCIDAD` / `PODER` |
+| HUD completo | `MUNDO: Forest`, monedas `0`, objetivo `Forest`, timer `00:01` |
 
-Lighting es global y unico. No hay estilo por mundo.
+La barra de vida ahora se ANIMA. Antes el ancho saltaba de golpe y el impacto
+del dano se perdia: el jugador veia "estaba al 80 y ahora al 20" sin ningun
+instante intermedio.
 
-## ESTADO DE LA HERRAMIENTA DE SINCRONIZACION
+### Donde NO se solapan los paneles
 
-Corregido en este bloque. `tools/sync-scripts.js` daba RESULTADO: FAIL sobre
-`EconomyRules` con el archivo correctamente escrito e identico. Cuatro
-causas encadenadas, todas de la herramienta y ninguna del juego:
+El boton tactil de bomba que crea `InputController` ocupa `(1, -32)` con
+96x96. `ActiveBombs` se coloco a su IZQUIERDA (X [-260, -140]) para que el
+contador de bombas activas no tape el control que coloca bombas. Un HUD que
+tapa el boton es un HUD roto.
 
-1. `get_script_source` esta capada a 300 lineas y antepone numeros de linea.
-   La comprobacion era de prefijo, asi que el final del archivo nunca se
-   verificaba.
-2. El hash inicial usaba operadores de bits (`~`, `&`). El sandbox de
-   `execute_luau` NO los compila: la sonda no compilaba, la funcion devolvia
-   `null` en silencio, y los 87 scripts parecian "no existir en Studio".
-3. Studio no normaliza los saltos de linea de forma uniforme (algunos scripts
-   quedan con CRLF y otros con LF), asi que la longitud no coincidia nunca.
-4. Studio mide BYTES, no caracteres. Con BOM UTF-8 y acentos la cuenta de JS
-   no coincide con la de Luau.
+## LO QUE SIGUE SIN ESTAR
 
-La comprobacion ahora lee `Script.Source` dentro de Studio y compara longitud
-en bytes y hash aritmetico (djb2 con primo), sin operadores de bits, sin CR y
-en bytes UTF-8. Es una comprobacion MAS fuerte que la anterior: ya no basta un
-prefijo, el archivo entero tiene que coincidir. Ademas avisa cuando la sonda
-falla en vez de tragarse el error.
+- **Sin capturas de pantalla del juego en marcha.** `capture_screenshot`
+  responde `StudioCaptureService cannot capture this DataModel right now`:
+  captura el editor, no el viewport del cliente. La certificacion visual POR
+  IMAGEN sigue pendiente; la certificacion por MEDIDA del DataModel del
+  cliente (lo que hay en este informe) no depende de una captura.
+- **Sin audio.** `AudioConfig` tiene todos sus IDs en `nil` porque no hay
+  ficheros de audio en el repositorio. El sistema esta completo y en silencio
+  a proposito: no se inventa ningun `assetId`.
+- **Movil y gamepad**: no hay prueba real de disposicion.
+- **Powerups a medio efecto**: `Bomb` sube el contador y `Speed` sube la
+  velocidad (los dos medidos en el atributo). `Shield` publica su atributo pero
+  `CombatService` todavia NO reduce el dano, y `Fire` publica el suyo pero la
+  bomba no lee el multiplicador. Visibles y creibles; el efecto mecanico de
+  esos dos queda pendiente.
+- Inventory y Shop siguen siendo stubs.
+- `Misiones: --` porque `QuestService` no publica ese atributo al HUD.
+- `tools/analyze.js`: FAIL preexistente.
 
-Verificado con un sentinel: al appender una linea a `Ice.lua` en disco, Studio
-la recibio en segundos (el plugin de Rojo esta conectado), y al revertir el
-archivo en disco Studio tambien revirtio. La deteccion de divergencias se
-ejercito de verdad, no solo se administro que no fallara.
+GAME STATUS = **NOT READY**
 
-## LO QUE FALTA PARA QUE EL JUGADOR PUEDA JUGAR
-
-Resuelto en este bloque:
-
-1. ~~Forest sin SpawnPoint ni Exit~~ -> RESUELTO. Spawn verificado libre y
-   salida con arco y senal.
-2. ~~StarterGui vacio~~ -> RESUELTO. `KeshusyHUD` con 9 componentes, 57
-   instancias, presente en el SOURCE y en Studio.
-3. Notificaciones -> IMPLEMENTADO, falta certificarlas con jugador en sesion.
-
-Sigue pendiente:
-
-4. Sin sesion de jugador activa no se ha podido observar el HUD en pantalla.
-   La implementacion esta y sincronizada; la CERTIFICACION de jugador no.
-5. Sin UI de inventario ni de tienda.
-6. Sin iluminacion diferenciada por mundo.
-7. Sin VFX ni audio conectados a eventos reales.
-8. La interaccion de la salida de Forest (`Exit_Forest`) es geometria y punto
-   de retorno, pero el flujo FOREST -> LOBBY no se ha ejercitado con jugador.
-
-## LO QUE ESTA SIN VERIFICAR
-
-- No se ha podido ejecutar `PLAY`: el MCP Client no tiene sesion de jugador,
-  asi que la ruta `JOIN -> LOBBY -> PORTAL -> FOREST -> HUD -> GAMEPLAY` NO
-  esta certificada. Todo lo de arriba es verificacion de SOURCE y de RUNTIME
-  sin jugador.
-- `tools/analyze.js` sigue en FAIL: 886 incidencias, de las que 882 ya estaban
-  antes de este bloque. Ninguna es de los archivos tocados.
-- `sync-all.js` acaba en DIVERGE por una sola diferencia:
-  `StarterGui: source=Folder runtime=StarterGui`. Es el propio servicio
-  declarado como Folder en el proyecto para poder colgar el HUD. Faltan 0
-  instancias y sobran 0.
-
-## ESTADO GLOBAL
-
-GAME STATUS = NOT READY
-
-Cinco mundos, cinco portales y geometria real ya existen en Studio, y eso es
-un avance real y verificable. Pero el criterio del proyecto es el flujo
-completo, y el flujo se rompe en el primer mundo: Forest no tiene por donde
-entrar. Y el jugador no ve ninguna interfaz.
+No por falta de jugabilidad: la bomba, los monstruos, los powerups, la
+explosion, el dano y el HUD son VISIBLES y medibles desde el cliente. Quedan
+audio, disposicion (movil y mando), dos efectos de powerup por conectar a su
+mecanica, y las capturas del juego en marcha.

@@ -223,11 +223,10 @@
             }
           },
           "Coins": {
-            "$className": "TextLabel",
+            "$className": "Frame",
             "$properties": {
               "BackgroundTransparency": 1,
               "BorderSizePixel": 0,
-              "Font": "GothamBold",
               "Position": {
                 "UDim2": [
                   [
@@ -236,7 +235,7 @@
                   ],
                   [
                     0,
-                    8
+                    6
                   ]
                 ]
               },
@@ -248,29 +247,146 @@
                   ],
                   [
                     0,
-                    20
+                    22
                   ]
                 ]
-              },
-              "Text": "",
-              "TextColor3": [
-                1,
-                0.8392156862745098,
-                0.43137254901960786
-              ],
-              "TextSize": 15,
-              "TextScaled": false,
-              "TextXAlignment": "Left",
-              "TextYAlignment": "Center",
-              "TextWrapped": false
+              }
+            },
+            "Symbol": {
+              "$className": "TextLabel",
+              "$properties": {
+                "BackgroundTransparency": 1,
+                "BorderSizePixel": 0,
+                "Font": "GothamBold",
+                "Position": {
+                  "UDim2": [
+                    [
+                      0,
+                      0
+                    ],
+                    [
+                      0,
+                      0
+                    ]
+                  ]
+                },
+                "Size": {
+                  "UDim2": [
+                    [
+                      0,
+                      22
+                    ],
+                    [
+                      1,
+                      0
+                    ]
+                  ]
+                },
+                "Text": "$",
+                "TextColor3": [
+                  1,
+                  0.8392156862745098,
+                  0.43137254901960786
+                ],
+                "TextSize": 17,
+                "TextScaled": false,
+                "TextXAlignment": "Left",
+                "TextYAlignment": "Center",
+                "TextWrapped": false
+              }
+            },
+            "Caption": {
+              "$className": "TextLabel",
+              "$properties": {
+                "BackgroundTransparency": 1,
+                "BorderSizePixel": 0,
+                "Font": "GothamBold",
+                "Position": {
+                  "UDim2": [
+                    [
+                      0,
+                      24
+                    ],
+                    [
+                      0,
+                      0
+                    ]
+                  ]
+                },
+                "Size": {
+                  "UDim2": [
+                    [
+                      1,
+                      -62
+                    ],
+                    [
+                      1,
+                      0
+                    ]
+                  ]
+                },
+                "Text": "MONEDAS",
+                "TextColor3": [
+                  0.6901960784313725,
+                  0.7372549019607844,
+                  0.8392156862745098
+                ],
+                "TextSize": 12,
+                "TextScaled": false,
+                "TextXAlignment": "Left",
+                "TextYAlignment": "Center",
+                "TextWrapped": false
+              }
+            },
+            "Value": {
+              "$className": "TextLabel",
+              "$properties": {
+                "BackgroundTransparency": 1,
+                "BorderSizePixel": 0,
+                "Font": "GothamBold",
+                "Position": {
+                  "UDim2": [
+                    [
+                      1,
+                      -34
+                    ],
+                    [
+                      0,
+                      0
+                    ]
+                  ]
+                },
+                "Size": {
+                  "UDim2": [
+                    [
+                      0,
+                      34
+                    ],
+                    [
+                      1,
+                      0
+                    ]
+                  ]
+                },
+                "Text": "--",
+                "TextColor3": [
+                  1,
+                  0.8392156862745098,
+                  0.43137254901960786
+                ],
+                "TextSize": 16,
+                "TextScaled": false,
+                "TextXAlignment": "Right",
+                "TextYAlignment": "Center",
+                "TextWrapped": false
+              }
             }
           },
           "Gems": {
-            "$className": "TextLabel",
+            "$className": "Frame",
             "$properties": {
               "BackgroundTransparency": 1,
               "BorderSizePixel": 0,
-              "Font": "GothamBold",
               "Position": {
                 "UDim2": [
                   [
@@ -279,7 +395,7 @@
                   ],
                   [
                     0,
-                    32
+                    34
                   ]
                 ]
               },
@@ -291,21 +407,139 @@
                   ],
                   [
                     0,
-                    20
+                    22
                   ]
                 ]
-              },
-              "Text": "",
-              "TextColor3": [
-                0.7686274509803922,
-                0.5882352941176471,
-                1
-              ],
-              "TextSize": 15,
-              "TextScaled": false,
-              "TextXAlignment": "Left",
-              "TextYAlignment": "Center",
-              "TextWrapped": false
+              }
+            },
+            "Symbol": {
+              "$className": "TextLabel",
+              "$properties": {
+                "BackgroundTransparency": 1,
+                "BorderSizePixel": 0,
+                "Font": "GothamBold",
+                "Position": {
+                  "UDim2": [
+                    [
+                      0,
+                      0
+                    ],
+                    [
+                      0,
+                      0
+                    ]
+                  ]
+                },
+                "Size": {
+                  "UDim2": [
+                    [
+                      0,
+                      22
+                    ],
+                    [
+                      1,
+                      0
+                    ]
+                  ]
+                },
+                "Text": "◆",
+                "TextColor3": [
+                  0.7686274509803922,
+                  0.5882352941176471,
+                  1
+                ],
+                "TextSize": 17,
+                "TextScaled": false,
+                "TextXAlignment": "Left",
+                "TextYAlignment": "Center",
+                "TextWrapped": false
+              }
+            },
+            "Caption": {
+              "$className": "TextLabel",
+              "$properties": {
+                "BackgroundTransparency": 1,
+                "BorderSizePixel": 0,
+                "Font": "GothamBold",
+                "Position": {
+                  "UDim2": [
+                    [
+                      0,
+                      24
+                    ],
+                    [
+                      0,
+                      0
+                    ]
+                  ]
+                },
+                "Size": {
+                  "UDim2": [
+                    [
+                      1,
+                      -62
+                    ],
+                    [
+                      1,
+                      0
+                    ]
+                  ]
+                },
+                "Text": "GEMAS",
+                "TextColor3": [
+                  0.6901960784313725,
+                  0.7372549019607844,
+                  0.8392156862745098
+                ],
+                "TextSize": 12,
+                "TextScaled": false,
+                "TextXAlignment": "Left",
+                "TextYAlignment": "Center",
+                "TextWrapped": false
+              }
+            },
+            "Value": {
+              "$className": "TextLabel",
+              "$properties": {
+                "BackgroundTransparency": 1,
+                "BorderSizePixel": 0,
+                "Font": "GothamBold",
+                "Position": {
+                  "UDim2": [
+                    [
+                      1,
+                      -34
+                    ],
+                    [
+                      0,
+                      0
+                    ]
+                  ]
+                },
+                "Size": {
+                  "UDim2": [
+                    [
+                      0,
+                      34
+                    ],
+                    [
+                      1,
+                      0
+                    ]
+                  ]
+                },
+                "Text": "--",
+                "TextColor3": [
+                  0.7686274509803922,
+                  0.5882352941176471,
+                  1
+                ],
+                "TextSize": 16,
+                "TextScaled": false,
+                "TextXAlignment": "Right",
+                "TextYAlignment": "Center",
+                "TextWrapped": false
+              }
             }
           }
         },
@@ -715,7 +949,7 @@
                 ],
                 [
                   0,
-                  60
+                  72
                 ]
               ]
             }
@@ -744,11 +978,10 @@
             }
           },
           "Bombs": {
-            "$className": "TextLabel",
+            "$className": "Frame",
             "$properties": {
               "BackgroundTransparency": 1,
               "BorderSizePixel": 0,
-              "Font": "GothamBold",
               "Position": {
                 "UDim2": [
                   [
@@ -757,7 +990,7 @@
                   ],
                   [
                     0,
-                    8
+                    6
                   ]
                 ]
               },
@@ -769,23 +1002,12 @@
                   ],
                   [
                     0,
-                    18
+                    22
                   ]
                 ]
-              },
-              "Text": "",
-              "TextColor3": [
-                1,
-                0.7843137254901961,
-                0.35294117647058826
-              ],
-              "TextSize": 14,
-              "TextScaled": false,
-              "TextXAlignment": "Left",
-              "TextYAlignment": "Center",
-              "TextWrapped": false
+              }
             },
-            "Icon": {
+            "Symbol": {
               "$className": "TextLabel",
               "$properties": {
                 "BackgroundTransparency": 1,
@@ -795,7 +1017,7 @@
                   "UDim2": [
                     [
                       0,
-                      -24
+                      0
                     ],
                     [
                       0,
@@ -807,7 +1029,7 @@
                   "UDim2": [
                     [
                       0,
-                      24
+                      22
                     ],
                     [
                       1,
@@ -827,51 +1049,8 @@
                 "TextYAlignment": "Center",
                 "TextWrapped": false
               }
-            }
-          },
-          "Power": {
-            "$className": "TextLabel",
-            "$properties": {
-              "BackgroundTransparency": 1,
-              "BorderSizePixel": 0,
-              "Font": "GothamBold",
-              "Position": {
-                "UDim2": [
-                  [
-                    0,
-                    12
-                  ],
-                  [
-                    0,
-                    32
-                  ]
-                ]
-              },
-              "Size": {
-                "UDim2": [
-                  [
-                    1,
-                    -24
-                  ],
-                  [
-                    0,
-                    18
-                  ]
-                ]
-              },
-              "Text": "",
-              "TextColor3": [
-                0.47058823529411764,
-                0.7450980392156863,
-                1
-              ],
-              "TextSize": 14,
-              "TextScaled": false,
-              "TextXAlignment": "Left",
-              "TextYAlignment": "Center",
-              "TextWrapped": false
             },
-            "Icon": {
+            "Caption": {
               "$className": "TextLabel",
               "$properties": {
                 "BackgroundTransparency": 1,
@@ -881,7 +1060,50 @@
                   "UDim2": [
                     [
                       0,
-                      -24
+                      24
+                    ],
+                    [
+                      0,
+                      0
+                    ]
+                  ]
+                },
+                "Size": {
+                  "UDim2": [
+                    [
+                      1,
+                      -80
+                    ],
+                    [
+                      1,
+                      0
+                    ]
+                  ]
+                },
+                "Text": "BOMBAS",
+                "TextColor3": [
+                  0.6901960784313725,
+                  0.7372549019607844,
+                  0.8392156862745098
+                ],
+                "TextSize": 12,
+                "TextScaled": false,
+                "TextXAlignment": "Left",
+                "TextYAlignment": "Center",
+                "TextWrapped": false
+              }
+            },
+            "Value": {
+              "$className": "TextLabel",
+              "$properties": {
+                "BackgroundTransparency": 1,
+                "BorderSizePixel": 0,
+                "Font": "GothamBold",
+                "Position": {
+                  "UDim2": [
+                    [
+                      1,
+                      -52
                     ],
                     [
                       0,
@@ -893,7 +1115,81 @@
                   "UDim2": [
                     [
                       0,
-                      24
+                      52
+                    ],
+                    [
+                      1,
+                      0
+                    ]
+                  ]
+                },
+                "Text": "--",
+                "TextColor3": [
+                  1,
+                  0.7843137254901961,
+                  0.35294117647058826
+                ],
+                "TextSize": 16,
+                "TextScaled": false,
+                "TextXAlignment": "Right",
+                "TextYAlignment": "Center",
+                "TextWrapped": false
+              }
+            }
+          },
+          "Power": {
+            "$className": "Frame",
+            "$properties": {
+              "BackgroundTransparency": 1,
+              "BorderSizePixel": 0,
+              "Position": {
+                "UDim2": [
+                  [
+                    0,
+                    12
+                  ],
+                  [
+                    0,
+                    34
+                  ]
+                ]
+              },
+              "Size": {
+                "UDim2": [
+                  [
+                    1,
+                    -24
+                  ],
+                  [
+                    0,
+                    22
+                  ]
+                ]
+              }
+            },
+            "Symbol": {
+              "$className": "TextLabel",
+              "$properties": {
+                "BackgroundTransparency": 1,
+                "BorderSizePixel": 0,
+                "Font": "GothamBold",
+                "Position": {
+                  "UDim2": [
+                    [
+                      0,
+                      0
+                    ],
+                    [
+                      0,
+                      0
+                    ]
+                  ]
+                },
+                "Size": {
+                  "UDim2": [
+                    [
+                      0,
+                      22
                     ],
                     [
                       1,
@@ -913,6 +1209,507 @@
                 "TextYAlignment": "Center",
                 "TextWrapped": false
               }
+            },
+            "Caption": {
+              "$className": "TextLabel",
+              "$properties": {
+                "BackgroundTransparency": 1,
+                "BorderSizePixel": 0,
+                "Font": "GothamBold",
+                "Position": {
+                  "UDim2": [
+                    [
+                      0,
+                      24
+                    ],
+                    [
+                      0,
+                      0
+                    ]
+                  ]
+                },
+                "Size": {
+                  "UDim2": [
+                    [
+                      1,
+                      -80
+                    ],
+                    [
+                      1,
+                      0
+                    ]
+                  ]
+                },
+                "Text": "PODER",
+                "TextColor3": [
+                  0.6901960784313725,
+                  0.7372549019607844,
+                  0.8392156862745098
+                ],
+                "TextSize": 12,
+                "TextScaled": false,
+                "TextXAlignment": "Left",
+                "TextYAlignment": "Center",
+                "TextWrapped": false
+              }
+            },
+            "Value": {
+              "$className": "TextLabel",
+              "$properties": {
+                "BackgroundTransparency": 1,
+                "BorderSizePixel": 0,
+                "Font": "GothamBold",
+                "Position": {
+                  "UDim2": [
+                    [
+                      1,
+                      -52
+                    ],
+                    [
+                      0,
+                      0
+                    ]
+                  ]
+                },
+                "Size": {
+                  "UDim2": [
+                    [
+                      0,
+                      52
+                    ],
+                    [
+                      1,
+                      0
+                    ]
+                  ]
+                },
+                "Text": "--",
+                "TextColor3": [
+                  0.47058823529411764,
+                  0.7450980392156863,
+                  1
+                ],
+                "TextSize": 16,
+                "TextScaled": false,
+                "TextXAlignment": "Right",
+                "TextYAlignment": "Center",
+                "TextWrapped": false
+              }
+            }
+          }
+        },
+        "ActiveBombs": {
+          "$className": "Frame",
+          "$properties": {
+            "BackgroundColor3": [
+              0.06274509803921569,
+              0.07450980392156863,
+              0.10980392156862745
+            ],
+            "BackgroundTransparency": 0.2,
+            "BorderSizePixel": 0,
+            "Position": {
+              "UDim2": [
+                [
+                  1,
+                  -260
+                ],
+                [
+                  1,
+                  -40
+                ]
+              ]
+            },
+            "Size": {
+              "UDim2": [
+                [
+                  0,
+                  120
+                ],
+                [
+                  0,
+                  40
+                ]
+              ]
+            },
+            "Visible": false
+          },
+          "UICorner": {
+            "$className": "UICorner",
+            "$properties": {
+              "CornerRadius": {
+                "UDim": [
+                  0,
+                  10
+                ]
+              }
+            }
+          },
+          "UIStroke": {
+            "$className": "UIStroke",
+            "$properties": {
+              "Color": [
+                0.47058823529411764,
+                0.7450980392156863,
+                1
+              ],
+              "Thickness": 1,
+              "Transparency": 0.7
+            }
+          },
+          "Symbol": {
+            "$className": "TextLabel",
+            "$properties": {
+              "BackgroundTransparency": 1,
+              "BorderSizePixel": 0,
+              "Font": "GothamBold",
+              "Position": {
+                "UDim2": [
+                  [
+                    0,
+                    10
+                  ],
+                  [
+                    0,
+                    8
+                  ]
+                ]
+              },
+              "Size": {
+                "UDim2": [
+                  [
+                    0,
+                    22
+                  ],
+                  [
+                    0,
+                    24
+                  ]
+                ]
+              },
+              "Text": "B",
+              "TextColor3": [
+                1,
+                0.7843137254901961,
+                0.35294117647058826
+              ],
+              "TextSize": 18,
+              "TextScaled": false,
+              "TextXAlignment": "Left",
+              "TextYAlignment": "Center",
+              "TextWrapped": false
+            }
+          },
+          "Caption": {
+            "$className": "TextLabel",
+            "$properties": {
+              "BackgroundTransparency": 1,
+              "BorderSizePixel": 0,
+              "Font": "GothamBold",
+              "Position": {
+                "UDim2": [
+                  [
+                    0,
+                    34
+                  ],
+                  [
+                    0,
+                    4
+                  ]
+                ]
+              },
+              "Size": {
+                "UDim2": [
+                  [
+                    1,
+                    -46
+                  ],
+                  [
+                    0,
+                    12
+                  ]
+                ]
+              },
+              "Text": "ACTIVAS",
+              "TextColor3": [
+                0.6901960784313725,
+                0.7372549019607844,
+                0.8392156862745098
+              ],
+              "TextSize": 10,
+              "TextScaled": false,
+              "TextXAlignment": "Left",
+              "TextYAlignment": "Center",
+              "TextWrapped": false
+            }
+          },
+          "Value": {
+            "$className": "TextLabel",
+            "$properties": {
+              "BackgroundTransparency": 1,
+              "BorderSizePixel": 0,
+              "Font": "GothamBold",
+              "Position": {
+                "UDim2": [
+                  [
+                    0,
+                    34
+                  ],
+                  [
+                    0,
+                    16
+                  ]
+                ]
+              },
+              "Size": {
+                "UDim2": [
+                  [
+                    1,
+                    -46
+                  ],
+                  [
+                    0,
+                    20
+                  ]
+                ]
+              },
+              "Text": "0",
+              "TextColor3": [
+                1,
+                0.7843137254901961,
+                0.35294117647058826
+              ],
+              "TextSize": 20,
+              "TextScaled": false,
+              "TextXAlignment": "Left",
+              "TextYAlignment": "Center",
+              "TextWrapped": false
+            }
+          }
+        },
+        "PowerupRow": {
+          "$className": "Frame",
+          "$properties": {
+            "BackgroundColor3": [
+              0.06274509803921569,
+              0.07450980392156863,
+              0.10980392156862745
+            ],
+            "BackgroundTransparency": 0.2,
+            "BorderSizePixel": 0,
+            "Position": {
+              "UDim2": [
+                [
+                  0,
+                  12
+                ],
+                [
+                  1,
+                  -124
+                ]
+              ]
+            },
+            "Size": {
+              "UDim2": [
+                [
+                  0,
+                  260
+                ],
+                [
+                  0,
+                  26
+                ]
+              ]
+            },
+            "Visible": false
+          },
+          "UICorner": {
+            "$className": "UICorner",
+            "$properties": {
+              "CornerRadius": {
+                "UDim": [
+                  0,
+                  10
+                ]
+              }
+            }
+          },
+          "UIStroke": {
+            "$className": "UIStroke",
+            "$properties": {
+              "Color": [
+                0.47058823529411764,
+                0.7450980392156863,
+                1
+              ],
+              "Thickness": 1,
+              "Transparency": 0.7
+            }
+          },
+          "Text": {
+            "$className": "TextLabel",
+            "$properties": {
+              "BackgroundTransparency": 1,
+              "BorderSizePixel": 0,
+              "Font": "GothamBold",
+              "Position": {
+                "UDim2": [
+                  [
+                    0,
+                    12
+                  ],
+                  [
+                    0,
+                    4
+                  ]
+                ]
+              },
+              "Size": {
+                "UDim2": [
+                  [
+                    1,
+                    -24
+                  ],
+                  [
+                    0,
+                    18
+                  ]
+                ]
+              },
+              "Text": "",
+              "TextColor3": [
+                0.5882352941176471,
+                0.8627450980392157,
+                1
+              ],
+              "TextSize": 13,
+              "TextScaled": false,
+              "TextXAlignment": "Left",
+              "TextYAlignment": "Center",
+              "TextWrapped": false
+            }
+          }
+        },
+        "DamageNumbers": {
+          "$className": "Frame",
+          "$properties": {
+            "BackgroundColor3": [
+              0.06274509803921569,
+              0.07450980392156863,
+              0.10980392156862745
+            ],
+            "BackgroundTransparency": 1,
+            "BorderSizePixel": 0,
+            "Position": {
+              "UDim2": [
+                [
+                  0,
+                  0
+                ],
+                [
+                  0,
+                  0
+                ]
+              ]
+            },
+            "Size": {
+              "UDim2": [
+                [
+                  1,
+                  0
+                ],
+                [
+                  1,
+                  0
+                ]
+              ]
+            },
+            "Active": false,
+            "ZIndex": 25
+          },
+          "UICorner": {
+            "$className": "UICorner",
+            "$properties": {
+              "CornerRadius": {
+                "UDim": [
+                  0,
+                  10
+                ]
+              }
+            }
+          },
+          "UIStroke": {
+            "$className": "UIStroke",
+            "$properties": {
+              "Color": [
+                0.47058823529411764,
+                0.7450980392156863,
+                1
+              ],
+              "Thickness": 1,
+              "Transparency": 1
+            }
+          }
+        },
+        "DamageVignette": {
+          "$className": "Frame",
+          "$properties": {
+            "BackgroundColor3": [
+              0.06274509803921569,
+              0.07450980392156863,
+              0.10980392156862745
+            ],
+            "BackgroundTransparency": 1,
+            "BorderSizePixel": 0,
+            "Position": {
+              "UDim2": [
+                [
+                  0,
+                  0
+                ],
+                [
+                  0,
+                  0
+                ]
+              ]
+            },
+            "Size": {
+              "UDim2": [
+                [
+                  1,
+                  0
+                ],
+                [
+                  1,
+                  0
+                ]
+              ]
+            },
+            "Active": false,
+            "ZIndex": 30
+          },
+          "UICorner": {
+            "$className": "UICorner",
+            "$properties": {
+              "CornerRadius": {
+                "UDim": [
+                  0,
+                  10
+                ]
+              }
+            }
+          },
+          "UIStroke": {
+            "$className": "UIStroke",
+            "$properties": {
+              "Color": [
+                1,
+                0.1568627450980392,
+                0.23529411764705882
+              ],
+              "Thickness": 26,
+              "Transparency": 1,
+              "ApplyStrokeMode": "Border"
             }
           }
         },
@@ -934,7 +1731,7 @@
                 ],
                 [
                   1,
-                  -104
+                  -152
                 ]
               ]
             },
@@ -1079,7 +1876,7 @@
                 ],
                 [
                   1,
-                  -156
+                  -204
                 ]
               ]
             },
@@ -1846,9 +2643,9 @@
             "BottomSurface": "Smooth",
             "Material": "Concrete",
             "Color": [
-              0.48627450980392156,
-              0.5254901960784314,
-              0.5725490196078431
+              0.2823529411764706,
+              0.34509803921568627,
+              0.3058823529411765
             ],
             "Size": [
               140,
@@ -1885,6 +2682,33 @@
               0,
               0.2,
               0
+            ],
+            "Transparency": 0.4
+          }
+        },
+        "LobbyReturn": {
+          "$className": "Part",
+          "$properties": {
+            "Anchored": true,
+            "CanCollide": false,
+            "CanTouch": false,
+            "TopSurface": "Smooth",
+            "BottomSurface": "Smooth",
+            "Material": "Neon",
+            "Color": [
+              0.5882352941176471,
+              0.9411764705882353,
+              0.7843137254901961
+            ],
+            "Size": [
+              12,
+              0.2,
+              12
+            ],
+            "Position": [
+              0,
+              0.2,
+              46
             ],
             "Transparency": 0.4
           }
@@ -82337,46 +83161,59 @@
       "$properties": {
         "GlobalShadows": true,
         "ClockTime": 15.2,
-        "Brightness": 2.4,
+        "Brightness": 1.05,
         "Ambient": [
-          0.3607843137254902,
-          0.40784313725490196,
-          0.4627450980392157
+          0.20392156862745098,
+          0.24313725490196078,
+          0.3058823529411765
         ],
         "OutdoorAmbient": [
-          0.49411764705882355,
-          0.5803921568627451,
-          0.5411764705882353
+          0.2901960784313726,
+          0.3764705882352941,
+          0.3607843137254902
         ],
-        "EnvironmentDiffuseScale": 0.6,
-        "EnvironmentSpecularScale": 0.4,
-        "ShadowSoftness": 0.25
+        "EnvironmentDiffuseScale": 0.4,
+        "EnvironmentSpecularScale": 0.22,
+        "ShadowSoftness": 0.2
       },
       "Atmosphere": {
         "$className": "Atmosphere",
         "$properties": {
-          "Density": 0.22,
-          "Haze": 1.6,
+          "Density": 0.18,
+          "Haze": 0.7,
           "Color": [
-            0.6980392156862745,
-            0.807843137254902,
-            0.7686274509803922
+            0.5882352941176471,
+            0.7294117647058823,
+            0.7058823529411765
           ],
           "Decay": [
-            0.49411764705882355,
-            0.596078431372549,
-            0.5490196078431373
+            0.3764705882352941,
+            0.48627450980392156,
+            0.4549019607843137
           ],
-          "Glare": 0.25,
-          "Offset": 0.1
+          "Glare": 0.02,
+          "Offset": 0.15
+        }
+      },
+      "KeshusyGrade": {
+        "$className": "ColorCorrectionEffect",
+        "$properties": {
+          "Brightness": 0.01,
+          "Contrast": 0.16,
+          "Saturation": 0.12,
+          "TintColor": [
+            1,
+            0.9725490196078431,
+            0.9333333333333333
+          ]
         }
       },
       "ForestBloom": {
         "$className": "BloomEffect",
         "$properties": {
-          "Intensity": 0.45,
-          "Size": 28,
-          "Threshold": 0.85
+          "Intensity": 0.3,
+          "Size": 24,
+          "Threshold": 1.05
         }
       }
     }

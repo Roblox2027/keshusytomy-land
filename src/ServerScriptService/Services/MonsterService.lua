@@ -20,6 +20,7 @@ local UTILS = SHARED:WaitForChild("Utils")
 local FeatureConfig = require(CONFIG:WaitForChild("FeatureConfig"))
 local PerformanceConfig = require(CONFIG:WaitForChild("PerformanceConfig"))
 local AIService = require(SHARED:WaitForChild("Libraries"):WaitForChild("AIService"))
+local VisualKit = require(SHARED:WaitForChild("Libraries"):WaitForChild("VisualKit"))
 local MonsterDefinitions = require(SHARED:WaitForChild("MonsterDefinitions"))
 local Logger = require(UTILS:WaitForChild("Logger"))
 
@@ -127,40 +128,84 @@ local function buildMonsterModel(def: any): Model?
 		return nil
 	end
 
-	local root = Instance.new("Part")
-	root.Name = "HumanoidRootPart"
-	root.Size = Vector3.new(2, 2, 1)
-	root.Anchored = true
-	root.CanCollide = false
-	root.CanTouch = false
-	root.CanQuery = false
-	root.Transparency = 1
+	-- MEDIDO en PLAY: esto era un cubo 3x3x3 con una raiz invisible. El
+	-- jugador veia "un bloque de color" y no podia distinguir un Slime de un
+	-- Cyber Stalker ni saber cuanta vida le queda. La construccion visual
+	-- (ojos, cartel, contorno, detalles de bioma) vive en `VisualKit`.
+	local model = VisualKit.BuildMonster(def)
 
-	local body = Instance.new("Part")
-	body.Name = "Body"
-	body.Size = Vector3.new(3, 3, 3)
-	body.Anchored = true
-	body.CanCollide = true
-	body.Material = def.Material
-	body.Color = def.Color
-	body:SetAttribute("MonsterId", def.Id)
+	if not model then
+		return nil
+	end
+
+	local root = model.PrimaryPart
+
+	if not root then
+		model:Destroy()
+		return nil
+	end
 
 	local humanoid = Instance.new("Humanoid")
 	humanoid.MaxHealth = def.Health
 	humanoid.Health = def.Health
 	humanoid.WalkSpeed = def.Speed
 	humanoid.DisplayName = def.Name
-
-	local model = Instance.new("Model")
-	model.Name = ("Monster_%s"):format(def.Id)
-	model.PrimaryPart = root
-
-	root.Parent = model
-	body.Parent = model
 	humanoid.Parent = model
+
 	model.Parent = folder
 
 	return model
+end
+
+--- Refleja la vida real en el cartel que lleva encima del monstruo.
+---
+--- El jugador tiene que ver "cuanto le queda" sin abrir nada: es la
+--- diferencia entre atacar a ciegas y decidir donde poner la bomba.
+--- @param record table
+local function syncMonsterHealthTag(record: { [string]: any })
+	local humanoid = record.Humanoid
+	local tag = record.Model and record.Model:FindFirstChild("NameTag", true)
+
+	if not humanoid or not tag then
+		return
+	end
+
+	local fill = tag:FindFirstChild("Fill", true)
+
+	if fill and fill:IsA("GuiObject") then
+		local ratio = if humanoid.MaxHealth > 0 then humanoid.Health / humanoid.MaxHealth else 0
+		fill.Size = UDim2.fromScale(math.clamp(ratio, 0, 1), 1)
+	end
+end
+
+--- Destello de impacto: el monstruo se pone blanco un instante.
+---
+--- Sin esto el jugador no sabe si su bomba ha acertado o ha pasado al lado.
+--- Es el feedback mas barato y mas efectivo que existe en un juego de
+--- combate, y se hace en el servidor para que lo vean TODOS los clientes.
+--- @param record table
+local function flashMonster(record: { [string]: any })
+	local model = record.Model
+	local body = model and model:FindFirstChild("Body")
+
+	if not body or not body:IsA("BasePart") then
+		return
+	end
+
+	local original = body.Color
+
+	task.spawn(function()
+		if not body.Parent then
+			return
+		end
+
+		body.Color = Color3.new(1, 1, 1)
+		task.wait(0.08)
+
+		if body.Parent then
+			body.Color = original
+		end
+	end)
 end
 
 --- Elimina un monstruo SIN pagar recompensa.
@@ -181,6 +226,66 @@ local function despawnMonster(monsterId: number)
 	if record.Model and record.Model.Parent then
 		record.Model:Destroy()
 	end
+end
+
+--- Muerte VISIBLE de un monstruo: se encoge y estalla en luz.
+---
+--- Sin esto el enemigo desaparece entre frames y el jugador no cierra el
+--- ciclo "he pegado -> se ha muerto -> he cobrado". Ademas se solapaba con el
+--- siguiente spawn del mismo tipo y parecia un fallo.
+--- @param record table
+local function playDeathVfx(record: { [string]: any })
+	local model = record.Model
+	local body = model and model:FindFirstChild("Body")
+
+	if not model or not model.Parent then
+		return
+	end
+
+	local light = Instance.new("PointLight")
+	light.Color = model:GetAttribute("AccentR")
+		and Color3.fromRGB(
+			math.floor(model:GetAttribute("AccentR") * 255),
+			math.floor(model:GetAttribute("AccentG") * 255),
+			math.floor(model:GetAttribute("AccentB") * 255)
+		)
+		or Color3.fromRGB(255, 220, 160)
+	light.Brightness = 4
+	light.Range = 20
+	light.Shadows = false
+	light.Parent = body
+
+	task.spawn(function()
+		local tag = model:FindFirstChild("NameTag", true)
+		local highlight = model:FindFirstChild("Highlight")
+
+		-- El cartel y el contorno se van ANTES: un enemigo muerto no puede
+		-- seguir con nombre ni vida en pantalla.
+		if tag then
+			tag:Destroy()
+		end
+
+		if highlight then
+			highlight:Destroy()
+		end
+
+		if body and body:IsA("BasePart") then
+			local target = body.Size
+
+			for step = 1, 4 do
+				if not model.Parent then
+					return
+				end
+
+				body.Size = target * (1 - (step * 0.22))
+				task.wait(0.05)
+			end
+		end
+
+		if model.Parent then
+			model:Destroy()
+		end
+	end)
 end
 
 --- Elimina TODOS los monstruos vivos (fin de ronda, cambio de mundo).
@@ -240,12 +345,22 @@ function Service.Spawn(definitionId: string, position: Vector3): number?
 		return nil
 	end
 
-	local root = model:FindFirstChild("HumanoidRootPart")
+	-- BUG CORREGIDO (medido en PLAY): esto buscaba `HumanoidRootPart`, que es
+	-- el nombre que usa el personaje de Roblox. El modelo del MONSTRUIO lo
+	-- construye `VisualKit` y su raiz se llama `Root`, asi que la busqueda
+	-- devolvia `nil`, el modelo se destruia y el spawn terminaba aqui:
+	--
+	--     MonsterService: el modelo construido no tiene HumanoidRootPart/Humanoid.
+	--
+	-- Cuatro monstruos por ronda, cero monstruos en pantalla, sin un solo
+	-- error de sintaxis. Se usa `PrimaryPart`, que es el CONTRATO del modelo,
+	-- no un nombre literal.
+	local root = model.PrimaryPart
 	local humanoid = model:FindFirstChildOfClass("Humanoid")
 
 	if not root or not humanoid then
 		model:Destroy()
-		Logger.Error("MonsterService: el modelo construido no tiene HumanoidRootPart/Humanoid.")
+		Logger.Error("MonsterService: el modelo construido no tiene PrimaryPart/Humanoid.")
 		return nil
 	end
 
@@ -265,6 +380,30 @@ function Service.Spawn(definitionId: string, position: Vector3): number?
 	}
 
 	Service._spawned += 1
+	syncMonsterHealthTag(Service._monsters[monsterId])
+
+	-- EFECTO DE APARICION: el monstruo entra escalandose desde 0.4 y con un
+	-- leve giro. Sin esto aparecia de golpe en el aire, y el jugador no lo
+	-- registra como "ha entrado un enemigo" sino como "habia un cubo aqui".
+	task.spawn(function()
+		local body = model:FindFirstChild("Body")
+
+		if body and body:IsA("BasePart") then
+			local target = body.Size
+			local start = target * 0.4
+
+			for step = 1, 5 do
+				if not model.Parent then
+					return
+				end
+
+				body.Size = start:Lerp(target, step / 5)
+				task.wait(0.05)
+			end
+
+			body.Size = target
+		end
+	end)
 
 	-- La muerte la observa ESTE servicio: el monstruo desaparece y paga
 	-- aunque nadie mire.
@@ -308,7 +447,13 @@ function Service.OnMonsterDied(monsterId: number)
 	local killer = if type(sourceId) == "number" then Players:GetPlayerByUserId(sourceId) else nil
 	local def = record.Def
 
-	despawnMonster(monsterId)
+	-- La muerte se ANIMA y se destruye sola. Antes se llamaba aqui a
+	-- `despawnMonster`, que hacia `Model:Destroy()` en el mismo frame: el
+	-- enemigo desaparecia de un salto y el jugador no llegaba a ver que lo ha
+	-- matado. El registro se borra YA (para que la cadena de explosiones no
+	-- le pague dos veces) y el modelo se queda 0.2 s mas, muriendo delante.
+	Service._monsters[monsterId] = nil
+	playDeathVfx(record)
 
 	if killer and Service._playerService then
 		Service._playerService.AddRewards(killer, def.XP, def.Coins)
@@ -370,6 +515,12 @@ function Service.ApplyDamageToMonster(
 			if sourceUserId then
 				humanoid:SetAttribute("LastDamageSource", sourceUserId)
 			end
+
+			-- El jugador tiene que ver que su bomba ha HIGIDO. Sin destello
+			-- y sin barra que baje, acertar y fallar se ven igual.
+			flashMonster(record)
+			syncMonsterHealthTag(record)
+
 			return true
 		end
 	end
@@ -438,10 +589,25 @@ function Service.StepAI(dt: number)
 
 					if step.Move then
 						local speed = AIService.ChaseSpeed(def.Speed, def.ChaseMultiplier)
-						record.RootPart.CFrame = CFrame.new(
-							origin
-								+ Vector3.new(step.Direction.x, 0, step.Direction.z) * speed * dt
-						)
+						local moved = origin
+							+ Vector3.new(step.Direction.x, 0, step.Direction.z) * speed * dt
+
+						-- BUG CORREGIDO (medido en PLAY): esto movia SOLO
+						-- `RootPart`. `Body` es hermano de la raiz, no hijo, y
+						-- se quedaba en el sitio: el monstruo persiguia al
+						-- jugador dejando una estela de cuerpos parados, y
+						-- desde lejos parecia que no se movia.
+						--
+						-- Ahora se mueve el MODELO ENTERO (`PivotTo`), que es
+						-- lo que el jugador ve, y se orienta hacia el objetivo
+						-- para que los ojos miren a donde va.
+						local lookAt = targetRoot.Position
+
+						if (lookAt - moved).Magnitude > 0.5 then
+							record.Model:PivotTo(CFrame.lookAt(moved, lookAt))
+						else
+							record.Model:PivotTo(CFrame.new(moved))
+						end
 					end
 
 					-- Ataque por contacto, con su propio tiempo de recarga.

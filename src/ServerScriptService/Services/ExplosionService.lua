@@ -22,6 +22,7 @@
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Workspace = game:GetService("Workspace")
+local TweenService = game:GetService("TweenService")
 -- Necesario para resolver el `sourceUserId` de una explosion a un jugador
 -- real. Se importa aqui y no se pasa como dependencia porque es un dato
 -- de PLATAFORMA, no de dominio: cualquier servicio puede leer el jugador
@@ -35,6 +36,7 @@ local UTILS = SHARED:WaitForChild("Utils")
 local GameConfig = require(CONFIG:WaitForChild("GameConfig"))
 local PerformanceConfig = require(CONFIG:WaitForChild("PerformanceConfig"))
 local CombatMath = require(SHARED:WaitForChild("Libraries"):WaitForChild("CombatMath"))
+local VisualKit = require(SHARED:WaitForChild("Libraries"):WaitForChild("VisualKit"))
 local Logger = require(UTILS:WaitForChild("Logger"))
 
 local Service = {}
@@ -149,62 +151,90 @@ end
 
 --- Crea el efecto visual de una explosion.
 ---
---- Se ancla una Part invisible con dos emitters y una luz, y se
---- destruye sola. El limite `MaxVFX` evita que 100 explosiones
+--- MEDIDO en PLAY: antes era una Part INVISIBLE con dos emisores. Se veia
+--- una nube, pero no el nucleo ni la onda, y sobre todo no el RADIO. El
+--- jugador no puede esquivar con conocimiento lo que no puede medir.
+---
+--- Ahora son tres cosas que se leen de una vistazo:
+---   nucleo  -> el IMPACTO (donde explota)
+---   onda   -> el RADIO (hasta donde llega)
+---   luz    -> la duracion (todo esto dura menos de medio segundo)
+---
+--- Se autodestruye. El limite `MaxVFX` evita que 100 explosiones
 --- simultaneas creen cientos de instancias.
 --- @param center Vector3
-local function spawnExplosionVfx(center: Vector3)
+--- @param radius number
+--- @param worldId string?
+local function spawnExplosionVfx(center: Vector3, radius: number, worldId: string?)
 	if not Service._vfxFolder or Service._activeVFX >= PerformanceConfig.Limits.MaxVFX then
+		return
+	end
+
+	local model = VisualKit.BuildExplosion(center, radius, worldId, Service._vfxFolder)
+
+	if not model then
 		return
 	end
 
 	Service._activeVFX += 1
 
-	local anchor = Instance.new("Part")
-	anchor.Name = "ExplosionVfx"
-	anchor.Anchored = true
-	anchor.CanCollide = false
-	anchor.CanTouch = false
-	anchor.CanQuery = false
-	anchor.Transparency = 1
-	anchor.Size = Vector3.new(1, 1, 1)
-	anchor.Position = center
-	anchor.Parent = Service._vfxFolder
+	local core = model:FindFirstChild("Core")
+	local wave = model:FindFirstChild("Shockwave")
+	local flash = model:FindFirstChild("Flash", true)
+	local smoke = model:FindFirstChild("Smoke", true)
+	local light = model:FindFirstChild("Light", true)
 
-	local light = Instance.new("PointLight")
-	light.Brightness = 3
-	light.Range = 40
-	light.Color = Color3.fromRGB(255, 190, 90)
-	light.Parent = anchor
+	local safeRadius = if radius and radius > 0 then radius else GameConfig.DefaultBombRadius
 
-	local smoke = Instance.new("ParticleEmitter")
-	smoke.Color = ColorSequence.new(Color3.fromRGB(255, 200, 80), Color3.fromRGB(90, 70, 60))
-	smoke.Lifetime = NumberRange.new(0.4, 0.8)
-	smoke.Speed = NumberRange.new(10, 25)
-	smoke.SpreadAngle = Vector2.new(180, 180)
-	smoke.Rate = 0
-	smoke.LightEmission = 0.6
-	smoke.Parent = anchor
+	-- El nucleo crece rapido y se apaga: es un flash, no una bombilla.
+	if core and core:IsA("BasePart") then
+		TweenService:Create(
+			core,
+			TweenInfo.new(0.18, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
+			{ Size = Vector3.new(safeRadius * 0.5, safeRadius * 0.5, safeRadius * 0.5), Transparency = 1 }
+		):Play()
+	end
 
-	local flash = Instance.new("ParticleEmitter")
-	flash.Color = ColorSequence.new(Color3.fromRGB(255, 240, 180))
-	flash.Lifetime = NumberRange.new(0.15, 0.35)
-	flash.Speed = NumberRange.new(20, 45)
-	flash.SpreadAngle = Vector2.new(180, 180)
-	flash.Rate = 0
-	flash.LightEmission = 1
-	flash.Parent = anchor
+	-- La onda crece hasta el RADIO EXACTO y se desvanece. Es la informacion
+	-- que convierte "me ha pegado una bomba" en "ponia la bomba aqui".
+	if wave and wave:IsA("BasePart") then
+		TweenService:Create(
+			wave,
+			TweenInfo.new(0.35, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
+			{
+				Size = Vector3.new(safeRadius * 2, 0.6, safeRadius * 2),
+				Transparency = 1,
+			}
+		):Play()
+	end
+
+	if light and light:IsA("PointLight") then
+		TweenService:Create(
+			light,
+			TweenInfo.new(0.3),
+			{ Brightness = 0 }
+		):Play()
+	end
 
 	-- Se emiten unas pocas particulas y se programa el borrado. Sin
 	-- este `task.spawn`, cada explosion dejaria dos emitters vivos
 	-- para siempre (una fuga por bomba).
 	task.spawn(function()
-		smoke:Emit(24)
-		flash:Emit(12)
-		task.wait(GameConfig.DefaultBombFuseTime)
+		if smoke and smoke:IsA("ParticleEmitter") then
+			smoke:Emit(24)
+		end
 
-		if anchor.Parent then
-			anchor:Destroy()
+		if flash and flash:IsA("ParticleEmitter") then
+			flash:Emit(14)
+		end
+
+		-- 0.8 s, no la mecha completa (3 s): el efecto de una explosion no
+		-- puede durar mas que la explosion. Antes se usaba la mecha y el
+		-- Workspace acumulaba un modelo VFX por bomba durante 3 segundos.
+		task.wait(0.8)
+
+		if model.Parent then
+			model:Destroy()
 		end
 		Service._activeVFX = math.max(0, Service._activeVFX - 1)
 	end)
@@ -217,7 +247,7 @@ end
 --- @param radius number
 --- @param sourceUserId number? quien coloco la bomba (atribucion)
 --- @return number affected partes afectadas
-function Service.Detonate(center: Vector3, radius: number, sourceUserId: number?): number
+function Service.Detonate(center: Vector3, radius: number, sourceUserId: number?, worldId: string?): number
 	-- Un radio no positivo o una posicion no finita indicaria un bug o
 	-- un intento de exploit: se ignora sin propagar el error.
 	local validPosition = CombatMath.ValidatePosition(center.X, center.Y, center.Z)
@@ -229,7 +259,7 @@ function Service.Detonate(center: Vector3, radius: number, sourceUserId: number?
 	end
 
 	Service._explosionCount += 1
-	spawnExplosionVfx(center)
+	spawnExplosionVfx(center, radius, worldId)
 
 	local affected = 0
 	-- Humanoids ya tocados: un personaje con varias partes dentro del

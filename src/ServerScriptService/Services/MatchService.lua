@@ -45,6 +45,17 @@ Service._combatService = nil
 -- mision "ganar una ronda" no avanza.
 Service._questService = nil
 
+-- PowerupService: genera y aplica los powerups de la arena. Es OPCIONAL:
+-- sin el, la ronda funciona igual y lo unico que se pierde son los objetos
+-- que recoger.
+Service._powerupService = nil
+
+--- Conecta el generador de powerups.
+--- @param powerupService any?
+function Service.SetPowerupService(powerupService: any?)
+	Service._powerupService = powerupService
+end
+
 -- Destinos por nombre: "Lobby" y "Arena_<WorldId>".
 --
 -- Antes solo existia `Arena`, y apuntaba SIEMPRE a Forest. Con eso, entrar por
@@ -57,11 +68,43 @@ Service._questService = nil
 -- como alias del mundo por defecto porque el ciclo de ronda lo usa y anadir
 -- el concepto de "mundo activo" al round es un cambio mayor del que esta
 -- correccion necesita.
-Service._destinations = {}
+-- Destinos por nombre: `Lobby` (llegada real al lobby), `LobbyCenter`
+-- (centro geometrico), `Arena` y `Arena_<WorldId>`.
+--
+-- El tipo se declara en una variable LOCAL y no sobre el campo
+-- (`Service._destinations: T = {}`): el analizador de este proyecto no
+-- acepta la anotacion en una tabla, falla con "Expected identifier when
+-- parsing method name". La variable anotada produce el mismo efecto sobre
+-- la inferencia y ademas es sintaxis que Luau acepta en todas partes.
+--
+-- La clave es `string` a proposito: las arenas se indexan con
+-- `"Arena_" .. worldId`, y un union de literales no lo admitiria.
+local destinations: { [string]: BasePart } = {}
+Service._destinations = destinations
 -- Mundo por defecto -> id de destino. Consultado por `GetArenaKey`.
 Service._defaultArenaKey = "Arena"
 
 --- Busca los marcadores de traslado en el mapa.
+---
+--- BUG CORREGIDO (medido en la captura del cliente): el destino "Lobby"
+--- era `LobbyCenter`, que esta en (0, 0.2, 0), es decir EN EL CENTRO
+--- GEOGRAFICO DEL LOBBY. Y en ese centro esta el Keshusy Core:
+---
+---     CoreBase  (0, 0.5, 0)   colisiona
+---     CoreDais  (0, 3.2, 0)   colisiona
+---     CoreOrb   (0, 8, 0)     Neon, el corazon del juego
+---
+--- Al terminar una ronda, `MoveAllPlayers("Lobby")` depositaba al jugador
+--- ENCIMA del nucleo. Medido: el personaje aparecia en (0, 6.9, 0), dentro
+--- del orbe, y la primera imagen del juego era una esfera blanca con el
+--- personaje dentro. El lobby se leia como un fallo, no como el corazon del
+--- universo.
+---
+--- El arreglo NO es borrar `LobbyCenter` (lo leen otros comprobadores y es
+--- contrato del mapa): es anadir `LobbyReturn`, un marcador de llegada
+--- colocado al SUR del Core, de cara a los portales, y que sea el que se usa
+--- como destino "Lobby". `LobbyCenter` se conserva como referencia del
+--- centro geometrico.
 --- @return number found
 function Service.CollectDestinations(): number
 	Service._destinations = {}
@@ -69,7 +112,31 @@ function Service.CollectDestinations(): number
 	local lobby = Workspace:FindFirstChild("Lobby")
 	local lobbyCenter = lobby and lobby:FindFirstChild("LobbyCenter")
 	if lobbyCenter and lobbyCenter:IsA("BasePart") then
-		Service._destinations.Lobby = lobbyCenter :: BasePart
+		Service._destinations.LobbyCenter = lobbyCenter :: BasePart
+	end
+
+	local lobbyReturn = lobby and lobby:FindFirstChild("LobbyReturn")
+
+	-- Destino de llegada al lobby. Se prefiere `LobbyReturn` y, si el mapa no
+	-- lo trae, se cae a `LobbyCenter` (comportamiento anterior, mejor que
+	-- dejar al jugador sin destino).
+	--
+	-- Se decide con ramas `if` explicitas y una variable intermedia, en vez de
+	-- asignar el resultado de un `if` expresivo: esa forma produce un tipo
+	-- que Luau no puede verificar (`*error-type* | ~(false?)`) y el
+	-- analizador deja de poder confirmar que `lobbyTarget` es un BasePart.
+	-- Ademas el destino debe quedar ANOTADO para que el resto del servicio
+	-- pueda indexar `_destinations.Lobby` sin un chequeo defensivo.
+	local lobbyTarget = nil :: any?
+
+	if lobbyReturn and lobbyReturn:IsA("BasePart") then
+		lobbyTarget = lobbyReturn :: BasePart
+	elseif lobbyCenter and lobbyCenter:IsA("BasePart") then
+		lobbyTarget = lobbyCenter :: BasePart
+	end
+
+	if lobbyTarget then
+		Service._destinations.Lobby = lobbyTarget
 	end
 
 	-- Un destino por mundo. El mundo se recorre por la clave del mapa, no
@@ -455,6 +522,21 @@ function Service.SpawnMonstersForRound(worldId: string?): number
 	return spawned
 end
 
+--- Genera los powerups de la ronda en el mundo indicado.
+---
+--- Antes no existia nada aqui: el mapa declaraba cuatro `PowerupSpawns` por
+--- mundo y nadie los llenaba. Eran cuatro placas de color en el suelo, y el
+--- jugador no tenia nada que recoger en toda la arena.
+--- @param worldId string?
+--- @return number spawned
+function Service.SpawnPowerupsForRound(worldId: string?): number
+	if not Service._powerupService then
+		return 0
+	end
+
+	return Service._powerupService.SpawnForRound(worldId)
+end
+
 --- Reacciona a los cambios de ronda.
 --- @param from string
 --- @param to string
@@ -470,7 +552,12 @@ function Service.OnRoundStateChanged(from: string, to: string)
 		end
 
 		Service.MoveAllPlayers("Arena")
+
+		-- Orden de la arena: primero los monstruos y despues los powerups. Un
+		-- powerup ya flotando cuando aparece el enemigo dice "hay cosas que
+		-- recoger aqui" en vez de "han soltado un cubo".
 		Service.SpawnMonstersForRound()
+		Service.SpawnPowerupsForRound()
 
 	elseif to == RoundState.RoundEnding then
 		-- Las bombas que quedaran explotando danarian a los jugadores
@@ -485,6 +572,16 @@ function Service.OnRoundStateChanged(from: string, to: string)
 		if Service._monsterService then
 			local removed = Service._monsterService.ClearAll()
 			Logger.Info(("%d monstruo(s) limpiados al terminar la ronda"):format(removed))
+		end
+
+		-- Los powerups tambien se limpian: si se dejaran, el jugador volveria
+		-- al lobby con objetos flotando en un sitio donde no puede recogerlos.
+		if Service._powerupService then
+			local removedPowerups = Service._powerupService.ClearAll()
+
+			if removedPowerups > 0 then
+				Logger.Info(("%d powerup(s) limpiados al terminar la ronda"):format(removedPowerups))
+			end
 		end
 
 	elseif to == RoundState.Rewards then

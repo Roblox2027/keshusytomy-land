@@ -25,6 +25,7 @@
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Workspace = game:GetService("Workspace")
+local Players = game:GetService("Players")
 
 local SHARED = ReplicatedStorage:WaitForChild("Shared")
 local CONFIG = SHARED:WaitForChild("Config")
@@ -33,6 +34,7 @@ local UTILS = SHARED:WaitForChild("Utils")
 local GameConfig = require(CONFIG:WaitForChild("GameConfig"))
 local PerformanceConfig = require(CONFIG:WaitForChild("PerformanceConfig"))
 local CombatMath = require(SHARED:WaitForChild("Libraries"):WaitForChild("CombatMath"))
+local VisualKit = require(SHARED:WaitForChild("Libraries"):WaitForChild("VisualKit"))
 local Logger = require(UTILS:WaitForChild("Logger"))
 
 local Service = {}
@@ -45,7 +47,7 @@ Service._explosionService = nil
 
 -- QuestService: receptor del progreso de misiones (bombas colocadas).
 --
--- Es OPCIONAL a proposito: sin el, las bombas se colocan, explotan y dañan
+-- Es OPCIONAL a proposito: sin el, las bombas se colocan, explotan y danan
 -- exactamente igual, y lo UNICO que se pierde es el progreso de las
 -- misiones. El sistema de misiones no puede ser un punto unico de fallo
 -- del combate.
@@ -58,6 +60,12 @@ Service._activeBombs = {}
 Service._nextBombId = 0
 -- Carpeta donde se crean las bombas visibles.
 Service._bombFolder = nil
+
+-- Maid propio, inyectado por `ServiceRegistry` en `Init`. Se guarda para
+-- poder conectar `Players.PlayerAdded` y que esa conexion se limpie sola
+-- en `Destroy`. Sin guardarlo, cualquier conexion creada aqui se
+-- sobreviviria al apagado del servicio.
+Service._maid = nil
 
 -- Limites del mapa, learned del suelo de la arena. Se calculan al
 -- arrancar para no escribir numeros magicos ni depender del generador.
@@ -222,6 +230,46 @@ local function isValidPosition(position: any): (boolean, string?)
 end
 
 
+--- Publica la cantidad de bombas vivas de un jugador.
+---
+--- BUG CORREGIDO (medido con probe-hud en PLAY): `UIController` mira el
+--- atributo `Bombs` para pintar la fila BOMBAS del HUD, pero NINGUN punto del
+--- servidor lo escribia. El atributo quedaba en `nil` para siempre y la fila
+--- mostrar siempre "*", que es el marcador de "el servidor no publico esto".
+--- El panel era, por tanto, informacion muerta: podia leerse bien y no
+--- cambiar nunca.
+---
+--- Se publica DESDE aqui, que es quien tiene la verdad (`_activeBombs`), y no
+--- desde el handler del remoto: si se publicara solo al recibir `Place`,
+--- la cifra se quedaria congelada en 1 al detonar, porque la bomba desaparece
+--- por `task.delay` y no por el remoto.
+---
+--- Publicar el 0 al entrar y al vaciar la arena es lo que hace que el HUD
+--- diga la verdad tambien cuando el jugador no tiene ninguna bomba, en vez de
+--- quedarse en el ultimo valor conocido.
+---
+--- @param userId number?
+local function publishBombCount(userId: number?)
+	if type(userId) ~= "number" then
+		return
+	end
+
+	local player = Players:GetPlayerByUserId(userId)
+
+	if not player then
+		return
+	end
+
+	player:SetAttribute("Bombs", Service.GetPlayerBombCount(userId))
+end
+
+--- Publica la cuenta de bombas de todos los jugadores conectados.
+local function publishAllBombCounts()
+	for _, player in ipairs(Players:GetPlayers()) do
+		publishBombCount(player.UserId)
+	end
+end
+
 --- Detona una bomba concreta y programa la cadena de reaccion.
 ---
 --- @param bombId number
@@ -249,12 +297,26 @@ local function detonateBomb(bombId: number, depth: number)
 	-- mirar esta bomba, ya no la encontrara y no habra recursion.
 	Service._activeBombs[bombId] = nil
 
+	-- La cuenta del HUD baja YA, no cuando termine la cadena: el jugador
+	-- ve su bomba desaparecer en el momento en que detona.
+	publishBombCount(ownerId)
+
 	if part and part.Parent then
 		part:Destroy()
 	end
 
+	-- El MODELO entero se destruye aqui, no solo la raiz: sin esto la tapa,
+	-- el fusible, el aro de peligro y el cartel de la mecha se quedan en
+	-- pantalla flotando despues de la explosion.
+	destroyBombVisual(record)
+
 	if Service._explosionService then
-		Service._explosionService.Detonate(position, GameConfig.DefaultBombRadius, ownerId)
+		Service._explosionService.Detonate(
+			position,
+			GameConfig.DefaultBombRadius,
+			ownerId,
+			record.World
+		)
 	end
 
 	-- La cadena se limita en profundidad: sin este tope, un jugador que
@@ -306,27 +368,79 @@ local function detonateBomb(bombId: number, depth: number)
 	end
 end
 
+--- Escala TODAS las partes visibles de una bomba.
+---
+--- Se escala el conjunto, no solo el cuerpo: si solo creciese la esfera, la
+--- tapa y el fusible se quedarian en su sitio y la bomba pareceria partirse
+--- en dos a mitad de la animacion.
+--- @param model Model
+--- @param factor number
+local function setBombScale(model: Model, factor: number)
+	local base = VisualKit.BOMB
+
+	for _, part in ipairs(model:GetChildren()) do
+		if part:IsA("BasePart") and part.Name ~= "Root" and part.Name ~= "RadiusIndicator" then
+			if part.Name == "BombBody" then
+				part.Size = Vector3.new(base.BodySize, base.BodySize, base.BodySize) * factor
+			elseif part.Name == "BombBand" then
+				part.Size = Vector3.new(base.BodySize * 1.03, 0.5, base.BodySize * 1.03) * factor
+			elseif part.Name == "BombTop" then
+				part.Size = base.TopSize * factor
+			elseif part.Name == "Fuse" then
+				part.Size = base.FuseSize * factor
+			elseif part.Name == "FuseGlow" then
+				part.Size = base.TipSize * factor
+			end
+		end
+	end
+end
+
+--- Destruye la bomba VISUAL de un registro, si sigue viva.
+--- @param record table?
+local function destroyBombVisual(record: { [string]: any }?)
+	if not record then
+		return
+	end
+
+	-- Antes solo se destruia `Part`. Con un `Model` eso dejaba vivos la tapa,
+	-- el fusible, el aro de peligro y el cartel: la bomba "explotaba" pero
+	-- seguia en pantalla.
+	if record.Model and record.Model.Parent then
+		record.Model:Destroy()
+	elseif record.Part and record.Part.Parent then
+		record.Part:Destroy()
+	end
+end
+
 --- Crea la bomba fisica y programa su cuenta regresiva en el servidor.
 --- @param ownerId number?
 --- @param position Vector3
+--- @param worldId string? mundo del dueno: decide la PIEL de la bomba
 --- @return number bombId
-local function spawnBomb(ownerId: number?, position: Vector3): number
-	local bomb = Instance.new("Part")
-	bomb.Name = "Bomb"
-	bomb.Shape = Enum.PartType.Ball
-	bomb.Size = Vector3.new(2, 2, 2)
-	bomb.Position = position
-	bomb.Anchored = true
-	bomb.CanCollide = false
-	bomb.CanTouch = false
-	bomb.CanQuery = false
-	bomb.Material = Enum.Material.Neon
-	bomb.Color = Color3.fromRGB(220, 60, 60)
+local function spawnBomb(ownerId: number?, position: Vector3, worldId: string?): number
+	local bomb = VisualKit.BuildBomb(worldId, position, GameConfig.DefaultBombRadius)
+
+	if not bomb then
+		-- Sin modelo NO hay bomba. Antes se creaba una `Part` minima y el
+		-- juego continuaba con algo invisible; ahora el fallo es explicito.
+		Logger.Error("BombService: no se pudo construir el modelo de la bomba.")
+		return 0
+	end
 
 	Service._nextBombId += 1
 	local bombId = Service._nextBombId
+	bomb.Name = ("Bomb_%d"):format(bombId)
 	bomb:SetAttribute("BombId", bombId)
 	bomb:SetAttribute("OwnerUserId", ownerId)
+	bomb:SetAttribute("World", worldId)
+
+	local root = bomb.PrimaryPart
+
+	if not root then
+		Logger.Error("BombService: el modelo de bomba no tiene PrimaryPart.")
+		bomb:Destroy()
+		return 0
+	end
 
 	-- `Parent =` y NO `AddChild`.
 	--
@@ -335,17 +449,21 @@ local function spawnBomb(ownerId: number?, position: Vector3): number
 	--            AddChild is not a valid member of Folder "Workspace.Bombs"
 	--
 	-- En esta version de Studio `AddChild` no esta disponible sobre las
-	-- instancias creadas desde codigo, asi que la bomba NUNCA se llegaba a
-	-- colocar: el cliente pedia, el servidor validaba y reventaba al crear el
-	-- cuerpo de la bomba. Medido, no supuesto: `Parent =` si funciona y
-	-- produce exactamente el mismo arbol.
+	-- instancias creadas desde codigo. Medido, no supuesto: `Parent =` si
+	-- funciona y produce exactamente el mismo arbol.
 	bomb.Parent = Service._bombFolder
 	Service._activeBombs[bombId] = {
-		Part = bomb,
+		Part = root,
+		Model = bomb,
 		OwnerUserId = ownerId,
 		Position = position,
+		World = worldId,
 		Depth = 0,
 	}
+
+	-- El HUD sube aqui, en el servidor, que es quien decide si la bomba
+	-- existe. El cliente no anuncia su propia bomba: solo la pide.
+	publishBombCount(ownerId)
 
 	Logger.Debug(("bomba %d colocada en (%.0f, %.0f, %.0f) por %s"):format(
 		bombId,
@@ -355,22 +473,90 @@ local function spawnBomb(ownerId: number?, position: Vector3): number
 		tostring(ownerId)
 	))
 
-	-- Indicador de cuenta atras: el cliente ve la bomba GROWING para
-	-- saber cuanto le queda. Solo es visual; el tiempo real lo lleva el
-	-- servidor con este `task.delay`.
+	-- APARICION: escala 0 -> 1 con rebote.
+	--
+	-- Antes la bomba "aparecia" ya estate y luego CRECIA durante la mecha.
+	-- Eso no es una animacion de colocacion: es una esfera que engorda, y el
+	-- jugador no lee un rebote como "acabas de poner una bomba".
+	setBombScale(bomb, 0.05)
+
 	task.spawn(function()
-		local steps = 6
+		for _, step in ipairs({ 0.45, 0.75, 1.12, 1 }) do
+			task.wait(0.06)
 
-		for step = 1, steps do
-			local alive = Service._activeBombs[bombId]
+			if bomb.Parent then
+				setBombScale(bomb, step)
+			end
+		end
+	end)
 
-			if not alive or not alive.Part or not alive.Part.Parent then
+	-- MECHA VISIBLE: el cartel sobre la bomba baja de 3 a 0 y el fusible
+	-- acelera. En el ultimo segundo la bomba parpadea: el jugador tiene que
+	-- entender "TENGO QUE SALIR DE AQUI" sin leer nada.
+	task.spawn(function()
+		local timer = bomb:FindFirstChild("Timer", true)
+		local labelText = if timer then timer:FindFirstChild("Label") else nil
+		local sparks = bomb:FindFirstChild("Particles", true)
+		local ring = bomb:FindFirstChild("RadiusIndicator", true)
+		local glow = bomb:FindFirstChild("FuseGlow", true)
+		local light = bomb:FindFirstChild("FuseLight", true)
+
+		local elapsed = 0
+		local total = GameConfig.DefaultBombFuseTime
+		local step = 0.1
+
+		while elapsed < total do
+			if not bomb.Parent then
 				return
 			end
 
-			local scale = 1 + (step * 0.12)
-			alive.Part.Size = Vector3.new(2 * scale, 2 * scale, 2 * scale)
-			task.wait(GameConfig.DefaultBombFuseTime / steps)
+			task.wait(step)
+			elapsed += step
+
+			local remaining = math.max(0, total - elapsed)
+
+			if labelText and labelText:IsA("TextLabel") then
+				labelText.Text = tostring(math.ceil(remaining))
+			end
+
+			bomb:SetAttribute("FuseRemaining", remaining)
+
+			-- Aviso del ultimo segundo: parpadeo rojo, cartel en rojo y mas
+			-- chispas. Es la unica vez que la bomba grita, y por eso se lee.
+			if remaining <= 1 then
+				local on = math.floor(elapsed * 8) % 2 == 0
+				local tint = if on then Color3.fromRGB(255, 70, 70) else Color3.fromRGB(255, 240, 200)
+
+				if glow and glow:IsA("BasePart") then
+					glow.Color = tint
+				end
+
+				if light and light:IsA("PointLight") then
+					light.Brightness = if on then 6 else 1.5
+					light.Color = tint
+				end
+
+				if labelText and labelText:IsA("TextLabel") then
+					labelText.TextColor3 = tint
+					labelText.Text = "!"
+				end
+			end
+
+			-- El numero de chispas se decide en una variable y no en el
+			-- argumento: `Emit(if ... then ... else ...)` es valido en Luau,
+			-- pero es mas facil de leer aqui y no deja la decision escondida
+			-- dentro de la llamada.
+			local sparkCount = if remaining <= 1 then 8 else 2
+
+			if sparks and sparks:IsA("ParticleEmitter") then
+				sparks:Emit(sparkCount)
+			end
+
+			-- El aro de peligro se marca mas conforme se agota la mecha: la
+			-- zona sigue siendo la MISMA, pero deja de ser decoracion pasiva.
+			if ring and ring:IsA("BasePart") then
+				ring.Transparency = if remaining <= 1 then 0.25 else 0.55
+			end
 		end
 	end)
 
@@ -519,7 +705,14 @@ function Service.TryPlaceBomb(player: Player, position: any): (boolean, string?)
 		return false, "sin servicio de explosiones"
 	end
 
-	local bombId = spawnBomb(player.UserId, position)
+	local bombId = spawnBomb(player.UserId, position, worldId)
+
+	if bombId == 0 then
+		-- El modelo no se pudo construir: se devuelve el cooldown para que el
+		-- jugador no espere 1.5 s a un fallo que ya se ha registrado.
+		Service._cooldowns[player.UserId] = now
+		return false, "no se pudo crear la bomba"
+	end
 
 	Logger.Debug(("[BOMB] created id=%d por %s (mecha %.1fs)"):format(
 		bombId,
@@ -538,18 +731,23 @@ function Service.TryPlaceBomb(player: Player, position: any): (boolean, string?)
 	return true, nil
 end
 
---- Destruye todas las bombas activas (fin de ronda).
+--- Destruye TODAS las bombas activas (fin de ronda).
 --- @return number removed
 function Service.ClearBombs(): number
 	local removed = 0
 
 	for bombId, record in pairs(Service._activeBombs) do
-		if record and record.Part and record.Part.Parent then
-			record.Part:Destroy()
+		destroyBombVisual(record)
+
+		if record and record.Model then
 			removed += 1
 		end
 		Service._activeBombs[bombId] = nil
 	end
+
+	-- Fin de ronda: todos los contadores vuelven a 0 de verdad. Sin esto el
+	-- HUD seguiria mostrando las bombas de la ronda que ya termino.
+	publishAllBombCounts()
 
 	return removed
 end
@@ -623,6 +821,10 @@ function Service.Init(maid: any?): boolean
 	Service._activeBombs = {}
 	Service._nextBombId = 0
 
+	-- Se guarda el maid del registro: es lo que permite que la conexion con
+	-- `Players.PlayerAdded` de `Start` se limpie al apagar el servicio.
+	Service._maid = maid
+
 	-- Las bombas se crean en una carpeta propia. El cliente puede verla
 	-- (tiene que verlas para que la cuenta regresiva sea visible) pero
 	-- nunca es una fuente de confianza.
@@ -692,6 +894,20 @@ function Service.Start(): boolean
 		end
 	end
 
+	-- Un jugador que entra de nuevo empieza con 0 bombas publicadas, no con
+	-- el atributo sin definir. Sin esto su HUD muestra "*" hasta que coloque
+	-- su primera bomba, que se lee como "no se sabe" cuando el dato es
+	-- justo un cero.
+	if Service._maid then
+		Service._maid:Connect(Players.PlayerAdded, function(player: Player)
+			player:SetAttribute("Bombs", 0)
+		end)
+	end
+
+	for _, player in ipairs(Players:GetPlayers()) do
+		player:SetAttribute("Bombs", 0)
+	end
+
 	Logger.Info(("BombService listo (%d arena(s) con limite, por defecto %s)."):format(
 		countBounds(Service._arenaBoundsByWorld),
 		tostring(Service._defaultArenaWorld)
@@ -718,6 +934,7 @@ function Service.Destroy(): boolean
 	Service._roundService = nil
 	Service._explosionService = nil
 	Service._questService = nil
+	Service._maid = nil
 	Service.IsInitialized = false
 
 	return true
