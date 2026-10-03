@@ -689,13 +689,37 @@ Service._diagnostics = {
 			-- AVANZA cuando su plazo vence, o antes si alguien pide terminar
 			-- explicitamente (`RequestEnd`, que es la via de `PlayerService`
 			-- al morir el ultimo vivo).
-			if remaining > 0 and not Service.IsEndRequested() then
-				Service._lastReason = ("esperando el plazo de %s (%.1fs)"):format(
-					current,
-					remaining
-				)
-				return
-			end
+			-- BUG REAL (medido en PLAY, no deducido): `Service._expiredFor` se
+		-- reiniciaba DESPUES del `return` de "el plazo aun no ha vencido", de
+		-- modo que el contador NUNCA volvia a cero. Como solo avanza mientras
+		-- el plazo esta vencido, y el plazo casi nunca lo esta (el bucle sondea
+		-- cada 0.2 s), el contador crecia sin parar y cruzaba el margen del
+		-- vigilante a los pocos minutos:
+		--
+		--     ERROR: el estado Waiting lleva 616.0s vencido sin avanzar
+		--     ... repetido 2447 veces
+		--
+		-- El vigilante anunciaba un atasco que no existia y, cada vez que
+		-- disparaba, `Logger.Error` escribia en el Output. Con el log
+		-- inundado, cualquier error REAL posterior queda enterrado, que es
+		-- justo cuando mas falta hacia falta leer.
+		--
+		-- El contador se actualiza ANTES de cualquier `return`: su unica
+		-- regla es "el plazo vencido corre, el plazo vivo no", y esa regla
+		-- no depende de si despues se transiciona o no.
+		if remaining > 0 then
+			Service._expiredFor = 0
+		else
+			Service._expiredFor = (Service._expiredFor or 0) + GameConfig.RoundTickInterval
+		end
+
+		if remaining > 0 and not Service.IsEndRequested() then
+			Service._lastReason = ("esperando el plazo de %s (%.1fs)"):format(
+				current,
+				remaining
+			)
+			return
+		end
 
 			-- VIGILANTE DE ATASCO.
 			--
@@ -720,15 +744,8 @@ Service._diagnostics = {
 			--
 			-- Lo que de verdad se mide es el GRACE: cuanto tiempo lleva el
 			-- estado vencido SIN que el bucle haya logrado transicionar.
-			-- `remaining` ya es 0 en cuanto el plazo vence, asi que el
-			-- grace se lleva con un contador que se reinicia al entrar en
-			-- cada estado y avanza solo mientras el plazo esta vencido.
-			if remaining > 0 then
-				Service._expiredFor = 0
-			else
-				Service._expiredFor = (Service._expiredFor or 0) + GameConfig.RoundTickInterval
-			end
-
+			-- `remaining` ya es 0 en cuanto el plazo vence, asi que el grace
+			-- lo lleva el contador que se actualiza arriba.
 			if remaining <= 0 and Service._expiredFor > Service.GetStallTimeout() then
 				Service._stallCount += 1
 				Logger.Error(("el estado %s lleva %.1fs vencido sin avanzar; "

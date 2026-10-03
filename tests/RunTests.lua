@@ -45,6 +45,7 @@ local SUITES = {
 	{ name = "ServiceStructure", path = "./shared/ServiceStructure.spec" },
 	{ name = "BootWiring", path = "./shared/BootWiring.spec" },
 	{ name = "AIService", path = "./shared/AIService.spec" },
+	{ name = "MonsterBalance", path = "./shared/MonsterBalance.spec" },
 	{ name = "TestDriverLogic", path = "./shared/TestDriverLogic.spec" },
 }
 

@@ -18,6 +18,7 @@ local CONFIG = SHARED:WaitForChild("Config")
 local UTILS = SHARED:WaitForChild("Utils")
 
 local FeatureConfig = require(CONFIG:WaitForChild("FeatureConfig"))
+local GameConfig = require(CONFIG:WaitForChild("GameConfig"))
 local PerformanceConfig = require(CONFIG:WaitForChild("PerformanceConfig"))
 local AIService = require(SHARED:WaitForChild("Libraries"):WaitForChild("AIService"))
 local VisualKit = require(SHARED:WaitForChild("Libraries"):WaitForChild("VisualKit"))
@@ -148,7 +149,12 @@ local function buildMonsterModel(def: any): Model?
 	local humanoid = Instance.new("Humanoid")
 	humanoid.MaxHealth = def.Health
 	humanoid.Health = def.Health
-	humanoid.WalkSpeed = def.Speed
+	-- La velocidad del Humanoid se sincroniza con el estado: arranca en
+	-- `PatrolSpeed`. `StepAI` la reescribe cada frame segun el estado, pero
+	-- inicializarla aqui evita el primer frame en el que el NPC aparece con la
+	-- velocidad del `Speed` base (que es la de persecucion) y el jugador ve
+	-- "un monstruo que sale disparado" justo al aparecer.
+	humanoid.WalkSpeed = def.PatrolSpeed or def.Speed
 	humanoid.DisplayName = def.Name
 	humanoid.Parent = model
 
@@ -369,6 +375,10 @@ function Service.Spawn(definitionId: string, position: Vector3): number?
 
 	model:PivotTo(CFrame.new(position))
 
+	-- El registro lleva su PROPIA maquina de estados. Empieza en `Patrol`
+	-- (no en `Chase`): un monstruo que aparece ya persiguiendo al jugador
+	-- que acaba de entrar es exactamente el fallo de "no tienes tiempo a
+	-- reaccionar" que el telegraph existe para evitar.
 	Service._monsters[monsterId] = {
 		Id = monsterId,
 		Def = def,
@@ -377,7 +387,15 @@ function Service.Spawn(definitionId: string, position: Vector3): number?
 		RootPart = root,
 		Dead = false,
 		NextAttackAt = 0,
+		State = AIService.States.Patrol,
+		TimeInState = 0,
+		AnchorPosition = Vector3.new(position.X, position.Y, position.Z),
+		PatrolTarget = nil,
+		PatrolIndex = 0,
+		PatrolRetargetAt = 0,
 	}
+
+	model:SetAttribute("AIState", AIService.States.Patrol)
 
 	Service._spawned += 1
 	syncMonsterHealthTag(Service._monsters[monsterId])
@@ -559,73 +577,389 @@ function Service.FindNearestPlayer(origin: Vector3, radius: number): Player?
 end
 
 
---- UN SOLO paso de IA para todos los monstruos.
+-- ------------------------------------------------------- CONSTANTES DE IA
+--
+-- Separadas del cuerpo de `StepAI` para que el balance de la IA se lea de un
+-- vistazo. Todas estan en segundos o en studs y ninguna depende del mundo.
+local AI_PATROL_RADIUS_STUDS = 26
+local AI_PATROL_RETARGET_SECONDS = 4.5
+local AI_PATROL_ARRIVE_STUDS = 4
+
+local AI_SLOW_FACTOR = 0.6
+local AI_SLOW_DURATION = 2.0
+
+local AI_BURN_TICKS = 3
+local AI_BURN_INTERVAL = 0.5
+local AI_BURN_DAMAGE = 4
+
+local AI_FADING_HZ = 3.5
+
+--- Angulo determinista a partir de un entero.
 ---
---- Se llama desde UN Heartbeat del servidor, no uno por monstruo: 30
---- monstruos con 30 corrutinas moviendose cada frame es la forma rapida de
---- hundir un servidor, y aqui se evita por construccion.
+--- Sin `math.random`: un prototipo que se mueve distinto cada vez hace
+--- IMPOSIBLE reproducir un fallo de IA en un test o en una sesion concreta. El
+--- dato tiene que ser el mismo cuando se vuelve a ejecutar el mismo mundo.
+--- @param seed number
+--- @return number radianes
+local function hashAngle(seed: number): number
+	local h = (math.floor(seed) * 374761393) % 6283
+	return (h / 6283) * math.pi * 2
+end
+
+--- Paso de PATRULLA: de donde a donde, cuando no hay objetivo.
 ---
---- El `dt` lo pasa quien llama en lugar de usar `Heartbeat:Wait()`: dentro
---- de un `Heartbeat` eso devolveria 0 y los monstruos no se moverian, y
---- ademas `Wait()` dentro de la conexion bloquearia a los demas.
---- @param dt number
-function Service.StepAI(dt: number)
-	if not Service._roundService or not Service._roundService.IsPlaying() then
+--- Sin esto, "no hay jugador cerca" significaba "el monstruo se queda clavado
+--- donde aparecio", que es exactamente lo que mas se parece a un mueble.
+--- Patrullar convierte cada enemigo en una amenaza que se cruza sola por el
+--- mapa, que es lo que hace que el jugador tenga que EXPLORAR en vez de
+--- esperar sentado en unrincon.
+---
+--- El destino se recalcula cada `AI_PATROL_RETARGET_SECONDS` siguiendo un
+--- circulo de puntos alrededor del punto de aparicion. No es navegacion
+--- inteligente: el jugador no necesita que el NPC esquine obstaculos, necesita
+--- que el mapa tenga enemigos que se muevan.
+--- @param record table
+--- @param now number
+--- @return table step con la MISMA forma que devuelve AIService.Step
+local function patrolStep(record: { [string]: any }, now: number)
+	local root = record.RootPart
+	if not root then
+		return { Move = false, Direction = { x = 0, y = 0, z = 0 }, Distance = 0 }
+	end
+
+	local anchor = record.AnchorPosition or root.Position
+
+	if not record.PatrolTarget or now >= (record.PatrolRetargetAt or 0) then
+		local angle = hashAngle(record.Id + (record.PatrolIndex or 0) * 7)
+
+		record.PatrolIndex = (record.PatrolIndex or 0) + 1
+		record.PatrolTarget = Vector3.new(
+			anchor.X + math.cos(angle) * AI_PATROL_RADIUS_STUDS,
+			anchor.Y,
+			anchor.Z + math.sin(angle) * AI_PATROL_RADIUS_STUDS
+		)
+		record.PatrolRetargetAt = now + AI_PATROL_RETARGET_SECONDS
+	end
+
+	local flat = record.PatrolTarget - root.Position
+	flat = Vector3.new(flat.X, 0, flat.Z)
+
+	if flat.Magnitude < AI_PATROL_ARRIVE_STUDS then
+		-- Llego: no se mueve este frame; el siguiente recalcula destino.
+		return { Move = false, Direction = { x = 0, y = 0, z = 0 }, Distance = 0 }
+	end
+
+	local unit = flat.Unit
+	return {
+		Move = true,
+		Direction = { x = unit.X, y = 0, z = unit.Z },
+		Distance = flat.Magnitude,
+	}
+end
+
+--- Cambio de estado del monstruo: lo que el JUGADOR tiene que ver.
+---
+--- El telegraph (`Warning`) es lo importante de esta funcion: al entrar en ese
+--- estado el enemigo se enciende y el cartel pasa a "!". Sin esto la maquina
+--- de estados seria INVISIBLE, y una ventana de reaccion que el jugador no
+--- puede ver no es una ventana de reaccion: es un retraso.
+---
+--- No se usa `task.delay` para apagar el brillo: si el monstruo muere durante
+--- el telegraph, un `task.delay` intentaria escribir en una Parte ya
+--- destruida.
+--- @param record table
+--- @param state string
+--- @param def any
+local function onStateChanged(record: { [string]: any }, state: string, def: any)
+	local model = record.Model
+	if not model or not model.Parent then
 		return
 	end
+
+	local glow = model:FindFirstChild("TelegraphGlow")
+	if glow and glow:IsA("BasePart") then
+		glow.Transparency = if AIService.IsTelegraph(state) then 0.25 else 1
+		glow.CanCollide = false
+		glow.CanTouch = false
+		glow.CanQuery = false
+	end
+
+	local tag = model:FindFirstChild("NameTag", true)
+	if tag then
+		local label = tag:FindFirstChild("StateLabel")
+
+		if label and label:IsA("TextLabel") then
+			local remaining = AIService.TimeLeftInState(state, 0, def)
+			label.Text = if AIService.IsTelegraph(state)
+				then ("!%.1f"):format(remaining)
+				elseif state == AIService.States.Recovery
+				then "-"
+				else ""
+			label.Visible = label.Text ~= ""
+		end
+	end
+
+	-- El atributo se publica para que el HUD y las sondas de QA lean el
+	-- estado SIN deducirlo de la velocidad del NPC.
+	model:SetAttribute("AIState", state)
+end
+
+--- Efectos de personalidad que dependen del TIEMPO, no del estado.
+---
+--- El Shadow es el caso claro: se hace casi invisible mientras persigue y
+--- vuelve a verse cuando no. El Guardian no necesita nada aqui porque su
+--- `StillWhenIdle` ya lo resuelve la maquina de estados.
+---
+--- Nunca baja de 0.1 de transparencia: un enemigo que se puede perder de la
+--- vista a 5 studs deja de ser una amenaza y pasa a ser una molestia.
+--- @param record table
+--- @param def any
+--- @param hasTarget boolean
+--- @param now number
+--- @param dt number
+local function tickPersonality(record: { [string]: any }, def: any, hasTarget: boolean, now: number, dt: number)
+	local model = record.Model
+
+	if not model or not model.Parent or not def.Vanishes then
+		return
+	end
+
+	local body = model:FindFirstChild("Body")
+	if not body or not body:IsA("BasePart") then
+		return
+	end
+
+	local alpha = tonumber(body:GetAttribute("FlickerAlpha")) or 0.1
+	local goal = if hasTarget
+		then (math.sin(now * AI_FADING_HZ) + 1) * 0.25 + 0.25
+		else 0.1
+
+	alpha += (goal - alpha) * math.min(1, dt * 4)
+	alpha = math.clamp(alpha, 0.1, 0.75)
+
+	body:SetAttribute("FlickerAlpha", alpha)
+	body.Transparency = alpha
+end
+---
+--- El golpe de un monstruo: dano + personalidad.
+---
+--- Todo el dano pasa por `CombatService`, que es la unica autoridad del
+--- servidor. Si el monstruo llamara a `TakeDamage` sobre el jugador, se saltaria
+--- la invulnerabilidad y las reglas de ronda.
+---
+--- Ademas aplica el EFECTO de la personalidad, que es la mitad del juego de
+--- estos enemigos: un Ice Beast que solo hace dano es un Slime con mas vida.
+--- @param record table
+--- @param targetHumanoid Humanoid
+--- @param def any
+local function applyMonsterHit(record: { [string]: any }, targetHumanoid: Humanoid, def: any)
+	local combat = Service._combatService
+
+	if not combat then
+		return
+	end
+
+	combat.ApplyDamage(targetHumanoid, def.Damage)
+
+	if not record.Model or not record.Model.Parent then
+		return
+	end
+
+	-- QUEMADURA: el dano sigue despues del golpe. Corta a proposito (1.5 s en
+	-- total) porque el objetivo no es matar por quemadura sino quitarle al
+	-- jugador la ventana para colocar la bomba siguiente.
+	if def.AppliesBurn then
+		local combatRef = combat
+
+		task.spawn(function()
+			for _ = 1, AI_BURN_TICKS do
+				task.wait(AI_BURN_INTERVAL)
+
+				if
+					not record.Model.Parent
+					or not targetHumanoid.Parent
+					or targetHumanoid.Health <= 0
+				then
+					return
+				end
+
+				combatRef.ApplyDamage(targetHumanoid, AI_BURN_DAMAGE)
+			end
+		end)
+	end
+
+	-- HIELO: el jugador sale del golpe por debajo de la velocidad con la que
+	-- le persiguen. `AI_SLOW_DURATION` es corto a proposito: si el efecto fuera
+	-- largo, un solo Ice Beast mataria sin dejar jugar.
+	if def.AppliesSlow then
+		local player = Players:GetPlayerFromCharacter(targetHumanoid.Parent)
+
+		if player then
+			task.spawn(function()
+				local character = player.Character
+				if not character then
+					return
+				end
+
+				local humanoid = character:FindFirstChildOfClass("Humanoid")
+				if not humanoid or humanoid.Health <= 0 then
+					return
+				end
+
+				local base = humanoid:GetAttribute("BaseWalkSpeed")
+					or GameConfig.DefaultPlayerSpeed
+
+				humanoid:SetAttribute("BaseWalkSpeed", base)
+				humanoid.WalkSpeed = base * AI_SLOW_FACTOR
+
+				task.wait(AI_SLOW_DURATION)
+
+				if humanoid.Parent and humanoid.Health > 0 then
+					humanoid.WalkSpeed = humanoid:GetAttribute("BaseWalkSpeed")
+						or GameConfig.DefaultPlayerSpeed
+				end
+			end)
+		end
+	end
+
+	Logger.Debug(("%s golpeo a un jugador (%d de dano)"):format(def.Id, def.Damage))
+end
+
+--- UN SOLO paso de IA para todos los monstruos.
+---
+--- EL CICLO, Y POR QUE IMPORTA
+--- -----------------------------
+--- Antes este metodo hacia una sola cosa: si habia un jugador dentro del
+--- rango, mover hacia el y, si estaba cerca, pegarle. Eso no es una IA, es un
+--- `if`. El jugador no tenia forma de saber si el enemigo iba a golpear.
+---
+--- Ahora cada monstruo lleva su PROPIA maquina de estados (`AIService.Think`)
+--- y este metodo se limita a ejecutarla. La consecuencia de juego es la que
+--- importa:
+---
+---   - Perseguir NO es instantaneo: hay `DetectTime` + `WarningTime` antes de
+---     que el enemigo se mueva. Ese es el tiempo para poner la bomba y salir.
+---   - La velocidad cambia con el estado. La persecucion sostenida es SIEMPRE
+---     mas lenta que el jugador; solo la `ChargeSpeed` lo supera, y 0.5 s.
+---   - Entre golpes hay `RecoveryTime`, con lo que el jugador puede volver a
+---     jugar en vez de morir encadenado sin tener una sola decision.
+---
+--- El `dt` lo pasa quien llama en lugar de usar `Heartbeat:Wait()`: dentro de
+--- un `Heartbeat` eso devolveria 0 y los monstruos no se moverian, y ademas
+--- `Wait()` dentro de la conexion bloquearia a los demas.
+--- @param dt number
+function Service.StepAI(dt: number)
+if not Service._roundService or not Service._roundService.IsPlaying() then
+		return
+	end
+
+	local now = os.clock()
 
 	for _, record in pairs(Service._monsters) do
 		if not record.Dead and record.RootPart and record.RootPart.Parent then
 			local def = record.Def
 			local origin = record.RootPart.Position
+
+			-- 1. PERCEPCION. El jugador mas cercano DENTRO del rango de
+			-- deteccion. Es percepcion, no memoria: si no hay nadie dentro, el
+			-- monstruo no recuerda a nadie.
 			local target = Service.FindNearestPlayer(origin, def.DetectionRange)
 
-			if target and target.Character then
-				local targetRoot = target.Character:FindFirstChild("HumanoidRootPart")
-				local targetHumanoid = target.Character:FindFirstChildOfClass("Humanoid")
+			local targetRoot = target
+				and target.Character
+				and target.Character:FindFirstChild("HumanoidRootPart")
+			local targetHumanoid = target
+				and target.Character
+				and target.Character:FindFirstChildOfClass("Humanoid")
 
-				if targetRoot and targetHumanoid and targetHumanoid.Health > 0 then
-					local step = AIService.Step(origin, targetRoot.Position, def.DetectionRange)
+			local hasTarget = targetHumanoid ~= nil
+				and targetHumanoid.Health > 0
+				and targetRoot ~= nil
 
-					if step.Move then
-						local speed = AIService.ChaseSpeed(def.Speed, def.ChaseMultiplier)
-						local moved = origin
-							+ Vector3.new(step.Direction.x, 0, step.Direction.z) * speed * dt
+			local distance = math.huge
+			if hasTarget and targetRoot then
+				distance = AIService.Distance(
+					origin.X,
+					origin.Z,
+					targetRoot.Position.X,
+					targetRoot.Position.Z
+				)
+			end
 
-						-- BUG CORREGIDO (medido en PLAY): esto movia SOLO
-						-- `RootPart`. `Body` es hermano de la raiz, no hijo, y
-						-- se quedaba en el sitio: el monstruo persiguia al
-						-- jugador dejando una estela de cuerpos parados, y
-						-- desde lejos parecia que no se movia.
-						--
-						-- Ahora se mueve el MODELO ENTERO (`PivotTo`), que es
-						-- lo que el jugador ve, y se orienta hacia el objetivo
-						-- para que los ojos miren a donde va.
-						local lookAt = targetRoot.Position
+			-- 2. PERSISTENCIA DEL ESTADO. `TimeInState` se acumula aqui y no
+			-- con `os.clock()`: al cambiar de estado hay que ponerlo a cero, y
+			-- con dos relojes eso se olvida una vez y el monstruo ataca sin
+			-- cooldown para siempre.
+			local nextState = AIService.Think(
+				record.State,
+				record.TimeInState or 0,
+				def,
+				hasTarget,
+				distance
+			)
 
-						if (lookAt - moved).Magnitude > 0.5 then
-							record.Model:PivotTo(CFrame.lookAt(moved, lookAt))
-						else
-							record.Model:PivotTo(CFrame.new(moved))
-						end
-					end
+			if nextState ~= record.State then
+				record.State = nextState
+				record.TimeInState = 0
+				onStateChanged(record, nextState, def)
+			else
+				record.TimeInState = (record.TimeInState or 0) + dt
+			end
 
-					-- Ataque por contacto, con su propio tiempo de recarga.
-					--
-					-- El ataque pasa SIEMPRE por CombatService: es la unica
-					-- autoridad de dano del servidor. Si el monstruo
-					-- llamara a TakeDamage sobre el jugador, se saltarian la
-					-- invulnerabilidad y la regla de ronda.
-					if
-						Service._combatService
-						and AIService.ShouldAttack(step.Distance, def.AttackRange)
-						and os.clock() >= (record.NextAttackAt or 0)
-					then
-						record.NextAttackAt = os.clock() + def.AttackCooldown
-						Service._combatService.ApplyDamage(targetHumanoid, def.Damage)
-					end
+			-- 3. MOVIMIENTO. La velocidad la decide el ESTADO, no el tipo de
+			-- monstruo, y `AIService.StateSpeed` la acota contra la velocidad
+			-- real del jugador. `CanMove` es falso en `Detect` y `Warning`: son
+			-- los estados en los que el monstruo esta PARADO a proposito, y por
+			-- eso son la ventana de reaccion del jugador.
+			local speed = AIService.StateSpeed(def, record.State)
+			local step = if hasTarget and targetRoot
+				then AIService.Step(origin, targetRoot.Position, math.huge)
+				else patrolStep(record, now)
+
+			if AIService.CanMove(record.State) and step.Move and speed > 0 and step.Direction then
+				local moved = origin
+					+ Vector3.new(step.Direction.x, 0, step.Direction.z) * speed * dt
+
+				-- BUG CORREGIDO (medido en PLAY): esto movia SOLO `RootPart`.
+				-- `Body` es hermano de la raiz, no hijo, y se quedaba en el
+				-- sitio: el monstruo persiguia dejando una estela de cuerpos
+				-- parados, y desde lejos parecia que no se movia.
+				--
+				-- Ahora se mueve el MODELO ENTERO (`PivotTo`), que es lo que el
+				-- jugador ve, y se orienta hacia el objetivo para que los ojos
+				-- miren a donde va.
+				local lookAt = if hasTarget and targetRoot then targetRoot.Position else nil
+
+				if lookAt and (lookAt - moved).Magnitude > 0.5 then
+					record.Model:PivotTo(CFrame.lookAt(moved, lookAt))
+				else
+					record.Model:PivotTo(CFrame.new(moved))
 				end
 			end
+
+			-- 4. ATAQUE. Solo ocurre EN EL ESTADO `Attack` y solo en su primer
+			-- tick: el golpe se cobra UNA vez por carga, no una vez por frame.
+			--
+			-- Y solo si el jugador sigue dentro del alcance: el telegraph le dio
+			-- la opcion de salir, y si salio, el golpe falla. Ese es el
+			-- CONTRATO del telegraph, y por eso la distancia se comprueba
+			-- DESPUES de la carga y no antes.
+			if record.State == AIService.States.Attack
+				and (record.TimeInState or 0) < dt * 2
+				and targetHumanoid
+			then
+				if AIService.ShouldAttack(distance, def.AttackRange) then
+					applyMonsterHit(record, targetHumanoid, def)
+				else
+					-- Escapaste. Es un resultado VALIDO del ataque, no un fallo
+					-- del sistema, y no se registra como error.
+					Logger.Debug(("%s cargo y fallo: el jugador salio de su alcance")
+						:format(def.Id))
+				end
+			end
+
+			-- 5. PERSONALIDAD con efecto de tiempo.
+			tickPersonality(record, def, hasTarget, now, dt)
 		end
 	end
 end
@@ -683,6 +1017,24 @@ function Service.Init(maid: any?): boolean
 	Logger.Info(("MonsterService: %d definiciones de monstruo"):format(
 		#MonsterDefinitions.GetIds()
 	))
+
+	-- Se comprueba el BALANCE al arrancar, no en un test aparte.
+	--
+	-- Las reglas (persecucion mas lenta que el jugador, ventana de reaccion
+	-- minima, cooldown entre golpes) son un contrato con el balance. Si un
+	-- monstruo se declara mal, el sintoma en pantalla es "el juego esta
+	-- injusto", que no aparece en ningun log y no lo detecta nadie hasta que un
+	-- jugador lo reporta. Aqui queda escrito, con el nombre del culpable.
+	local problems = MonsterDefinitions.GetBalanceProblems()
+
+	for _, problem in ipairs(problems) do
+		Logger.Warn("MonsterService DESBALANCE: " .. problem)
+	end
+
+	if #problems == 0 then
+		Logger.Info(("MonsterService: balance de velocidad correcto frente a un jugador de %d studs/s")
+			:format(GameConfig.DefaultPlayerSpeed))
+	end
 
 	return true
 end

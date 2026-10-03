@@ -542,6 +542,31 @@ function VisualKit.BuildMonster(def: any): Model?
 		aura.Parent = root
 	end
 
+	-- ARO DE TELEGRAPH: se enciende cuando el monstruo AVISA de una carga.
+	--
+	-- Es la segunda mitad del aviso. El cartel "!" dice "va a atacar"; este aro
+	-- dice "y lo hara en esta direccion y en este radio". Un enemigo que ataca
+	-- de frente y a los lados no puede esquivarse solo con mirar: hay que ver
+	-- el area.
+	--
+	-- Nace INVISIBLE (`Transparency = 1`) y no colisiona ni consulta nada:
+	-- una pieza invisible que colisiona es un obstaculo fantasma, y el jugador
+	-- pierde la bomba sin entender por que. `onStateChanged` lo enciende.
+	local telegraph = makePart(
+		"TelegraphGlow",
+		Vector3.new(size.X * 2.2, 0.25, size.Z * 2.2),
+		CFrame.new(0, -size.Y * 0.5 + 0.2, 0),
+		Color3.fromRGB(255, 92, 72),
+		{
+			shape = Enum.PartType.Cylinder,
+			material = Enum.Material.Neon,
+			transparency = 1,
+			collide = false,
+		}
+	)
+	telegraph.CFrame = telegraph.CFrame * CFrame.Angles(0, 0, math.rad(90))
+	telegraph.Parent = root
+
 	-- Contorno: separa al monstruo del fondo. Sin assets, un `Highlight` con
 	-- `FillTransparency = 1` es exactamente un borde.
 	local highlight = Instance.new("Highlight")
@@ -558,7 +583,7 @@ function VisualKit.BuildMonster(def: any): Model?
 	local tag = Instance.new("BillboardGui")
 	tag.Name = "NameTag"
 	tag.Adornee = root
-	tag.Size = UDim2.fromOffset(150, 46)
+	tag.Size = UDim2.fromOffset(150, 56)
 	tag.StudsOffset = Vector3.new(0, size.Y * 0.5 + 1.6, 0)
 	tag.AlwaysOnTop = true
 	tag.MaxDistance = 140
@@ -591,10 +616,33 @@ function VisualKit.BuildMonster(def: any): Model?
 	tagName.TextYAlignment = Enum.TextYAlignment.Center
 	tagName.Parent = tagFrame
 
+	-- CARTEL DE ESTADO: el aviso del telegraph.
+	--
+	-- Es la pieza que convierte la maquina de estados en algo que el jugador
+	-- PUEDE LEER. Sin este cartel, la IA puede dejar 1.4 s de aviso antes de
+	-- cargar (que es lo que hace justo al Bomber) y el jugador no tiene ni
+	-- idea: para el es un monstruo que se para y luego te explota encima.
+	--
+	-- Nace OCULTO y vacio. `MonsterService.onStateChanged` es quien lo llena,
+	-- y solo mientras dura un estado con aviso: un "!" permanente seria ruido.
+	local stateLabel = Instance.new("TextLabel")
+	stateLabel.Name = "StateLabel"
+	stateLabel.Size = UDim2.new(1, 0, 0, 16)
+	stateLabel.Position = UDim2.fromOffset(0, 24)
+	stateLabel.BackgroundTransparency = 1
+	stateLabel.BorderSizePixel = 0
+	stateLabel.Font = Enum.Font.GothamBold
+	stateLabel.Text = ""
+	stateLabel.TextColor3 = Color3.fromRGB(255, 226, 96)
+	stateLabel.TextSize = 14
+	stateLabel.Visible = false
+	stateLabel.Parent = tagFrame
+
 	local hpFrame = Instance.new("Frame")
 	hpFrame.Name = "HealthBar"
 	hpFrame.Size = UDim2.new(1, -14, 0, 10)
-	hpFrame.Position = UDim2.fromOffset(7, 26)
+	-- y = 38 (no 26) para dejar sitio al cartel de estado de arriba.
+	hpFrame.Position = UDim2.fromOffset(7, 38)
 	hpFrame.BackgroundColor3 = Color3.fromRGB(10, 10, 14)
 	hpFrame.BorderSizePixel = 0
 	hpFrame.Parent = tagFrame

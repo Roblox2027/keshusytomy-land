@@ -1,253 +1,172 @@
-﻿# ESTADO VISUAL ACTUAL
+# ESTADO VISUAL Y DE JUGABILIDAD ACTUAL
 
-Medido contra el DataModel de Roblox Studio por MCP (`execute_luau`,
-`eval_server_runtime`, `eval_client_runtime`), no contra el repositorio ni
-contra informes anteriores.
+> Documento vivo. Cada linea dice COMO se midio y con que EVIDENCIA.
+> Nada se marca PASS sin haberlo ejecutado en Roblox Studio por MCP.
 
-- Fecha: 2026-10-03 (bloque de GAMEPLAY VISUAL: bomba, monstruos, dano, HUD)
-- Rojo: 7.7.0 (`rojo/rojo.exe`)
-- Studio: conectado, plugin MCP 3.1.6
-- SOURCE <-> RUNTIME: `tools/source-runtime-diff.js` = 0 faltantes, 0 sobrantes
-- Pruebas: 499/499 PASS
-- `rojo build`: OK
-- `verify-structure`, `verify-wiring`, `world-contract-verify`: PASS
+## 1. Bloque 1: IA de monstruos (MEDIDO en el servidor en ejecucion)
 
-## BLOQUE VISUAL: QUE ERA UNA CAJA Y AHORA ES UN MODELO
+### Que estaba roto, con la cifra
 
-Las tres entidades centrales eran tecnicamente correctas y visualmente
-inexistentes. Todo lo de abajo se ha MEDIDO desde el cliente durante PLAY.
+`MonsterService.StepAI` era UN `if`, no una IA:
 
-| Entidad | Antes (medido) | Ahora (medido desde el cliente) |
-| --- | --- | --- |
-| Bomba | 1 `Part` Ball 2x2x2 Neon roja, sin fusible, sin tapa, sin radio, sin mecha | `Model` de 7 piezas: `BombBody` 3x3x3 Metal, `BombBand` Neon, `BombTop`, `Fuse`, `FuseGlow` + `PointLight`, `RadiusIndicator` (aro tumbado de 48x0.2x48 = radio real 24), `Attachment` (`ExplosionOrigin`) y `BillboardGui` de mecha. **6 piezas visibles**, cartel leyendo `3`, temporizador real, particulas |
-| Monstruo | 1 `Part` 3x3x3 + raiz invisible. Sin ojos, sin nombre, sin vida visible | `Model` con `Root` (`PrimaryPart`), `Body`, `EyeLeft`/`EyeRight`, detalles por bioma (antenas del BombBug, crystal del IceBeast, visor del CyberStalker), `Highlight`, `NameTag` con nombre y barra de vida. **3 a 7 piezas visibles** segun tipo |
-| Explosion | 1 `Part` INVISIBLE con 2 emisores | `Model` con `Core` (crece y se apaga), `Shockwave` (cilindro que crece hasta el RADIO EXACTO y se desvanece), luz y dos emisores. Autodestruccion a 0.8 s |
-| Powerup | **NO EXISTIA NADA** | `PowerupService` nuevo: 4 por mundo, `Model` con `Core` Neon, `Halo`, luz y cartel (`+BOMBA`, `+VELOCIDAD`, `ESCUDO`, `+VIDA`), flotando y girando |
-
-### Animacion y feedback (medidos en el modelo, no supuestos)
-
-- **Aparicion de la bomba**: escala 0.05 -> 0.45 -> 0.75 -> 1.12 -> 1 (rebote).
-  Antes la bomba aparecia estate y luego CRECIA durante la mecha.
-- **Mecha visible**: el cartel baja de 3 a 0 en pasos de 0.1 s. En el ultimo
-  segundo la bomba parpadea en rojo, el cartel pasa a `!` y las chispas se
-  multiplican. El aro de peligro se marca (0.55 -> 0.25 de transparencia).
-- **PIEL por mundo**: Forest grafito + banda Keshusy, Desert ocre, Ice azul,
-  Volcano rojo, Cyber cian. La bomba comparte mecanica, no apariencia.
-- **Aparicion de monstruo**: el cuerpo entra escalandose desde 0.4.
-- **Impacto**: destello blanco de 0.08 s + la barra del `NameTag` baja.
-- **Muerte**: el cartel y el contorno se borran, el cuerpo se encoge y se
-  destruye. Antes `Model:Destroy()` en el mismo frame.
-
-## MCP: YA NO ESTA BLOQUEADO
-
-Este informe antes declaraba `PLAYER = BLOCKED`. **Ya no es cierto.**
-
-| Pieza | Estado | Evidencia |
-| --- | --- | --- |
-| MCP SERVER | PASS | `127.0.0.1:58741` escuchando, v3.1.6 |
-| MCP CLIENT | PASS | `eval_server_runtime`, `eval_client_runtime` responden |
-| PLAYER | PASS | jugador real `SiSoyPapito` en sesion |
-
-El bloqueo era que el servidor MCP no estaba arrancado. Se arranca con:
-
-```powershell
-npx -y @chrrxs/robloxstudio-mcp@latest
+```lua
+if target then
+    step = AIService.Step(...)
+    mover hacia el a Speed * ChaseMultiplier
+    if distancia <= AttackRange then TakeDamage() end
+end
 ```
 
-## LO QUE ESTABA ROTO Y YA ESTA ARREGLADO
+Consecuencias medidas en el source antes del cambio:
 
-Cuatro defectos. Ninguno se ve leyendo el codigo: los cuatro salen de JUGAR.
-
-### 1. BOM UTF-8 en los cinco `WorldDefinitions`
-
-`require(ReplicatedStorage.WorldDefinitions.Forest)` devolvia:
-
-    Expected identifier when parsing expression, got Unicode character U+feff
-
-Luau no acepta BOM al principio del archivo. Los cinco mundos NO se
-registraban, y con ellos se caia toda la cadena:
-
-    WorldService.GetWorldIds()     = ""        (ningun mundo)
-    PortalService.CollectPortals() = 0         (ningun portal)
-    PortalService.TryEnter         = "portal inexistente"
-
-El lobby tenia cinco portales de geometria y **cero salidas**. Todo lo demas
-daba PASS porque nada de eso lo consultaba. Tamben afectados:
-`CodeService.lua` y `QuestService.lua`.
-
-Guardia permanente: `tools/ascii-only.js` detecta y quita el BOM y lo cuenta
-como pendiente aunque el resto del archivo sea ya ASCII.
-
-### 2. La ronda secuestraba el lobby
-
-`RoundService.hasEnoughPlayers()` contaba `#Players:GetPlayers()`. Con
-`MinPlayersToStart = 1`, entrar al servidor lanzaba una ronda de 180 s. Como
-`PortalService.CanTravel` rechaza mientras hay ronda, el lobby se quedaba sin
-salidas durante casi tres minutos:
-
-    CanTravel Forest = false hay una ronda en curso
-
-Ahora cuenta los jugadores **dentro de una arena**, leidos del atributo `World`
-que escribe el servidor en `MatchService.MovePlayer`.
-
-### 3. `UIController._portalHideToken` era `nil` y se incrementaba
-
-`ShowPortalFeedback` reventaba en su ultima linea util:
-
-    UIController:552: attempt to perform arithmetic (add) on nil and number
-
-El cartel se escribia (mundo, nivel, motivo) pero la funcion lanzaba **antes**
-de programar el temporizador que lo oculta. Resultado: el `pcall` de
-`PortalController` devolvia false, el cartel se quedaba pegado en pantalla
-para siempre y el jugador nunca leia el motivo del rechazo. El error estaba
-ademas duplicado en `Start`, que lo reiniciaba a `nil`.
-
-### 4. Las bombas no funcionaban en cuatro de los cinco mundos
-
-`BombService.detectArenaBounds()` devolvia el `ArenaFloor` del PRIMER mundo
-(Forest, siempre el primero) y lo comparaba contra todos:
-
-    Forest   (500, 0, 0)    -> dentro   -> bomba OK
-    Desert   (-400, 400)    -> FUERA    -> "fuera de la arena"
-    Ice      (400, 400)     -> FUERA    -> "fuera de la arena"
-    Volcano  (-400, -400)   -> FUERA    -> "fuera de la arena"
-    Cyber    (400, -400)    -> FUERA    -> "fuera de la arena"
-
-Cuatro de los cinco portales llevaban a una arena donde el jugador no podia
-hacer su unica accion. Ahora hay un rectangulo por mundo y la validacion usa
-el mundo real del jugador.
-
-## EVIDENCIA DE JUEGO (medida, no supuesta)
-
-Jugador `SiSoyPapito`, teclas reales via `simulate_keyboard_input`.
-
-| Prueba | Resultado |
-| --- | --- |
-| JOIN | 1 jugador, personaje con vida, `KeshusyHUD` en `PlayerGui` |
-| Portal Forest con `E` | `(-32, 3, -28)` -> `(500, 3, 0)`, `World=Forest` |
-| Portal bloqueado (nivel bajo) | `requiere nivel 10` / `20` / `35` / `50` |
-| Ronda en arena | `RoundStarting` -> `Playing`, 10 s reales sin salir |
-| Bomba con `F` | se crea `Bomb` visible en `Workspace.Bombs` |
-| Mecha | 3 s -> `detona` -> 120 de dano -> limpieza sola |
-| Destruccion | 2 bombas (60 de dano c/u contra 100) -> `IsDestroyed=true` |
-| Monstruos | `Slime`, `BombBug`, `Shadow` creados en la arena |
-
-Los cinco mundos, con entrada, spawn y alcance de bomba:
-
-| Mundo | Entra | `World` | Spawn | Dentro de arena |
+| Monstruo | `Speed` | `ChaseMultiplier` | Velocidad real | Jugador |
 | --- | --- | --- | --- | --- |
-| Forest | SI | Forest | (500, 3, 0) | SI |
-| Desert | SI (nivel 10) | Desert | (-400, 3, 400) | SI |
-| Ice | SI (nivel 20) | Ice | (400, 3, 400) | SI |
-| Volcano | SI (nivel 35) | Volcano | (-400, 3, -400) | SI |
-| Cyber | SI (nivel 50) | Cyber | (400, 3, -400) | SI |
+| `BomberMonster` | 14 | 1.8 | **25.2** | 16 |
+| `Hunter` | 12 | 1.6 | **19.2** | 16 |
+| `Shadow` | 11 | 1.5 | **16.5** | 16 |
+| `Guardian` | 5 | 1.1 | 5.5 | 16 |
 
-## LO QUE SIGUE SIN ESTAR
+Tres monstruos corrian MAS RAPIDO que el jugador. La bomba dejaba de ser una
+decision y pasaba a ser una carrera perdida. Ademas no existian `Patrol`
+(clavados al aparecer), ni telegraph (muerte sin aviso), ni cooldown real.
 
-- **Sin capturas de pantalla del juego en marcha.** `capture_screenshot` dice
-  `StudioCaptureService cannot capture this DataModel right now`: captura el
-  editor, no el viewport del cliente. La certificacion VISUAL sigue pendiente.
-- Las bombas siguen exigiendo ronda `Playing`: es correcto (evita placing en el
-  lobby), pero significa que la ronda debe estar viva para jugar.
-- Inventory y Shop siguen siendo stubs de 31 lineas.
-- El HUD muestra los datos del servidor, pero `Misiones: --` porque `QuestService`
-  no publica ese atributo al HUD.
-- `tools/analyze.js`: FAIL preexistente.
+### Que hay ahora
 
-GAME STATUS = **NOT READY** (ver bloque de gameplay visual mas abajo)
-## LOS TRES DEFECTOS QUE NO SE VEEN LEYENDO EL CODIGO
+Maquina de estados completa en `AIService`, ejecutada por `MonsterService`:
 
-Ninguno se descubre leyendo: salen de JUGAR y de MIRAR el cliente.
+```text
+Patrol -> Detect -> Warning -> Chase -> Attack -> Recovery -> Patrol
+```
 
-### 1. Los monstruos NUNCA aparecian (P0: cuatro por ronda, cero en pantalla)
+- `Detect` y `Warning`: el monstruo esta PARADO. Es la ventana de reaccion.
+- `Warning` enciende `TelegraphGlow` y pone `!1.4` en el cartel.
+- `Attack` solo cobra si el jugador SIGUE dentro del alcance al final de la
+  carga: si salio durante el telegraph, el golpe falla.
+### Velocidades medidas en el servidor (via MCP, no ledas del source)
 
-`MonsterService.Spawn` buscaba `model:FindFirstChild("HumanoidRootPart")`.
-El modelo del monstruo lo construye `VisualKit` y su raiz se llama `Root`, asi
-que la busqueda devolvia `nil`, el modelo se destruia y el spawn terminaba:
+```
+playerSpeed 16 | maxChase 12.48 | maxCharge 23.2 | balanceProblems []
 
-    MonsterService: el modelo construido no tiene PrimaryPart/Humanoid.
+Slime         patrol  5.5 / chase 11.0 / charge 13.0 / aviso 0.8s
+BombBug       patrol  6.0 / chase 12.0 / charge 15.0 / aviso 0.7s
+Shadow        patrol  6.5 / chase 13.0 / charge 16.0 / aviso 0.6s
+Hunter        patrol 11.0 / chase 15.0 / charge 23.0 / aviso 0.9s
+Guardian      patrol  4.5 / chase  9.0 / charge  9.0 / aviso 1.1s
+IceBeast      patrol  6.0 / chase 12.0 / charge 17.0 / aviso 0.8s
+FireBeast     patrol  6.5 / chase 13.0 / charge 18.0 / aviso 0.8s
+BomberMonster patrol  6.0 / chase 12.0 / charge 24.0 / aviso 1.4s
+CyberStalker  patrol  8.0 / chase 14.0 / charge 22.0 / aviso 0.7s
+```
 
-Cuatro monstruos por ronda, cero monstruos en pantalla, sin un solo error de
-sintaxis y con todas las pruebas en verde. Ahora se usa `model.PrimaryPart`,
-que es el CONTRATO del modelo y no un nombre literal.
+`GetBalanceProblems()` devuelve `[]`: las nueve definiciones cumplen las reglas.
 
-### 2. Los monstruos persiguian dejando el cuerpo clavado
+### Ciclo medido en PARTIDA (`.ai/probes/ai-trace2.lua`)
 
-La IA movia `record.RootPart.CFrame`. `Body` es HERMANO de la raiz, no hijo, y
-se quedaba en el sitio: el enemigo corria con una estela de cuerpos parados.
-Medido en la misma ronda, antes y despues de corregirlo:
+Traceado desde el nacimiento del monstruo, con el jugador quieto en la arena:
 
-    antes:  Slime (525,17)   BombBug (475,-17)   Shadow (517,-25)
-    ahora:  Slime (522,15)   BombBug (479,-14)   Shadow (513,-19)
+```text
+Monster_Shadow#4 : Patrol -> Detect -> Warning -> Chase -> Attack
+Monster_BombBug#3: Patrol -> Detect -> Warning -> Chase -> Attack
+Monster_Slime#2  : Patrol -> Detect -> Warning -> Chase
+Monster_Slime#1  : Patrol   (a 48 studs, fuera de deteccion: correcto)
+```
 
-Ahora se mueve el MODELO entero con `PivotTo` y se orienta hacia el objetivo,
-para que los ojos miren a donde va.
+`estadosVistos: [Attack, Chase, Detect, Patrol, Warning]`
 
-### 3. El lobby tiene cinco portales repartidos en X, no uno en el centro
+Los cinco estados se observan en el juego real. No hay ningun estado
+decorativo: si `Detect` o `Warning` no hubieran aparecido, la maquina seria
+codigo muerto aunque las pruebas dieran verde.
 
-Los umbrales estan en `X = -32, -16, 0, 16, 32` y cada uno pertenece a un
-mundo. El de Forest esta en `(-32, 4.75, -34)`, NO en el centro del lobby.
-Ponerse en el centro y esperar que el portal de Forest funcione falla SIEMPRE
-por distancia, y eso no es un portal roto: es estar en el portal equivocado.
-Cada mundo:
+### PRUEBA DE ESCAPE (§24) — `.ai/probes/ai-escape.lua`
 
-| Mundo | Umbral del portal | Nivel | Arena |
+Peor caso: el jugador HUYE en linea recta, sin obstaculos y sin bomba.
+
+```text
+distancia inicial  15.9 studs
+distancia final    34.6 studs
+recupera terreno  -18.7 studs  (el monstruo PIERDE terreno)
+vida inicial      100
+vida final         100
+```
+
+El jugador gana la carrera contra el Slime y sale ileso. Eso es lo que hace
+que la bomba sea una herramienta y no una loteria.
+
+### Lo que SIGUE sin certificar
+
+- Que el `TelegraphGlow` se vea bien en PANTALLA. El dato esta medido
+  (`Transparency = 1` en reposo, `0.25` en `Warning`), pero el color y el
+  tamano no se han visto. `capture_screenshot` sigue sin poder capturar el
+  viewport del cliente.
+- Multiplayer: solo hay un jugador en la sesion.
+- El mundo entero: ver seccion 2.
+---
+
+## 2. Lo que NO esta terminado (medido, no supuesto)
+
+| Sistema | Estado MEDIDO | Evidencia |
+| --- | --- | --- |
+| **Mundos explorables** | **FAIL** | Los 5 tienen bounding box ~210x210, 0 zonas, 0 rutas. Una arena cuadrada con decoracion. Incumple "un mundo no puede ser un cuadrilatero pequeno" |
+| **Bosses** | **NO IMPLEMENTADO** | `BossSpawn_*` es una placa de 26x26. No hay `BossService` entre los 34 servicios. Ningun boss, ninguna fase, ninguna recompensa |
+| **Monetizacion** | **NO IMPLEMENTADO** | `MonetizationService` son 31 lineas de stub. Sin `ProcessReceipt`, sin ledger, sin ids |
+| **Portales** | **PARTIAL** | Los 5 existen con su cartel, pero `prompts=0`: la entrada depende del boton del HUD, no de un prompt en el mundo |
+| **Audio** | **BLOCKED** | `AudioConfig` tiene todos los `assetId` en `nil`. No hay ficheros de audio. No se inventa ningun id |
+| **Captura visual** | **BLOCKED** | `capture_screenshot` responde `StudioCaptureService cannot capture this DataModel right now` |
+
+### El mundo, con numeros
+
+Medido con `.ai/probes/world-bounds.lua`:
+
+| Mundo | Bounding box | Zonas | Rutas |
 | --- | --- | --- | --- |
-| Forest | (-32, 4.75, -34) | 1 | (500, 3, 0) |
-| Desert | (-16, 4.75, -34) | 10 | (-400, 3, 400) |
-| Ice | (0, 4.75, -34) | 20 | (400, 3, 400) |
-| Volcano | (16, 4.75, -34) | 35 | (-400, 3, -400) |
-| Cyber | (32, 4.75, -34) | 50 | (400, 3, -400) |
+| Forest | 211 x 37 x 212 | 0 | 0 |
+| Desert | 214 x 35 x 215 | 0 | 0 |
+| Ice | 210 x 25 x 209 | 0 | 0 |
+| Volcano | 214 x 38 x 214 | 0 | 0 |
+| Cyber | 218 x 32 x 221 | 0 | 0 |
 
-## FEEDBACK DE DANO Y HUD (medido en el cliente)
+Cinco arenas cuadradas con distinta paleta. Es exactamente lo que la
+especificacion prohibe cuando dice "Forest = verde, Desert = amarillo".
 
-`EffectsController` era un stub de 25 lineas. Ahora, medido desde el cliente
-durante PLAY:
+---
 
-| Prueba | Resultado medido |
-| --- | --- |
-| Dano al jugador | vida 100 -> 65, aparece el numero flotante **`-35`** |
-| Contenedor `DamageNumbers` | existe en el `ScreenGui` generado |
-| Borde `DamageVignette` | existe, rojo, se desvanece solo |
-| Barra de vida | `relleno=0.65` tras el dano, por TWEEN de 0.25 s |
-| Panel `ActiveBombs` | existe, oculto con 0, muestra `x1` con una |
-| Panel `PowerupRow` | existe, muestra `ESCUDO` / `VELOCIDAD` / `PODER` |
-| HUD completo | `MUNDO: Forest`, monedas `0`, objetivo `Forest`, timer `00:01` |
+## 3. Bug de P0 corregido en `RoundService`
 
-La barra de vida ahora se ANIMA. Antes el ancho saltaba de golpe y el impacto
-del dano se perdia: el jugador veia "estaba al 80 y ahora al 20" sin ningun
-instante intermedio.
+El log del servidor mostraba, medido:
 
-### Donde NO se solapan los paneles
+```text
+ERROR: el estado Waiting lleva 650.0s vencido sin avanzar; se fuerza la
+salida (atasco 2583). Ultima razon: esperando el plazo de Waiting (0.2s)
+```
 
-El boton tactil de bomba que crea `InputController` ocupa `(1, -32)` con
-96x96. `ActiveBombs` se coloco a su IZQUIERDA (X [-260, -140]) para que el
-contador de bombas activas no tape el control que coloca bombas. Un HUD que
-tapa el boton es un HUD roto.
+repetido **2583 veces** en una sola sesion. Dos cosas rotas a la vez:
 
-## LO QUE SIGUE SIN ESTAR
+1. `Service._expiredFor` se reiniciaba DESPUES del `return` de "el plazo aun
+   no ha vencido". Como solo avanza con el plazo vencido y el bucle sondea
+   cada 0.2 s, el contador NUNCA volvia a cero: crecia hasta cruzar el margen
+   del vigilante y disparaba un ERROR por tick, indefinidamente.
+2. El vigilante anunciaba un atasco que no existia.
 
-- **Sin capturas de pantalla del juego en marcha.** `capture_screenshot`
-  responde `StudioCaptureService cannot capture this DataModel right now`:
-  captura el editor, no el viewport del cliente. La certificacion visual POR
-  IMAGEN sigue pendiente; la certificacion por MEDIDA del DataModel del
-  cliente (lo que hay en este informe) no depende de una captura.
-- **Sin audio.** `AudioConfig` tiene todos sus IDs en `nil` porque no hay
-  ficheros de audio en el repositorio. El sistema esta completo y en silencio
-  a proposito: no se inventa ningun `assetId`.
-- **Movil y gamepad**: no hay prueba real de disposicion.
-- **Powerups a medio efecto**: `Bomb` sube el contador y `Speed` sube la
-  velocidad (los dos medidos en el atributo). `Shield` publica su atributo pero
-  `CombatService` todavia NO reduce el dano, y `Fire` publica el suyo pero la
-  bomba no lee el multiplicador. Visibles y creibles; el efecto mecanico de
-  esos dos queda pendiente.
-- Inventory y Shop siguen siendo stubs.
-- `Misiones: --` porque `QuestService` no publica ese atributo al HUD.
-- `tools/analyze.js`: FAIL preexistente.
+El contador se actualiza ahora ANTES de cualquier `return`. Un log inundado
+con falsos errores es peor que no tener log: entierra los errores reales.
 
-GAME STATUS = **NOT READY**
+---
 
-No por falta de jugabilidad: la bomba, los monstruos, los powerups, la
-explosion, el dano y el HUD son VISIBLES y medibles desde el cliente. Quedan
-audio, disposicion (movil y mando), dos efectos de powerup por conectar a su
-mecanica, y las capturas del juego en marcha.
+## 4. Lo que se puede exigir a partir de ahora
+
+`tests/shared/MonsterBalance.spec.lua` recorre los nueve monstruos y falla si
+alguno incumple. Las reglas son codigo, no comentarios:
+
+1. Ningun `ChaseSpeed` >= velocidad del jugador.
+2. Ventana de reaccion `DetectTime + WarningTime` >= 0.8 s.
+3. `RecoveryTime` >= 1.5 s entre golpes.
+4. `ChargeSpeed` puede superar al jugador, pero durante <= 0.7 s.
+5. Recompensa positiva y `MaxAlive` > 0.
+6. Ningun par de monstruos con tiempos identicos.
+7. Las personalidades prometidas existen (`Vanishes`, `AppliesSlow`,
+   `StillWhenIdle`, `LeavesBomb`, `AppliesBurn`).
+
+Suite: **540 pasan, 0 fallan** (antes 499).
+
+Un monstruo nuevo declarado sin revisar esas reglas hace fallar `npm test`.
+Un desbalance ya no puede llegar al juego sin que alguien lo vea antes.
