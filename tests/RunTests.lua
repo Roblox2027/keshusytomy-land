@@ -22,6 +22,7 @@ local SUITES = {
 	{ name = "StateMachine", path = "./shared/StateMachine.spec" },
 	{ name = "CoreRules", path = "./shared/CoreRules.spec" },
 	{ name = "RemoteSchema", path = "./shared/RemoteSchema.spec" },
+	{ name = "PayloadGuard", path = "./shared/PayloadGuard.spec" },
 	{ name = "GameConfig", path = "./shared/GameConfig.spec" },
 	{ name = "AudioPool", path = "./shared/AudioPool.spec" },
 	{ name = "CombatMath", path = "./shared/CombatMath.spec" },

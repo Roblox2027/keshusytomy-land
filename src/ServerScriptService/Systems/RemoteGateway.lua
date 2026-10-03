@@ -31,6 +31,7 @@ local GameConstants = require(SHARED:WaitForChild("Constants"):WaitForChild("Gam
 local Logger = require(UTILS:WaitForChild("Logger"))
 local RateLimiter = require(SHARED:WaitForChild("Libraries"):WaitForChild("RateLimiter"))
 local RemoteSchemaLib = require(SHARED:WaitForChild("Libraries"):WaitForChild("RemoteSchema"))
+local PayloadGuard = require(SHARED:WaitForChild("Libraries"):WaitForChild("PayloadGuard"))
 local Maid = require(SHARED:WaitForChild("Libraries"):WaitForChild("Maid"))
 
 local RemoteAction = GameConstants.RemoteAction
@@ -142,6 +143,52 @@ function Gateway:_ValidatePayload(expectedType: string, payload: any): (boolean,
 	return RemoteSchemaLib.ValidatePayload(expectedType, payload)
 end
 
+--- Segunda capa de defensa sobre un payload ya validado por tipo.
+---
+--- No reemplaza al paso 6: lo COMPLEMENTA. El esquema comprueba el tipo
+--- declarado; aqui se miran las propiedades que ese tipo permite pero que
+--- nunca son legitimas (numero no finito, tabla ciclica, cadena con
+--- codigos de control).
+---
+--- Devuelve `true` para pasar el payload INTACTO. Nunca devuelve un
+--- valor transformado.
+--- @param expectedType string
+--- @param payload any
+--- @return boolean valid
+--- @return string? reason
+function Gateway:_GuardPayload(expectedType: string, payload: any): (boolean, string?)
+	local PayloadType = RemoteSchemaLib.PayloadType
+
+	if expectedType == PayloadType.Number then
+		-- El paso 6 ya aseguro que es un numero; aqui se descarta el caso
+		-- `NaN`/`inf`, que SI es un numero para Luau pero no es un valor
+		-- con el que se pueda hacer aritmetica.
+		if not PayloadGuard.IsFiniteNumber(payload) then
+			return false, PayloadGuard.Reason.NotFinite
+		end
+
+		return true, nil
+	end
+
+	if expectedType == PayloadType.String then
+		-- Un `ItemId` o un `WorldId` son identificadores: no pueden
+		-- contener saltos de linea ni ser infinitamente largos.
+		local ok, reason = PayloadGuard.IsIdentifier(payload)
+		return ok, reason
+	end
+
+	if expectedType == PayloadType.Table then
+		-- Forma, profundidad y ciclos. Una tabla ciclica es un ataque de
+		-- recursion infinita, no un dato mal formado.
+		local ok, reason = PayloadGuard.ValidateTableShape(payload)
+		return ok, reason
+	end
+
+	-- `Boolean` y `None` no tienen nada que sanear: el paso 6 ya fijo el
+	-- tipo exacto.
+	return true, nil
+end
+
 --- Registra el rechazo para diagnostico, con limite de tasa de logs.
 --- @param key string
 --- @param reason string
@@ -207,6 +254,29 @@ function Gateway:_OnRemote(channelName: string)
 		local valid, reason = self:_ValidatePayload(expectedType, payload)
 		if not valid then
 			self:_RecordRejection(("payload:%s"):format(limitKey), tostring(reason))
+			return
+		end
+
+		-- 6-bis. Defensa en profundidad (`PayloadGuard`).
+		--
+		-- El paso 6 comprueba que el payload sea del TIPO declarado. Eso no
+		-- cubre tres vectores que solo aparecen en ataque:
+		--
+		--   a) `NaN` / `inf` dentro de un tipo que SI es numero. Un
+		--      exploit puede construir la tabla a mano y colarla por un
+		--      canal que acepta `Number`; las comparaciones con `NaN` son
+		--      falsas y contaminarian saldo, dano o cooldown.
+		--   b) Tablas anidadas o ciclicas cuando el tipo declarado es
+		--      `Tabla`: recorren memoria ajena o cuelgan el hilo.
+		--   c) Aridad distinta de la esperada cuando el canal acepta
+		--      varias acciones con distinta firma.
+		--
+		-- Este paso NUNCA transforma un valor: o pasa el payload intacto o
+		-- lo rechaza. Nunca "lo arregla", porque arreglarlo seria inventar
+		-- una cantidad que el cliente pidio.
+		local guarded, guardReason = self:_GuardPayload(expectedType, payload)
+		if not guarded then
+			self:_RecordRejection(("guard:%s"):format(limitKey), tostring(guardReason))
 			return
 		end
 
