@@ -1,0 +1,96 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "Rojo: Build",
+            "detail": "Construye default.project.json con el binario local rojo\\rojo.exe",
+            "type": "shell",
+            "command": ".\\rojo\\rojo.exe",
+            "args": ["build", "default.project.json", "-o", ".ai\\runtime\\latest.rbxlx"],
+            "problemMatcher": []
+        },
+        {
+            "label": "Rojo: Live Sync",
+            "detail": "Conecta Rojo con la sesion de Roblox Studio abierta",
+            "type": "shell",
+            "command": ".\\rojo\\rojo.exe",
+            "args": ["serve", "default.project.json"],
+            "problemMatcher": [],
+            "isBackground": true,
+            "presentation": { "reveal": "always" }
+        },
+        {
+            "label": "Tests: Suite Luau",
+            "detail": "219 pruebas en tests/ usando el interprete local",
+            "type": "shell",
+            "command": ".\\tools\\luau\\luau.exe",
+            "args": ["tests\\RunTests.lua"],
+            "problemMatcher": []
+        },
+        {
+            "label": "Analyze: Luau + entorno Roblox",
+            "detail": "tools/analyze.js (typecheck de autoridad del proyecto)",
+            "type": "shell",
+            "command": "node",
+            "args": ["tools/analyze.js"],
+            "problemMatcher": []
+        },
+        {
+            "label": "Verify: Estructura",
+            "type": "shell",
+            "command": "node",
+            "args": ["tools/verify-structure.js"],
+            "problemMatcher": []
+        },
+        {
+            "label": "Verify: Wiring",
+            "type": "shell",
+            "command": "node",
+            "args": ["tools/verify-wiring.js"],
+            "problemMatcher": []
+        },
+        {
+            "label": "MCP: Listar herramientas de Studio",
+            "type": "shell",
+            "command": "node",
+            "args": ["tools/studio-mcp.js", "list"],
+            "problemMatcher": []
+        },
+        {
+            "label": "Diagnostico: Runtime scan",
+            "detail": "envuelve tools/studio-mcp.js; reporta BLOCKED si Studio no responde",
+            "type": "shell",
+            "command": "node",
+            "args": ["tools/diagnostics/runtime-scan.js"],
+            "problemMatcher": []
+        },
+        {
+            "label": "Entorno: Actualizar contexto IA",
+            "type": "shell",
+            "command": "node",
+            "args": ["tools/generate-ai-context.js"],
+            "problemMatcher": []
+        },
+        {
+            "label": "Entorno: Verificar",
+            "type": "shell",
+            "command": "node",
+            "args": ["tools/verify-environment.js"],
+            "problemMatcher": []
+        },
+        {
+            "label": "Puerta completa",
+            "detail": "Verificacion + contexto + tests + analyze + rojo build",
+            "dependsOrder": "sequence",
+            "dependsOn": [
+                "Entorno: Verificar",
+                "Tests: Suite Luau",
+                "Analyze: Luau + entorno Roblox",
+                "Verify: Estructura",
+                "Verify: Wiring",
+                "Rojo: Build"
+            ],
+            "group": "test"
+        }
+    ]
+}

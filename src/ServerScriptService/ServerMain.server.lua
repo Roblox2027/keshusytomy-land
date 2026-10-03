@@ -19,11 +19,17 @@
 ]]
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Players = game:GetService("Players")
 
 local SHARED = ReplicatedStorage:WaitForChild("Shared")
 local CONFIG = SHARED:WaitForChild("Config")
 local UTILS = SHARED:WaitForChild("Utils")
 local SERVER = script.Parent
+
+-- `Maid` se usa para las conexiones del perfil, que NO pertenecen al ciclo
+-- de vida de ningun servicio: las crea `ServerMain` y viven mas alla del
+-- registro.
+local Maid = require(SHARED:WaitForChild("Libraries"):WaitForChild("Maid"))
 
 -- Modulos indispensables para que el servidor pueda operar.
 local REQUIRED_MODULES = {
@@ -66,6 +72,22 @@ ServerMain.CriticalServices = {
 	-- desapercibida: un lobby sin luz es un fallo de producto, no un
 	-- detalle, y tiene que verse en el log.
 	"VisualService",
+
+	-- La columna economica. `DataService` y `ProfileService` NO son
+	-- criticos para JUGAR: sin ellos el juego arranca y se juega, pero sin
+	-- persistencia. Se listan para que su ausencia salga en el informe, no
+	-- para tumbar el servidor: un DataStore caido no puede impedir jugar
+	-- una ronda.
+	--
+	-- `EconomyService`, `InventoryService`, `ProgressionService` y
+	-- `ShopService` si son criticos cuando existen: si arrancan a medias,
+	-- hay un cableado mal hecho y eso SI hay que verlo.
+	"DataService",
+	"ProfileService",
+	"EconomyService",
+	"InventoryService",
+	"ProgressionService",
+	"ShopService",
 }
 
 --- Resultado del cableado de dependencias de la ultima arrancada.
@@ -78,6 +100,23 @@ local bombService = nil
 local portalService = nil
 local coreService = nil
 
+-- Los seis de la columna economica.
+--
+-- POR QUE SON LOCALES DE ARCHIVO Y NO DE `wireDependencies`
+-- ---------------------------------------------------------
+-- `wireDependencies` es una FUNCION: sus locales mueren al terminar. Si el
+-- perfil y la tienda vivieran ahi, `ServerMain.Start` (otra funcion) y los
+-- handlers de `REMOTE_CHANNELS` los verian como `nil`, el bloque que carga
+-- el perfil no se ejecutaria nunca y los remotos de tienda e inventario
+-- saldrian sin hacer nada. Todo eso SIN un solo error rojo, porque `nil` es
+-- un valor valido para un `if not servicio then return end`.
+local dataService = nil
+local profileService = nil
+local economyService = nil
+local inventoryService = nil
+local progressionService = nil
+local shopService = nil
+
 -- Registro de servicios. Cada entrada declara sus dependencias para
 -- que el orden de arranque sea determinista.
 --
@@ -85,6 +124,43 @@ local coreService = nil
 -- otro se inicializa despues. MatchService, por ejemplo, necesita que
 -- DestruccionService ya haya registrado los bloques del mapa.
 local SERVICES = {
+	-- DataService va PRIMERO de los seis: abre el DataStore y es quien
+	-- puede fallar por red. Si se registrara despues, `ProfileService`
+	-- arrancaria sin el, su `Start` fallaria y la economia entera se
+	-- quedaria sin fuente de verdad.
+	{ name = "DataService", module = SERVER.Services.DataService, dependencies = {} },
+
+	-- ProfileService guarda el perfil en memoria. Economy, Inventory,
+	-- Progression y Shop leen y escriben ahi, NUNCA a su propia sesion: por
+	-- eso las cuatro dependen de el y no al reves.
+	{ name = "ProfileService", module = SERVER.Services.ProfileService, dependencies = { "DataService" } },
+
+	-- La economia depende del perfil, no de la progresion: no hay ninguna
+	-- razon por la que una moneda requiera un nivel.
+	{ name = "EconomyService", module = SERVER.Services.EconomyService, dependencies = { "ProfileService" } },
+
+	-- El inventario depende del perfil. NO depende de la economia: un item
+	-- se puede conseguir sin pagar (recompensa, codigo), y anadir esa
+	-- dependencia haria que perder la economia dejase al jugador sin
+	-- inventario.
+	{ name = "InventoryService", module = SERVER.Services.InventoryService, dependencies = { "ProfileService" } },
+
+	-- La progresion depende del perfil Y de la economia: subir de nivel PAGA
+	-- monedas, asi que necesita poder concederlas.
+	{
+		name = "ProgressionService",
+		module = SERVER.Services.ProgressionService,
+		dependencies = { "ProfileService", "EconomyService" },
+	},
+
+	-- La tienda necesita las TRES piezas: el perfil (estado), la economia
+	-- (cobrar) y el inventario (entregar).
+	{
+		name = "ShopService",
+		module = SERVER.Services.ShopService,
+		dependencies = { "ProfileService", "EconomyService" },
+	},
+
 	{ name = "WorldService", module = SERVER.Services.WorldService, dependencies = {} },
 	{ name = "SpawnService", module = SERVER.Services.SpawnService, dependencies = { "WorldService" } },
 	{ name = "DestructionService", module = SERVER.Services.DestructionService, dependencies = { "WorldService" } },
@@ -184,6 +260,14 @@ local function wireDependencies(registry: any): { string }
 	local portalService = registry:Get("PortalService")
 local monsterService = registry:Get("MonsterService")
 
+	-- Los seis de economia, inventario, progresion, perfil, datos y tienda.
+	local dataService = registry:Get("DataService")
+	local profileService = registry:Get("ProfileService")
+	local economyService = registry:Get("EconomyService")
+	local inventoryService = registry:Get("InventoryService")
+	local progressionService = registry:Get("ProgressionService")
+	local shopService = registry:Get("ShopService")
+
 	-- Declara una conexion y verifica que se pudo hacer de verdad.
 	-- @param label string
 	-- @param consumer any servicio que recibe
@@ -223,6 +307,46 @@ local monsterService = registry:Get("MonsterService")
 	-- ExplosionService necesita a CombatService: TODOS los danos pasan
 	-- por ahi (invulnerabilidad, ronda, atribucion). Sin el, la explosion
 	-- no puede danar a nadie.
+	-- --- Economia, inventario, progresion, perfil, datos y tienda --------
+	--
+	-- Se cablean aqui y NO dentro de cada `connect` porque forman una
+	-- cadena: el perfil necesita datos, la economia y la tienda necesitan
+	-- el perfil, y la progresion necesita economia para pagar al subir.
+	--
+	-- El ORDEN de estas llamadas no es estetico: `ProfileService` recibe
+	-- `DataService` antes de que ningun otro lo use, y `EconomyService`
+	-- existe antes de que `ProgressionService` lo declare. Un orden
+	-- equivocado aqui deja una dependencia en `nil` sin ningun error rojo.
+	connect("ProfileService", profileService, { "DataService" },
+		function(service: any)
+			service.SetDependencies(dataService, nil)
+		end
+	)
+
+	connect("EconomyService", economyService, { "ProfileService" },
+		function(service: any)
+			service.SetDependencies(profileService)
+		end
+	)
+
+	connect("InventoryService", inventoryService, { "ProfileService" },
+		function(service: any)
+			service.SetDependencies(profileService)
+		end
+	)
+
+	connect("ProgressionService", progressionService, { "ProfileService", "EconomyService" },
+		function(service: any)
+			service.SetDependencies(profileService, economyService)
+		end
+	)
+
+	connect("ShopService", shopService, { "ProfileService", "EconomyService" },
+		function(service: any)
+			service.SetDependencies(profileService, economyService)
+		end
+	)
+
 	connect("ExplosionService", explosionService, { "DestructionService", "CombatService" },
 		function(service: any)
 			service.SetDependencies(destructionService, combatService)
@@ -247,9 +371,21 @@ local monsterService = registry:Get("MonsterService")
 	-- `player.RespawnLocation` queda en `nil` y Roblox decide el punto de
 	-- reaparicion por su cuenta (el origen, que aqui esta en mitad del
 	-- vacio entre el lobby y la arena).
+	--
+	-- `progressionService` y `economyService` van al final y son OPCIONALES:
+	-- sin ellos, las recompensas caen en el camino viejo de la sesion y el
+	-- juego sigue siendo jugable. Exigirlos uniria la ronda a la
+	-- persistencia, y una caida del DataStore no puede tumbar la partida.
 	connect("PlayerService", playerService, { "RoundService", "CombatService", "MatchService", "SpawnService" },
 		function(service: any)
-			service.SetDependencies(roundService, combatService, matchService, spawnService)
+			service.SetDependencies(
+				roundService,
+				combatService,
+				matchService,
+				spawnService,
+				progressionService,
+				economyService
+			)
 		end
 	)
 
@@ -388,8 +524,81 @@ local REMOTE_CHANNELS = {
 		end,
 	},
 
-	[GameConstants.RemoteAction.Shop] = {},
-	[GameConstants.RemoteAction.Inventory] = {},
+	-- El canal de la tienda. El payload es SOLO el `ItemId` pedido: el
+	-- cliente NO manda precio, ni cantidad, ni saldo. El servidor busca el
+	-- precio en el catalogo y decide si puede cobrar.
+	--
+	-- El `requestId` lo genera el SERVIDOR, no el cliente. Es lo que evita
+	-- que un jugador compre dos veces lo mismo fingiendo que son dos
+	-- compras distintas: el id lleva su `UserId` y un contador.
+	[GameConstants.RemoteAction.Shop] = {
+		Preview = function(player: Player, payload: any)
+			if not shopService then
+				Logger.Warn("ShopAction.Preview recibido sin ShopService")
+				return
+			end
+
+			-- `Preview` NO compra nada: solo responde si se podria comprar.
+			-- Es la peticion que la UI hace para pintar el boton, y si
+			-- cobrara, el jugador perderia monedas por pasar el raton.
+			local canBuy, rejection = shopService.CanBuy(player, payload)
+			player:SetAttribute("ShopCanBuy", canBuy)
+			player:SetAttribute("ShopRejection", rejection)
+		end,
+
+		Purchase = function(player: Player, payload: any)
+			if not shopService then
+				Logger.Warn("ShopAction.Purchase recibido sin ShopService")
+				return
+			end
+
+			-- El id se construye en el SERVIDOR. Si lo mandara el cliente,
+			-- bastaria reenviar la misma peticion con otro id para pagar dos
+			-- veces, que es exactamente lo que el control de idempotencia
+			-- tiene que impedir.
+			shopService._nextRequestId = (shopService._nextRequestId or 0) + 1
+			local requestId = ("shop:%d:%d"):format(player.UserId, shopService._nextRequestId)
+
+			local outcome, rejection, receipt = shopService.Purchase(player, payload, requestId)
+
+			-- La respuesta va por ATRIBUTOS, no por un remoto nuevo. Asi la
+			-- UI reacciona sin que este servicio tenga que conocer ningun
+			-- canal de salida, y anadir un `ShopResult` seria crear un
+			-- remoto duplicado para lo que los atributos ya resuelven.
+			player:SetAttribute("ShopOutcome", outcome)
+			player:SetAttribute("ShopRejection", rejection)
+			player:SetAttribute("ShopReceipt", receipt)
+		end,
+	},
+
+	-- El canal de inventario. El payload es el `ItemId` que el jugador
+	-- quiere usar o equipar, NUNCA lo que dice que tiene.
+	[GameConstants.RemoteAction.Inventory] = {
+		Equip = function(player: Player, payload: any)
+			if not inventoryService then
+				Logger.Warn("InventoryAction.Equip recibido sin InventoryService")
+				return
+			end
+
+			local ok, reason = inventoryService.EquipItem(player, payload)
+			player:SetAttribute("InventoryResult", ok and "equipped" or "rejected")
+			player:SetAttribute("InventoryReason", reason)
+		end,
+
+		Unequip = function(player: Player, payload: any)
+			if not inventoryService then
+				Logger.Warn("InventoryAction.Unequip recibido sin InventoryService")
+				return
+			end
+
+			-- Aqui el payload es la RANURA, no el item: desequipar es
+			-- "quitar lo que hay puesto en Head", no "quitar este item".
+			local ok, _, reason = inventoryService.UnequipItem(player, payload)
+			player:SetAttribute("InventoryResult", ok and "unequipped" or "rejected")
+			player:SetAttribute("InventoryReason", reason)
+		end,
+	},
+
 	[GameConstants.RemoteAction.Quest] = {},
 
 	-- El canal del Keshusy Core. Sin payload: el cliente solo pide
@@ -562,6 +771,30 @@ function ServerMain.Start(): boolean
 	-- El nucleo se inyecta igual: su handler necesita el servicio vivo.
 	coreService = registry:Get("CoreService")
 
+	-- Los seis de la columna economica. Se asignan a los LOCALES DE
+	-- ARCHIVO (declarados mas arriba), no a unos de esta funcion: el
+	-- bloque que carga el perfil y los handlers de tienda e inventario
+	-- los necesitan despues de que `Start` haya terminado.
+	dataService = registry:Get("DataService")
+	profileService = registry:Get("ProfileService")
+	economyService = registry:Get("EconomyService")
+	inventoryService = registry:Get("InventoryService")
+	progressionService = registry:Get("ProgressionService")
+	shopService = registry:Get("ShopService")
+
+	for _, name in ipairs({
+		"DataService",
+		"ProfileService",
+		"EconomyService",
+		"InventoryService",
+		"ProgressionService",
+		"ShopService",
+	}) do
+		if not registry:Get(name) then
+			table.insert(report, ("[WIRING FAIL] %s no arranco"):format(name))
+		end
+	end
+
 	-- El nucleo difunde por el mismo canal bidireccional que usa el
 	-- cliente para pedir fragmentos. Se le da la FUNCION de emision y no
 	-- el remoto entero, para que el servicio no dependa de como esten
@@ -582,6 +815,60 @@ function ServerMain.Start(): boolean
 	end
 
 	local started = registry:StartAll()
+
+	-- Ciclo de vida del perfil: carga al entrar, guardado al salir.
+	--
+	-- Se conecta DESPUES de `StartAll` porque hasta ahi no existen los
+	-- servicios. Sin esta conexion, el perfil nunca se carga: la economia
+	-- daria cero a todo el mundo y la tienda rechazaria todas las compras
+	-- con "no_profile", sin ningun error visible.
+	if profileService then
+		local profileMaid = ServerMain.ProfileMaid or Maid.new()
+		ServerMain.ProfileMaid = profileMaid
+		ServerMain.ProfileService = profileService
+
+		profileMaid:Connect(Players.PlayerAdded, function(player: Player)
+			-- El bloqueo de sesion va ANTES de leer. Si otro servidor tiene
+			-- el perfil, leerlo y guardarlo seria competir por el mismo
+			-- dato. Con el bloqueo tomado, la lectura ya es segura.
+			if dataService then
+				local acquired, reason = dataService.AcquireLock(player.UserId)
+				if not acquired then
+					Logger.Warn(("ServerMain: %s no puede cargar su perfil: %s"):format(
+						player.Name,
+						tostring(reason)
+					))
+					player:Kick("Tu perfil esta siendo usado en otro servidor. Intentalo en un momento.")
+					return
+				end
+			end
+
+			profileService.LoadProfile(player)
+		end)
+
+		-- Se guarda al salir, pero NO se depende solo de este evento: si el
+		-- servidor muere de golpe no se dispara. `DataService` tiene
+		-- ademas autosave periodico y `BindToClose` mas abajo.
+		profileMaid:Connect(Players.PlayerRemoving, function(player: Player)
+			profileService.SaveProfile(player)
+			profileService.UnloadProfile(player)
+		end)
+
+		-- Un jugador que YA esta conectado cuando arranca el servidor (por
+		-- ejemplo en una prueba) no dispara `PlayerAdded`. Sin esto, su
+		-- perfil no se cargaria nunca.
+		for _, player in ipairs(Players:GetPlayers()) do
+			task.spawn(function()
+				if dataService then
+					local acquired = dataService.AcquireLock(player.UserId)
+					if not acquired then
+						return
+					end
+				end
+				profileService.LoadProfile(player)
+			end)
+		end
+	end
 
 	-- Gateway de remotos: valida y limita TODO lo que llega del cliente.
 	-- Se arranca despues de los servicios para que sus handlers ya
@@ -658,9 +945,33 @@ end
 
 --- Apaga el servidor de forma ordenada (regla de shutdown).
 function ServerMain.Shutdown()
+	-- Ultimo guardado, ANTES de apagar los servicios.
+	--
+	-- Va primero a proposito: `Registry:Stop` llama a `Destroy` de cada
+	-- servicio, y `DataService.Destroy` ya guarda. Este guardado previo es
+	-- la garantia de que un perfil se escribe mientras los servicios siguen
+	-- vivos. Un cierre ordenado con el orden invertido perderia los cambios
+	-- de la ultima partida, que es justo lo que el jugador no espera.
+	if ServerMain.Registry then
+		local dataEntry = ServerMain.Registry:Get("DataService")
+		if dataEntry and dataEntry.SaveAll then
+			local saved = dataEntry.SaveAll()
+			if saved > 0 then
+				Logger.Info(("ServerMain: %d perfiles guardados en el cierre"):format(saved))
+			end
+		end
+	end
+
 	if ServerMain.Gateway then
 		ServerMain.Gateway:Stop()
 		ServerMain.Gateway = nil
+	end
+
+	if ServerMain.ProfileMaid then
+		pcall(function()
+			ServerMain.ProfileMaid:Destroy()
+		end)
+		ServerMain.ProfileMaid = nil
 	end
 
 	if ServerMain.Registry then

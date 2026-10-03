@@ -199,7 +199,7 @@ return {
 	-- "Active" para siempre y no podria volver a cargarse.
 	CoreCorePassiveDrainPerSecond = 5,
 	-- ---------------------------------------------------------------
-	-- Economia (sesion; la persistencia llega en la FASE 15)
+	-- Economia y progresion (autoridad del servidor)
 	-- ---------------------------------------------------------------
 	XPMultiplier = 1,
 	CoinMultiplier = 1,
@@ -208,4 +208,44 @@ return {
 	-- Recompensa base por terminar la ronda, para cualquier jugador.
 	XPPerRound = 50,
 	CoinsPerRound = 25,
+
+	-- Recompensa por SUBIR de nivel. Es una FUNCION del nivel, no una
+	-- tabla guardada: si se guardase, un jugador con un perfil viejo
+	-- conservaria para siempre los valores de cuando subio y cambiar el
+	-- balance no tendria efecto en el mundo real.
+	--
+	-- El nivel 1 NO se premia: es el estado inicial, no un logro. El
+	-- primero que se paga es el 2, con `LevelRewardBaseCoins`.
+	LevelRewardBaseCoins = 100,
+	LevelRewardCoinsPerLevel = 50,
+
+	-- ---------------------------------------------------------------
+	-- Persistencia
+	-- ---------------------------------------------------------------
+	--
+	-- El NOMBRE del DataStore no se registra en ningun log: es una
+	-- credencial. Solo se usa para abrirlo.
+	DataStoreName = "KeshusyTomyLandProfile_v1",
+
+	-- Cada cuanto se guardan los perfiles que tengan cambios pendientes.
+	--
+	-- 60 s es el punto de equilibrio: bastante corto para que un cierre
+	-- abrupto pierda como mucho el ultimo minuto de juego, bastante largo
+	-- para no agotar el presupuesto de escrituras. No se guarda en cada
+	-- cambio: eso es throttle garantizado.
+	AutosaveInterval = 60,
+
+	-- Intentos por operacion de DataStore, con espera creciente entre
+	-- ellos. El DataStore falla por throttling mas a menudo de lo que
+	-- parece, y un solo intento convierte un pico de trafico en perdida
+	-- de progreso.
+	DataStoreRetries = 3,
+
+	-- Tiempo que un bloqueo de sesion aguanta sin renovarse.
+	--
+	-- Si un servidor muere de golpe, su bloqueo sigue puesto hasta que
+	-- pasa este tiempo. Es una decision de DISENO, no un parametro
+	-- tecnico: define cuanto tarda un cierre abrupto en liberarse solo, y
+	-- por tanto cuanto espera un jugador que entra en otro servidor.
+	LockTtlSeconds = 120,
 }

@@ -1,0 +1,19 @@
+# .stylua.toml
+#
+# Ajustado al codigo EXISTENTE: el repositorio ya usa tabulaciones,
+# `--!strict` en cada modulo y lineas de ~78 columnas.
+# Este archivo no cambia el codigo: describe el formato que ya se
+# sigue, para que StyLua no proponga un reformat masivo al guardar.
+#
+# OJO: `rojo/rojo.exe build` no formatea. Un reformateo global solo
+# debe hacerse como commit propio y explicito, nunca de paso.
+
+column_width = 100
+line_endings = "Windows"
+indent_type = "Tabs"
+indent_width = 4
+quote_style = "AutoPreferDouble"
+call_parentheses = "Always"
+
+[sort_requires]
+enabled = false

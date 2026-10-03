@@ -66,22 +66,64 @@ conectado), no por lectura de archivos.
 | 6 | Destruction | PASS | 48 bloques registrados, dano real aplicado |
 | 7 | Round | PASS | ciclo completo y **repetido**; `_stallCount = 0` en regimen |
 | 9 | Monsters (PvE) | PASS | 4 monstruos generados por ronda, detectan y hacen dano |
-| 14 | Economy / 15 Inventory / 26 Shop / 28 Quests / 31 Codes | NO INICIADA | stubs honestos: 19 servicios sin implementar |
-| 33 | DataStore / 35 Security / 47 Monetization | NO INICIADA | `DataService` y `AntiExploitService` son declaraciones de interfaz |
+| 14 | Economy / 15 Inventory / 26 Shop | PASS | ver la tabla de la columna economica |
+| 15 | DataStore | HARNESS | logica real; la persistencia real esta bloqueada por el entorno |
+| 28 | Quests / 31 Codes | NO INICIADA | stubs honestos |
+| 34 | Anti-Exploit | PARCIAL | primera capa real; servicio completo pendiente |
 
-### Servicios sin implementar (19 de 33)
+### Columna economica: que se certifico y como
 
-No es un defecto oculto: son stubs que declaran `Init`/`Destroy` y nada mas.
+Evidencia recogida en **PLAY real** con un jugador de verdad
+(`SiSoyPapito`), no por lectura de archivos. Sonda: `node tools/economy-cert.js`.
+
+| Sistema | Estado | Evidencia medida en runtime |
+| ------ | ------ | --------------------------- |
+| EconomyService | PASS | `grant +1000` deja saldo 1000; el mismo `requestId` repetido deja 1000 |
+| Ledger | PASS | traza encadenada `before -> after`; `AuditPlayer` = 0 problemas |
+| InventoryService | PASS | compra -> item en inventario -> equipar; equipar sin poseer = rechazado |
+| ProgressionService | PASS | 500 XP cruzan **3 niveles de golpe** (1 -> 4); recompensas 150/200/250 pagadas |
+| ShopService | PASS | compra pagada 500 y item entregado; 2a compra = `already_owned` **sin cobrar** |
+| ProfileService | PASS | perfil cargado al entrar y atributos publicados |
+| DataService | **HARNESS** | ver abajo |
+
+**Lo que NO se declara PASS, y por que:**
+
+- **Persistencia real = HARNESS, no PASS.** `DataStoreService` no funciona en
+  un lugar sin publicar: "You must publish this place to the web to access
+  DataStore". Es una limitacion del ENTORNO, no del codigo. Se verifico con un
+  harness (`tools/probes/persistence-harness.lua`) que instala un almacen
+  SIMULADO en el `DataService` REAL y recorre sus rutas de verdad: carga,
+  guardado, recuperacion, autosave que solo escribe lo sucio, rechazo de
+  perfil ilegible, rechazo de perfil no serializable (con 0 escrituras), fallo
+  de escritura que deja el perfil sucio y reintentable, bloqueo de sesion
+  (propio aceptado, ajeno rechazado, vencido aceptado) y normalizacion de un
+  perfil con forma antigua conservando el saldo.
+  Lo que el harness **no** demuestra: que el DataStore real acepte esos datos.
+
+- **MODO SIN PERSISTENCIA en Studio.** `DataService.Start` degrada a memoria
+  con aviso explicito si no puede abrir el DataStore. El juego se juega igual;
+  lo que no se guarda es el perfil. Nunca se dice "guardado" si no se guardo.
+
+- **UI de economia, inventario y tienda: NO INICIADA.** Los servicios publican
+  el estado por atributo, pero no hay pantallas. Las **cantidades** por item y
+  las definiciones completas requieren `InvokeClient`, que es fase de UI.
+
+- **AntiExploitService completo: NO INICIADA.** Hay una primera capa real
+  (validacion de forma en el remoto, rate limit y rechazos registrados por
+  nombre de jugador), no el servicio completo.
+
+### Servicios sin implementar (13 de 33)
+
+Quedan stubs que declaran `Init`/`Destroy` y nada mas.
 `tools/runtime-probe.js` los cuenta en runtime, no por opinion:
 
 AnalyticsService, AnnouncementService, AntiExploitService, BadgeService,
-CodeService, DataService, EconomyService, EventService, InventoryService,
-MatchmakingService, ModerationService, MonetizationService, PartyService,
-ProfileService, ProgressionService, QuestService, ReportService, ShopService,
+CodeService, EventService, MatchmakingService, ModerationService,
+MonetizationService, PartyService, QuestService, ReportService,
 TeleportService.
 
-Ninguno tiene metodos de dominio. Hasta que se implementen, economia,
-persistencia, tienda y anti-exploit **NO existen** aunque sus archivos esten.
+Los seis de esta fase (Data, Profile, Economy, Inventory, Progression, Shop)
+ya NO estan en esa lista: arrancan en runtime con `Start = si`.
 
 ### Defectos P0 corregidos en esta ronda
 
@@ -113,7 +155,61 @@ persistencia, tienda y anti-exploit **NO existen** aunque sus archivos esten.
 - `tools/bomb-e2e.js` media un bloque concreto por nombre que podia estar a
   44 studs, fuera del radio de 24. Ahora cuenta cuantos bloques reciben dano.
 
+### Defectos encontrados al CERTIFICAR la columna economica
+
+Todos se encontraron ejecutando el juego, no leyendo el codigo. Ninguno
+habria salido con `luau-compile`, `rojo build` ni los tests unitarios.
+
+1. **`DataStoreService.GetDataStore` con punto en vez de dos puntos.**
+   `Expected ':' not '.' calling member function GetDataStore`. El `Start`
+   devolvia false, `DataService` quedaba en `Failed` y el perfil de NADIE se
+   cargaba: economia a cero y compras rechazadas con `no_profile`.
+
+2. **El perfil nunca se cargaba, aunque el servicio arrancara.** Los seis
+   servicios de la columna eran locales de `wireDependencies`, que es una
+   FUNCION: al terminar, `ServerMain.Start` y los handlers de los remotos veian
+   `nil`. El perfil no se cargaba y los remotos de tienda e inventario salian
+   sin hacer nada, sin un solo error rojo.
+
+3. **`SetAttribute` con un diccionario.** El inventario se publicaba como
+   `{ Cure_Potion = 3 }` y Roblox lanza "Dictionary is not a supported attribute
+   type". Pasaba DESPUES de cobrar: el jugador pagaba y se quedaba sin item.
+
+4. **Lo mismo con un array.** El arreglo anterior (publicar un array de ids)
+   fallo con "Array is not a supported attribute type". Los atributos solo
+   admiten escalares, asi que ahora viaja una cadena.
+
+5. **Punto donde debia haber dos puntos sobre una instancia de reglas.**
+   `Progression.GetLevel(estado, curva)` hacia que `self` fuera el estado del
+   jugador en vez de la instancia, y dentro reventaba con
+   "attempt to call missing method 'GetXP' of table".
+
+6. **La forma del perfil no era la que esperaba la economia.** `NewProfile`
+   creaba `Currencies = { Coins = 0 }` y `EconomyRules` espera
+   `{ Balances = {...}, Sequence = 0 }`. Toda operacion economica se rechazaba
+   con "estado de economia invalido" y el jugador tenia saldo cero para
+   siempre, sin error visible. Ahora hay una sola forma y un
+   `NormalizeSections` que repara perfiles viejos conservando el saldo.
+
+7. **La compra repetida devolvia "ya lo tienes" en vez del resultado
+   original.** `Validate` se ejecutaba antes de mirar el registro de compras,
+   asi que un reintento tras perder la conexion cobraba bien pero mostraba un
+   error al jugador. Ahora el registro se consulta PRIMERO.
+
+8. **El XP repetido volvia a pagar la subida de nivel.** `AddXP` devolvia el
+   resultado guardado tal cual, con `levelsGained = 1`, y quien llamara pagaria
+   dos veces. Ahora devuelve una copia con `levelsGained = 0` y `Replayed`.
+
+9. **Hueco en la auditoria del ledger.** `FindBalanceMismatch` solo comparaba
+   entradas contiguas, asi que editar el saldo DESPUES de la ultima transaccion
+   pasaba desapercibido. Ahora compara el saldo actual con el `balanceAfter` de
+   la ultima transaccion de cada moneda.
+
 ### Lo que sigue bloqueado
+
+- **Persistencia real.** Requiere el lugar publicado para que
+  `DataStoreService` funcione. En Studio el juego corre en MODO SIN
+  PERSISTENCIA, avisado en el log. La logica se certifico con harness.
 
 - **Cliente MCP**: `client-1` agota el tiempo de espera. Es infraestructura, no
   juego. Por eso la fase 3 (input) queda PARTIAL y no PASS: la arquitectura

@@ -194,11 +194,24 @@ end
 --- @param combatService any
 --- @param matchService any?
 --- @param spawnService any? servicio que reparte los puntos de aparicion
-function Service.SetDependencies(roundService: any, combatService: any, matchService: any?, spawnService: any?)
+function Service.SetDependencies(
+	roundService: any,
+	combatService: any,
+	matchService: any?,
+	spawnService: any?,
+	progressionService: any?,
+	economyService: any?
+)
 	Service._roundService = roundService
 	Service._combatService = combatService
 	Service._matchService = matchService
 	Service._spawnService = spawnService
+	-- Los dos de la columna economica. Son OPCIONALES a proposito: sin
+	-- ellos el juego sigue arrancando y las recompensas caen en el camino
+	-- viejo (sesion en memoria). Exigirlos haria que un fallo del perfil
+	-- tumbara tambien la ronda, que no depende de nada de esto.
+	Service._progressionService = progressionService
+	Service._economyService = economyService
 end
 --- Asigna al jugador un `SpawnLocation` de la zona segura.
 ---
@@ -280,6 +293,46 @@ function Service.AddRewards(player: Player, xp: number, coins: number): boolean
 		return false
 	end
 
+	-- Camino NUEVO: el perfil es la fuente de verdad.
+	--
+	-- Solo se usa si el XP y las monedas son validos. Si vienen mal (NaN,
+	-- negativos) se avisa y se cae al camino viejo, que ya filtra con
+	-- `CombatMath.SafeRewardAmount`: perder una recompensa por un dato
+	-- corrupto es preferible a propagar el dato corrupto al perfil.
+	local validXp = CombatMath.IsFiniteNumber(xp) and xp > 0
+	local validCoins = CombatMath.IsFiniteNumber(coins) and coins > 0
+
+	if (validXp and Service._progressionService) or (validCoins and Service._economyService) then
+		if validXp and Service._progressionService then
+			-- NO se pasa `requestId` aqui a proposito: esta recompensa se
+			-- concede UNA vez por evento, y el control que la evita repetir
+			-- es `MarkRoundRewarded` mas arriba (una vez por ronda). Fabricar
+			-- un id aqui por muerte haria que la SEGUNDA muerte de la misma
+			-- ronda, que es legitima, no contara.
+			Service._progressionService.AddXP(player, xp * GameConfig.XPMultiplier, "jugador")
+		end
+
+		if validCoins and Service._economyService then
+			Service._economyService.GrantCurrency(
+				player,
+				"Coins",
+				coins * GameConfig.CoinMultiplier,
+				"recompensa_jugador",
+				"player_service"
+			)
+		end
+
+		-- La sesion se actualiza tambien para que el HUD y el codigo viejo
+		-- sigan viendo numeros coherentes. No es la fuente de verdad: lo
+		-- es el perfil.
+		refreshLevel(player, session)
+		publishAttributes(player, session)
+		return true
+	end
+
+	-- Camino VIEJO (sesion en memoria). Se conserva como degradacion: si el
+	-- perfil no esta disponible, el jugador sigue ganando XP en la ronda
+	-- aunque no se guarde al salir.
 	local appliedXp = CombatMath.SafeRewardAmount(xp * GameConfig.XPMultiplier, session.XP)
 	local appliedCoins = CombatMath.SafeRewardAmount(coins * GameConfig.CoinMultiplier, session.Coins)
 

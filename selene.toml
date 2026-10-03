@@ -1,0 +1,35 @@
+# selene.toml
+#
+# Rol dentro de este repositorio:
+# Selene es LINTER. El typecheck de autoridad del proyecto es
+# `node tools/analyze.js`, que concatena
+# `tools/roblox-definitions/RobloxEnvironment.lua` delante de cada
+# archivo antes de pasar `luau-analyze`, y descarta las lineas del
+# preludio. Ejecutar `luau-analyze` pelado aqui produce cientos de
+# falsos positivos (`Unknown global 'warn'`, `Unknown type
+# 'RBXScriptSignal'` y sus cascadas): NO es la forma de medir.
+#
+# Uso:  selene src tests
+# Nota: el binario de selene NO esta en el repo. La extension
+# `kampfkarren.selene-vscode` lo descarga y lo usa; la linea de
+# comandos requiere selene en PATH.
+
+std = "roblox"
+
+exclude = [
+    ".ai/**",
+    ".cache/**",
+    ".gradle/**",
+    ".android/**",
+    "node_modules/**",
+    "tools/roblox-definitions/**",
+    "tools/luau/**"
+]
+
+[rules]
+# Avisos, no errores: este codigo ya es luau valido y las pruebas
+# pasan. Selene aqui es una segunda opinion, no una puerta de build.
+shadowing = "warn"
+unused_variable = "warn"
+unused_local_variable = "warn"
+multiple_statements = "warn"
