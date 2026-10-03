@@ -1,4 +1,4 @@
-﻿--!strict
+--!strict
 --[[
 Volcano
 Definicion de mundo (WorldData). Solo datos: ninguna logica aqui.

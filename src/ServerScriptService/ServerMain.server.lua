@@ -476,6 +476,12 @@ local monsterService = registry:Get("MonsterService")
 	connect("BombService", bombService, { "RoundService", "ExplosionService" },
 		function(service: any)
 			service.SetDependencies(roundService, explosionService)
+			-- El registro de mundos NO es dependencia del ciclo de vida (el
+			-- servicio arranca sin el), pero BombService lo necesita para saber
+			-- cual es la arena por defecto. Sin esta llamada el rectangulo por
+			-- defecto quedaba sin nombre y `IsInsideArena` caia al primer
+			-- nombre de la tabla.
+			service.SetWorldService(worldService)
 		end
 	)
 

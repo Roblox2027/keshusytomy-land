@@ -22,6 +22,26 @@
 // herramienta deja el source en el mismo idioma que ya se usa, sin depender
 // de un componente que no controlamos.
 //
+// MEDIDO 2026-10-03 (PLAY real): el BOM rompe el JUEGO, no solo los acentos.
+//
+//   `require(ReplicatedStorage.WorldDefinitions.Forest)` ->
+//   "Expected identifier when parsing expression, got Unicode character U+feff"
+//
+// Los cinco `WorldDefinitions/*.lua` tenian BOM UTF-8. Luau NO lo acepta al
+// principio del archivo, asi que los cinco mundos NO se registraban:
+//
+//   WorldService.GetWorldIds() = ""      -> ningun mundo conocido
+//   PortalService.CollectPortals() = 0   -> ningun portal valido
+//   PortalService.TryEnter -> "portal inexistente" / "destino no encontrado"
+//
+// El efecto en cadena es que el LOBBY no tenia salidas: el jugador no podia
+// entrar a NINGUN mundo. El mapa, los portales y el HUD estaban perfectos y el
+// juego seguia sin ser jugable. Todo lo demas daba PASS.
+//
+// Por eso el BOM se comprueba como DEFECTO DE PRIMERA CLASE y no como "caracter
+// no ASCII mas": se elimina al principio del archivo y el archivo se reescribe
+// sin BOM.
+//
 // USO
 // ---
 //   node tools/ascii-only.js          # informe
@@ -149,10 +169,18 @@ function walk(dir, out = []) {
 const root = path.join(__dirname, "..", "src");
 const unknown = new Map();
 const touched = [];
+const withBom = [];
 
 for (const file of walk(root)) {
 	const before = fs.readFileSync(file, "utf8");
-	const after = toAscii(before);
+
+	// El BOM se quita ANTES de traducir. `toAscii` trabaja sobre el primer
+	// caracter y un U+FEFF inicial no esta en el mapa, asi que sin este paso
+	// sobrevive a la reescritura.
+	const withoutBom = before.charCodeAt(0) === 0xfeff ? before.slice(1) : before;
+	if (withoutBom !== before) withBom.push(path.relative(root, file));
+
+	const after = toAscii(withoutBom);
 
 	// Lo que NO se pudo traducir se busca en `after`, no en `before`: en el
 	// texto original la secuencia de `espiral` aparece como dos caracteres sueltos
@@ -179,9 +207,17 @@ if (unknown.size > 0) {
 console.log(`ARCHIVOS CON NO ASCII: ${touched.length}`);
 for (const f of touched) console.log("  " + f);
 
+console.log(`ARCHIVOS CON BOM UTF-8 (rompen el require): ${withBom.length}`);
+for (const f of withBom) console.log("  " + f);
+
+// El BOM cuenta como pendiente aunque el resto del archivo sea ya ASCII:
+// quitarlo no cambia el texto visible, solo lo que Luau acepta. Por eso se
+// suma y no se toma el maximo de los dos contadores.
+const pending = touched.length + withBom.length;
+
 if (FIX) {
-	console.log(touched.length === 0 ? "ASCII: ya todo correcto" : "corregidos: SI");
+	console.log(pending === 0 ? "ASCII: ya todo correcto" : "corregidos: SI");
 } else {
-	console.log(touched.length === 0 ? "ASCII: ya todo correcto" : "corregidos: NO (pasa --fix)");
-	process.exitCode = touched.length === 0 ? 0 : 1;
+	console.log(pending === 0 ? "ASCII: ya todo correcto" : "corregidos: NO (pasa --fix)");
+	process.exitCode = pending === 0 ? 0 : 1;
 }

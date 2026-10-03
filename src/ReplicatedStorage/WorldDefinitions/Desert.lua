@@ -1,4 +1,4 @@
-﻿--!strict
+--!strict
 --[[
 Desert
 Definicion de mundo (WorldData). Solo datos: ninguna logica aqui.

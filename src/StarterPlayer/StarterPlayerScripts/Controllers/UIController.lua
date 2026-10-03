@@ -84,7 +84,22 @@ local WATCHED_ATTRIBUTES = {
 -- El token importa: sin el, dos rechazos seguidos dejarian DOS hilos
 -- esperando y el primero ocultaria el cartel del segundo antes de tiempo.
 local _portalFrame = nil
-local _portalHideToken = nil
+
+-- BUG CORREGIDO (medido en PLAY): esto valia `nil` y `ShowPortalFeedback`
+-- hacia `_portalHideToken += 1` encima. En Luau, `nil + 1` es un error de
+-- tiempo de ejecucion, NO un `nil` silencioso, asi que la funcion REVENTABA
+-- en la ultima linea util:
+--
+--   UIController:552: attempt to perform arithmetic (add) on nil and number
+--
+-- El cartel llegaba a escribirse (mundo, nivel, motivo) pero la funcion
+-- lanzaba justo antes de programar el temporizador que lo oculta. Con eso el
+-- `pcall` de `PortalController` devolvia false, el cartel se quedaba pegado
+-- en pantalla para siempre y el jugador nunca recibia el motivo del rechazo.
+--
+-- Es un contador: nace en 0. La linea 719 de `Destroy` ya lo reiniciaba
+-- escribiendo 0, lo que delata que el 0 era el valor previsto aqui.
+local _portalHideToken = 0
 
 --- Marcos de notificacion VIVOS.
 ---
@@ -311,7 +326,11 @@ local function buildGui()
     makePortalLine("PortalReason", UDim2.new(0, 400, 0, 24), UDim2.new(0, 10, 0, 98), Color3.fromRGB(230, 230, 240), 15)
 
     _portalFrame = portalFrame
-    _portalHideToken = nil
+
+    -- BUG CORREGIDO (mismo origen que la declaracion): esto ponia `nil` y
+    -- hacia que el PRIMER rechazo de cada sesion revantara en
+    -- `_portalHideToken += 1`. Un contador se reinicia a CERO, no a nil.
+    _portalHideToken = 0
 
     return gui
 end

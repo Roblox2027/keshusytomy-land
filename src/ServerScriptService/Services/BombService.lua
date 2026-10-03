@@ -63,6 +63,21 @@ Service._bombFolder = nil
 -- arrancar para no escribir numeros magicos ni depender del generador.
 Service._arenaBounds = nil
 
+-- Rectangulo de arena POR MUNDO (worldId -> bounds).
+--
+-- BUG CORREGIDO (medido en PLAY): existia un unico `_arenaBounds` que cubria
+-- solo el primer mundo. Las bombas quedaban imposibles en los otros cuatro.
+-- Ver la nota larga en `IsInsideArena`.
+Service._arenaBoundsByWorld = {}
+
+-- Mundo al que se atribuye `_arenaBounds`, y el que se usa cuando el jugador no
+-- tiene un `World` conocido.
+Service._defaultArenaWorld = nil
+
+-- Servicio de mundos. Se inyecta entre `Init` y `Start` (ver
+-- `SetWorldService`). Solo se usa para saber cual es el mundo por defecto.
+Service._worldService = nil
+
 --- Rectangulo que ocupa la arena, en el plano XZ.
 ---
 --- Sin esto, un cliente podria colocar una bomba en (999999, 0, 0):
@@ -73,6 +88,39 @@ Service._arenaBounds = nil
 function Service.SetArenaBounds(bounds: { MinX: number, MaxX: number, MinZ: number, MaxZ: number }): Vector3
 	Service._arenaBounds = bounds
 	return Vector3.new((bounds.MinX + bounds.MaxX) / 2, 0, (bounds.MinZ + bounds.MaxZ) / 2)
+end
+
+--- Registra los limites de UNA arena concreta.
+---
+--- Es la puerta que usa `detectArenaBounds` para poblar `_arenaBoundsByWorld`.
+--- Se separa de `SetArenaBounds` porque ese setter significa "la arena por
+--- defecto" y mezclar los dos roles fue justo lo que escondia el bug.
+--- @param worldId string
+--- @param bounds { MinX: number, MaxX: number, MinZ: number, MaxZ: number }
+function Service.SetArenaBoundsForWorld(
+	worldId: string,
+	bounds: { MinX: number, MaxX: number, MinZ: number, MaxZ: number }
+)
+	Service._arenaBoundsByWorld[worldId] = bounds
+end
+
+--- Limites registrados de una arena, o nil si ese mundo no tiene suelo.
+--- @param worldId string?
+--- @return any?
+function Service.GetArenaBounds(worldId: string?)
+	local bounds = Service._arenaBoundsByWorld[worldId or Service._defaultArenaWorld or ""]
+	return bounds or Service._arenaBounds
+end
+
+--- Cuenta las arenas con limites registrados. Solo para el informe de arranque.
+--- @param byWorld { [string]: any }
+--- @return number
+local function countBounds(byWorld: { [string]: any }): number
+	local n = 0
+	for _ in pairs(byWorld) do
+		n += 1
+	end
+	return n
 end
 
 --- Inyecta los servicios de los que depende BombService.
@@ -96,6 +144,21 @@ function Service.SetDependencies(roundService: any, explosionService: any)
 	Service._explosionService = explosionService
 end
 
+--- Inyecta el registro de mundos.
+---
+--- Se hace APARTE de `SetDependencies` a proposito: los limites de arena se
+--- detectan en `Init`, que corre ANTES de que `ServerMain` inyecte nada. Asi
+--- que en `Init` todavia no se sabe cual es el mundo por defecto y se deja
+--- `_defaultArenaWorld` sin fijar; `Start` lo resuelve aqui, ya con las
+--- dependencias puestas.
+---
+--- Sin este paso el rectangulo por defecto caia en "el primer nombre de la
+--- tabla", que no tiene por que ser el mundo por defecto de `WorldService`.
+--- @param worldService any
+function Service.SetWorldService(worldService: any)
+	Service._worldService = worldService
+end
+
 --- Conecta el receptor de progreso de misiones.
 ---
 --- Es OPCIONAL: sin el, las bombas se colocan igual y solo las misiones que
@@ -105,11 +168,34 @@ function Service.SetQuestService(questService: any)
 	Service._questService = questService
 end
 
---- Indica si una posicion esta dentro de los limites del mapa.
+--- Indica si una posicion cae dentro de la arena del mundo indicado.
+---
+--- BUG CORREGIDO (medido en PLAY): antes solo existia UN rectangulo,
+--- `Service._arenaBounds`, y `detectArenaBounds` devolvia el `ArenaFloor` del
+--- PRIMER mundo que encontraba en `Workspace.Worlds` (Forest, siempre el
+--- primero). Consecuencia medida en los cinco mundos:
+---
+---   Forest (500, 0, 0)    -> dentro   -> la bomba se colocaba
+---   Desert (-400, 400)    -> FUERA    -> "fuera de la arena"
+---   Ice    (400, 400)     -> FUERA    -> "fuera de la arena"
+---   Volcano(-400, -400)   -> FUERA    -> "fuera de la arena"
+---   Cyber  (400, -400)    -> FUERA    -> "fuera de la arena"
+---
+--- Es decir: la bomba, que es el CORAZON del juego, solo funcionaba en uno de
+--- los cinco mundos. Cuatro portales de cinco llevaban a una arena donde el
+--- jugador no podia hacer su unica accion.
+---
+--- Ahora hay un rectangulo POR MUNDO y la comprobacion usa el mundo real del
+--- jugador, que el servidor publica en el atributo `World`. Un jugador sin
+--- mundo conocido se mide contra el rectangulo del mundo por defecto, que es
+--- lo que teniamos antes.
+---
 --- @param position Vector3
+--- @param worldId string? id del mundo; nil usa el mundo por defecto
 --- @return boolean inside
-function Service.IsInsideArena(position: Vector3): boolean
-	local bounds = Service._arenaBounds
+function Service.IsInsideArena(position: Vector3, worldId: string?): boolean
+	local bounds = Service._arenaBoundsByWorld[worldId or Service._defaultArenaWorld]
+		or Service._arenaBounds
 
 	-- Sin limites conocidos se acepta: el mapa puede no tener suelo de
 	-- arena y el juego debe seguir siendo jugable.
@@ -363,12 +449,26 @@ function Service.TryPlaceBomb(player: Player, position: any): (boolean, string?)
 	end
 
 	-- 4. Limites del mapa. Sin esto se puede explotar fuera del mapa.
-	if not Service.IsInsideArena(position) then
-		local bounds = Service._arenaBounds
+	--
+	-- Se mide contra la arena del MUNDO en el que esta el jugador. Antes solo
+	-- se comparaba contra el rectangulo de Forest, de modo que en Desert, Ice,
+	-- Volcano y Cyber toda bomba se rechazaba con "fuera de la arena".
+	--
+	-- El mundo se lee del atributo que escribe el SERVIDOR. Si no hay ninguno
+	-- conocido se usa `nil`, y `IsInsideArena` cae al rectangulo por defecto.
+	local worldAttr = player:GetAttribute("World")
+	local worldId = if type(worldAttr) == "string" then worldAttr else nil
+
+	if not Service.IsInsideArena(position, worldId) then
+		local bounds = Service.GetArenaBounds(worldId)
 
 		if bounds then
-			Logger.Debug(("[BOMB] validation fallo: fuera de la arena X[%.0f, %.0f] Z[%.0f, %.0f]"):format(
-				bounds.MinX, bounds.MaxX, bounds.MinZ, bounds.MaxZ
+			Logger.Debug(("[BOMB] validation fallo: fuera de la arena %s X[%.0f, %.0f] Z[%.0f, %.0f]"):format(
+				tostring(worldId),
+				bounds.MinX,
+				bounds.MaxX,
+				bounds.MinZ,
+				bounds.MaxZ
 			))
 		else
 			Logger.Debug("[BOMB] validation fallo: sin limites de arena conocidos")
@@ -464,16 +564,26 @@ function Service.GetActiveBombCount(): number
 	return count
 end
 
---- Detecta los limites de la arena a partir del suelo del mapa.
+--- Detecta los limites de TODAS las arenas a partir de sus suelos.
 ---
 --- Se lee del mapa, no del generador: asi el servicio funciona con
 --- cualquier arena que tenga un suelo con nombre reconocible.
+---
+--- BUG CORREGIDO (medido en PLAY): esta funcion devolvia el `ArenaFloor` del
+--- PRIMER mundo de `Workspace.Worlds` y descartaba los demas. Con cinco mundos
+---Eso dejaba cuatro arenas sin limite y, por tanto, sin bombas. Ahora devuelve
+--- una tabla por mundo mas el rectangulo del mundo por defecto, que es lo que
+--- usan los llamantes antiguos y los jugadores sin `World` conocido.
+---
+--- @return { byWorld: { [string]: bounds }, default: bounds? }
 local function detectArenaBounds()
 	local worlds = Workspace:FindFirstChild("Worlds")
 
 	if not worlds then
-		return nil
+		return { byWorld = {}, default = nil }
 	end
+
+	local byWorld: { [string]: any } = {}
 
 	for _, world in ipairs(worlds:GetChildren()) do
 		local floor = world:FindFirstChild("ArenaFloor")
@@ -482,7 +592,7 @@ local function detectArenaBounds()
 			local part = floor :: BasePart
 			local half = part.Size / 2
 
-			return {
+			byWorld[world.Name] = {
 				MinX = part.Position.X - half.X,
 				MaxX = part.Position.X + half.X,
 				MinZ = part.Position.Z - half.Z,
@@ -491,7 +601,15 @@ local function detectArenaBounds()
 		end
 	end
 
-	return nil
+	-- El mundo por defecto se decide por el servicio de mundos, no por el
+	-- PRIMER hijo de la carpeta: el orden de `GetChildren` no es el orden de
+	-- carga de `WorldService` y no tiene por que coincidir.
+	local defaultWorld = Service._worldService and Service._worldService.GetDefaultWorldId()
+
+	return {
+		byWorld = byWorld,
+		default = (defaultWorld and byWorld[defaultWorld]) or byWorld[next(byWorld)] or nil,
+	}
 end
 
 --- @param maid any?
@@ -517,18 +635,26 @@ function Service.Init(maid: any?): boolean
 	Service._bombFolder:SetAttribute("IsBombFolder", true)
 	Service._bombFolder.Parent = Workspace
 
+	-- Limites de TODAS las arenas. Antes solo se guardaba el primero, y eso
+	-- hacia que cuatro de los cinco mundos fueran injugables (ver
+	-- `IsInsideArena`).
 	local bounds = detectArenaBounds()
 
-	if bounds then
-		Service.SetArenaBounds(bounds)
-		Logger.Debug(("BombService: limites de arena X[%.0f, %.0f] Z[%.0f, %.0f]"):format(
-			bounds.MinX,
-			bounds.MaxX,
-			bounds.MinZ,
-			bounds.MaxZ
-		))
+	Service._arenaBoundsByWorld = bounds.byWorld
+
+	local defaultBounds = bounds.default
+
+	if defaultBounds then
+		Service.SetArenaBounds(defaultBounds)
+
+		-- `_defaultArenaWorld` NO se fija aqui: en `Init` todavia no se ha
+		-- inyectado `WorldService`. Lo resuelve `Start`, que corre despues de
+		-- `ServerMain.wireDependencies`.
+		Service._defaultArenaWorld = next(bounds.byWorld)
+
+		Logger.Debug(("BombService: %d arena(s) con limite"):format(countBounds(bounds.byWorld)))
 	else
-		Logger.Warn("BombService: no se encontro ArenaFloor; no habra limite de mapa.")
+		Logger.Warn("BombService: no se encontro ningun ArenaFloor; no habra limite de mapa.")
 	end
 
 	Service.IsInitialized = true
@@ -552,7 +678,25 @@ function Service.Start(): boolean
 		Logger.Error("BombService: sin RoundService; no se podran colocar bombas.")
 	end
 
-	Logger.Info("BombService listo.")
+	-- El mundo por defecto se resuelve AQUI, no en `Init`: las dependencias se
+	-- inyectan entre `Init` y `Start`, y en `Init` `_worldService` todavia no
+	-- existe. Sin esto el rectangulo "por defecto" seria el primer nombre de la
+	-- tabla, que no coincide con el mundo por defecto de `WorldService`.
+	if Service._worldService then
+		local defaultWorld = Service._worldService.GetDefaultWorldId()
+		local resolved = if defaultWorld then Service._arenaBoundsByWorld[defaultWorld] else nil
+
+		if resolved then
+			Service._defaultArenaWorld = defaultWorld
+			Service.SetArenaBounds(resolved)
+		end
+	end
+
+	Logger.Info(("BombService listo (%d arena(s) con limite, por defecto %s)."):format(
+		countBounds(Service._arenaBoundsByWorld),
+		tostring(Service._defaultArenaWorld)
+	))
+
 	return true
 end
 
@@ -568,6 +712,9 @@ function Service.Destroy(): boolean
 
 	Service._cooldowns = {}
 	Service._arenaBounds = nil
+	Service._arenaBoundsByWorld = {}
+	Service._defaultArenaWorld = nil
+	Service._worldService = nil
 	Service._roundService = nil
 	Service._explosionService = nil
 	Service._questService = nil

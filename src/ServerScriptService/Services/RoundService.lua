@@ -442,11 +442,54 @@ function Service.Init(maid: any?): boolean
 	return true
 end
 
---- Jugadores conectados, respetando el minimo configurado.
+--- Jugadores que estan DENTRO de una arena, respetando el minimo configurado.
+---
+--- BUG CORREGIDO (medido en PLAY, no en source): esto contaba
+--- `#Players:GetPlayers()`, es decir, TODO el mundo. Con
+--- `MinPlayersToStart = 1` bastaba con que UN jugador entrase al servidor para
+--- que la ronda arrancase sola, Moving -> Countdown -> RoundStarting, y el
+--- jugador quedaba en `Playing` durante 180 s.
+---
+--- El efecto medido en el juego era este: `PortalService.CanTravel` rechaza
+--- mientras hay ronda en curso ("hay una ronda en curso"), asi que el lobby
+--- se quedaba SIN SALIDAS durante casi tres minutos. El jugador veia los
+--- cinco portales, se acercaba, pulsaba E y no pasaba nada. El lobby entero
+--- era un pasillo.
+---
+--- El error de fondo es de SEMANTICA, no de aritmetica: una ronda de combate
+--- pertenece a los jugadores que estan peleando en una arena. Un jugador que
+--- esta de pie en el lobby mirando los portales no participa en nada, y contar
+--- su presencia hacia que el ciclo de ronda empezara sin que nadie hubiera
+--- pedido entrar.
+---
+--- Se cuenta el atributo `World`, que escribe el SERVIDOR en
+--- `MatchService.MovePlayer`. Es el unico punto por el que pasa cualquier
+--- traslado (portal, entrada a la arena, vuelta al lobby), asi que el atributo
+--- describe la zona real del jugador. No se mira la POSICION: el jugador puede
+--- caerse o ser empujado y eso no debe contar como "entro en la ronda".
+---
+--- Se exige ademas un personaje con vida, para no contar a un jugador que esta
+--- en la arena pero yamurio y esta esperando el reaparicion.
+---
 --- @return boolean enough
 local function hasEnoughPlayers(): boolean
-	local connected = #Players:GetPlayers()
-	return connected >= GameConfig.MinPlayersToStart
+	local inArena = 0
+
+	for _, player in ipairs(Players:GetPlayers()) do
+		local world = player:GetAttribute("World")
+
+		-- "Lobby" y `nil` (aun sin destino asignado) NO son arena.
+		if type(world) == "string" and world ~= "Lobby" then
+			local character = player.Character
+			local humanoid = character and character:FindFirstChildOfClass("Humanoid")
+
+			if humanoid and humanoid.Health > 0 then
+				inArena += 1
+			end
+		end
+	end
+
+	return inArena >= GameConfig.MinPlayersToStart
 end
 
 --- Decide el siguiente estado a partir del actual.

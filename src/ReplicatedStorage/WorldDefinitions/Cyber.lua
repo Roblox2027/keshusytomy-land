@@ -1,4 +1,4 @@
-﻿--!strict
+--!strict
 --[[
 Cyber
 Definicion de mundo (WorldData). Solo datos: ninguna logica aqui.

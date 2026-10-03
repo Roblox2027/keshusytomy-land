@@ -1,4 +1,4 @@
-﻿--!strict
+--!strict
 --[[
 	QuestService
 	Misiones, logros internos y recompensas diarias. El puente entre los

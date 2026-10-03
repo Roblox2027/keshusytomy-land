@@ -1,4 +1,4 @@
-﻿--!strict
+--!strict
 --[[
 	CodeService
 	Canje de codigos promocionales. El puente entre el jugador y `CodeRules`.
