@@ -180,6 +180,29 @@ function Service.GetProgressionState(player: Player?): any?
 	return entry.Progression
 end
 
+--- El perfil PLANO de un jugador, o nil si no tiene.
+---
+--- Existe para los sistemas que guardan su estado en una seccion propia del
+--- perfil y no en uno de los tres sub-estados ya existentes: el canje de
+--- codigos (`Codes`) es el caso actual.
+---
+--- Se devuelve la tabla VIVA, no una copia: quien la recibe va a
+--- escribir en ella (por ejemplo, marcar un codigo como usado), y una
+--- copia perderia ese cambio. Por eso solo la usan servicios del servidor,
+--- nunca el cliente, y por eso el que llama es responsable de llamar a
+--- `MarkDirty` despues de escribir.
+--- @param player Player?
+--- @return any?
+function Service.GetProfile(player: Player?): any?
+	local entry = Service._entryOf(player)
+
+	if not entry then
+		return nil
+	end
+
+	return entry.Profile
+end
+
 --- Paquete { economy, inventory, progression } para la tienda.
 ---
 --- Se devuelve un objeto NUEVO cada vez. Si devolviera el `entry` interno,

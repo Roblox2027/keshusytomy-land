@@ -116,6 +116,7 @@ local economyService = nil
 local inventoryService = nil
 local progressionService = nil
 local shopService = nil
+local codeService = nil
 
 -- Registro de servicios. Cada entrada declara sus dependencias para
 -- que el orden de arranque sea determinista.
@@ -158,6 +159,19 @@ local SERVICES = {
 	{
 		name = "ShopService",
 		module = SERVER.Services.ShopService,
+		dependencies = { "ProfileService", "EconomyService" },
+	},
+
+	-- CodeService puede canjear MONEDAS, asi que depende de las TRES
+	-- piezas de la columna economica: perfil (donde vive el registro del
+	-- canje), economia (que paga) y el propio catalogo.
+	--
+	-- Se declara DESPUES de ShopService porque las dos tocan el mismo
+	-- ledger: el orden topologico solo garantiza que ProfileService ya
+	-- arranco, no que el orden de escritura sea este.
+	{
+		name = "CodeService",
+		module = SERVER.Services.CodeService,
 		dependencies = { "ProfileService", "EconomyService" },
 	},
 
@@ -342,6 +356,15 @@ local monsterService = registry:Get("MonsterService")
 	)
 
 	connect("ShopService", shopService, { "ProfileService", "EconomyService" },
+		function(service: any)
+			service.SetDependencies(profileService, economyService)
+		end
+	)
+
+	-- CodeService lee el perfil para anotar el canje y paga con la
+	-- economia. Es la MISMA pareja que necesita la tienda: por eso se
+	-- cablea aqui y no dentro de su `connect`.
+	connect("CodeService", codeService, { "ProfileService", "EconomyService" },
 		function(service: any)
 			service.SetDependencies(profileService, economyService)
 		end
@@ -601,6 +624,26 @@ local REMOTE_CHANNELS = {
 
 	[GameConstants.RemoteAction.Quest] = {},
 
+	-- El canal de codigos. El payload es el TEXTO escrito por el jugador,
+	-- nunca la recompensa: el cliente no dice "dame 9999 coins", dice
+	-- "este codigo es X" y el servidor busca la recompensa en su catalogo.
+	--
+	-- La respuesta va por ATRIBUTOS (`CodeOutcome`, `CodeRejection`,
+	-- `CodeReward`), igual que la compra. El servicio ya publica el
+	-- resultado en `TryRedeem`; aqui solo se llama, y se registra el fallo
+	-- cuando el servicio ni siquiera esta disponible, que es el caso en el
+	-- que el jugador veria un silencio sin explicacion.
+	[GameConstants.RemoteAction.Code] = {
+		Redeem = function(player: Player, payload: any)
+			if not codeService then
+				Logger.Warn("CodeAction.Redeem recibido sin CodeService")
+				return
+			end
+
+			codeService.TryRedeem(player, payload)
+		end,
+	},
+
 	-- El canal del Keshusy Core. Sin payload: el cliente solo pide
 	-- aportar un fragmento, nunca dice cuanta carga ni que estado.
 	[GameConstants.RemoteAction.Core] = {
@@ -781,6 +824,11 @@ function ServerMain.Start(): boolean
 	inventoryService = registry:Get("InventoryService")
 	progressionService = registry:Get("ProgressionService")
 	shopService = registry:Get("ShopService")
+	-- El codigo se resuelve aqui, y NO dentro de `wireDependencies`: los
+	-- locales de esa FUNCION mueren al terminar, y el handler del remoto
+	-- lo veria como `nil` en tiempo de ejecucion. Es el mismo fallo que
+	-- quedo documentado para los seis de la columna economica.
+	codeService = registry:Get("CodeService")
 
 	for _, name in ipairs({
 		"DataService",
@@ -789,6 +837,7 @@ function ServerMain.Start(): boolean
 		"InventoryService",
 		"ProgressionService",
 		"ShopService",
+		"CodeService",
 	}) do
 		if not registry:Get(name) then
 			table.insert(report, ("[WIRING FAIL] %s no arranco"):format(name))

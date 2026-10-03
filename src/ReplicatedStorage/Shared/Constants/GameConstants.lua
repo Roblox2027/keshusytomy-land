@@ -69,6 +69,7 @@ return {
 		Shop = "ShopAction",
 		Inventory = "InventoryAction",
 		Quest = "QuestAction",
+		Code = "CodeAction",
 		Portal = "PortalAction",
 		-- El nucleo recibe UNA peticion por fragmento. El payload es
 		-- deliberadamente irrelevante: el cliente no dice cuanta carga

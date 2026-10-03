@@ -103,7 +103,23 @@ function ProfileSchema.NewProfile(playerId: number): any
 		},
 		Settings = { Volume = 1, Quality = "auto" },
 		Stats = { Kills = 0, Deaths = 0, Rounds = 0, Playtime = 0 },
-		Codes = {},
+		-- `Codes` no viene vacio a proposito.
+		--
+		-- Antes era `{}`, y el canje se escribia en `Codes[codigo]` en la
+		-- raiz. Eso mezclaba dos espacios de nombres: un codigo llamado
+		-- `player12` ocupaba el mismo hueco que la entrada de jugador 12.
+		-- Ahora la seccion tiene forma FIJA (`Redemptions` con codigos
+		-- normalizados, `Counts` con `userId` en cadena) y las dos cosas ya
+		-- no pueden confundirse.
+		--
+		-- Los perfiles VIEJOS tienen `Codes` como tabla lisa; por eso
+		-- `NormalizeSections` detecta esa forma y la repara conservando los
+		-- canjes que hubiera, en vez de tirar la seccion.
+		Codes = {
+			PlayerId = playerId,
+			Redemptions = {},
+			Counts = {},
+		},
 	}
 end
 
@@ -185,6 +201,47 @@ function ProfileSchema.NormalizeSections(profile: any, playerId: number): boolea
 		end
 		if type(profile.Progression.Sources) ~= "table" then
 			profile.Progression.Sources = defaults.Progression.Sources
+			changed = true
+		end
+	end
+
+	-- La seccion `Codes` es la que mas formas distintas ha tenido:
+	--
+	--   v1  `Codes = {}`                      (sin el sistema de codigos)
+	--   v2  `Codes = { keshusy = true }`      (canjes en la raiz)
+	--   v3  `Codes = { Redemptions = {...}, Counts = {...} }`  (forma actual)
+	--
+	-- La migracion CONSERVA los canjes de la v2 en vez de tirar la
+	-- seccion: si se perdieran, un jugador que ya canjeo un codigo
+	-- volveria a poder canjearlo, y eso es justo el fallo que todo este
+	-- sistema existe para impedir.
+	if type(profile.Codes) ~= "table" then
+		profile.Codes = defaults.Codes
+		changed = true
+	else
+		if type(profile.Codes.Redemptions) ~= "table" then
+			profile.Codes.Redemptions = {}
+			changed = true
+
+			-- Forma antigua: los codigos estaban en la raiz de `Codes`.
+			-- Se MUELVEN, no se copian: dejarlos en los dos sitios daria
+			-- dos verdades y un guardado posterior volveria a escribirlos.
+			--
+			-- Solo se migran las claves que parecen un codigo (cadena
+			-- alfanumerica). Una clave numerica en la raiz era el contador
+			-- de jugador del diseno antiguo, no un canje, y copiarla
+			-- convertiria un numero suelto en "codigo ya usado".
+			for key, value in pairs(profile.Codes) do
+				if key ~= "Redemptions" and key ~= "Counts" and key ~= "PlayerId" then
+					if type(key) == "string" and type(value) == "boolean" and value then
+						profile.Codes.Redemptions[string.lower(key)] = true
+					end
+				end
+			end
+		end
+
+		if type(profile.Codes.Counts) ~= "table" then
+			profile.Codes.Counts = {}
 			changed = true
 		end
 	end

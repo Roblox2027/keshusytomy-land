@@ -64,6 +64,21 @@ function Schema.new(remoteAction: { [string]: string })
 		[remoteAction.Quest] = {
 			Claim = PayloadType.String,
 		},
+		-- El canje de codigos. El payload es el TEXTO que el jugador
+		-- escribio, nunca la recompensa: si el cliente mandara la
+		-- recompensa, el servidor tendria que fiarse de el y cualquier
+		-- exploit pagaria lo que quisiera.
+		--
+		-- El tipo declarado es `String`, y `ValidatePayload` ya exige que
+		-- no tenga caracteres especiales ni sea mas larga de 64. Eso no
+		-- es un limite arbitrario: `CodeRules.Normalize` rechaza cualquier
+		-- cosa que no sea alfanumerica, asi que el filtro del gateway y el
+		-- de las reglas coinciden. Si divergieran, el jugador veria
+		-- "codigo mal formado" para un texto que el gateway habria
+		-- dejado pasar.
+		[remoteAction.Code] = {
+			Redeem = PayloadType.String,
+		},
 		[remoteAction.Portal] = {
 			Enter = PayloadType.String,
 		},
