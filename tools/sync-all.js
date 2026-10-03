@@ -209,6 +209,19 @@ SYNC_OUT: path.join(CACHE, "startergui-source.rbxm"),
 	// juego no es jugable aunque `source-runtime-diff` de PASS.
 	run("apply-map-positions.js", ["--run"]);
 
+	// 5-ter. AJUSTAR LAS PROPIEDADES DE LOS SERVICIOS.
+	//
+	// `Lighting` NO se importa: es un Servicio, no un modelo, asi que el
+	// camino `import_rbxm` que usa el resto no lo cubre. Sus ajustes (el
+	// `ColorCorrectionEffect` que da el tinte y el contraste de la escena)
+	// se aplican con el plugin MCP en modo edicion, que si puede escribir en
+	// el DataModel.
+	//
+	// Sin este paso, `source-runtime-diff` reportaba el efecto como FALTANTE
+	// en Studio una y otra vez y `sync-all` nunca llegaba a PASS, aunque el
+	// operador rerunara el comando diez veces.
+	lua(path.join("tools", "sync-lighting.lua"));
+
 	// 6. Los 63 scripts. Tarda: cada llamada MCP abre sesion propia.
 	if (!run("sync-scripts.js")) {
 		console.log("");

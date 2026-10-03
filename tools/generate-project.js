@@ -224,13 +224,36 @@ const STONE = [124, 134, 146];
 const DEEP = [70, 80, 96];
 
 const lobbyParts = [
+	// El suelo.
+	//
+	// MEDIDO en la captura del cliente: con `Concrete` en gris medio
+	// (124,134,146) el lobby se leia como una caja iluminada desde arriba,
+	// sin horizonte ni referencia. Un suelo de un sitio con cesped tiene que
+	// TENER color propio, no ser el gris de un material por defecto.
 	part("LobbyFloor", {
 		position: [0, -1, 0],
 		size: [LOBBY_HALF * 2, 2, LOBBY_HALF * 2],
 		material: "Concrete",
-		color: STONE,
+		color: [72, 88, 78],
 	}),
+	// `LobbyCenter` sigue siendo el centro GEOMETRICO (lo consultan los
+	// verificadores de mapa). `LobbyReturn` es donde llega el jugador.
 	marker("LobbyCenter", [0, 0.2, 0], { color: [200, 220, 255] }),
+	// BUG CORREGIDO (medido en la captura del cliente): `MatchService` usaba
+	// `LobbyCenter` como destino de TRASLADO al lobby, y ese punto es
+	// exactamente donde esta el Keshusy Core (0, 0.5, 0) con su orbe
+	// neon a Y = 8. Al volver de una ronda el jugador aparecia DENTRO del
+	// orbe, en (0, 6.9, 0): la primera imagen del juego era una esfera
+	// blanca con el personaje dentro.
+	//
+	// `LobbyReturn` es el sitio de LLEGADA real: al sur del Core, mirando
+	// al norte, de cara al arco de portales y con el nucleo a la vista.
+	// Asi el reencuentro con el corazon del juego es la primera lectura de
+	// la pantalla, no un empuje al vacio.
+	//
+	// `LobbyCenter` NO se borra: se conserva como referencia del centro
+	// geometrico y como contrato de los verificadores de mapa.
+	marker("LobbyReturn", [0, 0.2, 46], { color: [150, 240, 200] }),
 	marker("LobbyNorth", [0, 0.2, -40], { color: [160, 200, 255] }),
 	marker("LobbySouth", [0, 0.2, 40], { color: [160, 200, 255] }),
 ];
@@ -1752,6 +1775,92 @@ const extraWorlds = [
 // cambiar la ruta que ya leen las herramientas de auditoria.
 const hudGui = Hud.buildHud();
 
+/**
+ * Convierte la definicion de `Lighting` en un script Luau para Studio.
+ *
+ * POR QUE HAY QUE GENERARLO
+ * ------------------------
+ * `Lighting` es un Servicio, no un modelo, asi que `import_rbxm` no lo
+ * transporta: sus ajustes solo llegan si alguien los escribe en el DataModel
+ * con el plugin MCP. Ese "alguien" es este script.
+ *
+ * Y tiene que ser GENERADO. La version anterior estaba escrita a mano y solo
+ * sincronizaba el `ColorCorrectionEffect`; `Brightness`, `Ambient`,
+ * `Atmosphere` y `BloomEffect` se quedaban con lo que hubiera en la sesion
+ * (2.4 / 1.6 / 0.85) mientras el repositorio declaraba 1.05 / 0.7 / 1.05. La
+ * partida se leia blanca y `source-runtime-diff` seguia dando PASS, porque ese
+ * informe compara NOMBRES y CLASES, no valores. Dos listas de numeros que
+ * nadie contrasta son una bomba de reloj: de ahi que la unica fuente sea la
+ * definicion de `Lighting` de este mismo archivo.
+ *
+ * @param {object} lighting nodo `Lighting` del arbol del proyecto
+ * @returns {string} contenido de tools/sync-lighting.lua
+ */
+function luauLightingScript(lighting) {
+	const props = lighting.$properties;
+	const children = Object.keys(lighting).filter((k) => !k.startsWith("$"));
+
+	/** Sin ceros de relleno ni ruido: 1.05, no 1.0500000000000000444. */
+	const toFixed = (n) => String(Math.round(n * 1000) / 1000);
+
+	/** Valor JS -> literal Luau. Los colores llegan como [r,g,b] en 0..1. */
+	const luaValue = (v) => {
+		if (typeof v === "number") return toFixed(v);
+		if (typeof v === "boolean") return v ? "true" : "false";
+		if (typeof v === "string") return JSON.stringify(v);
+		if (Array.isArray(v) && v.length === 3 && v.every((n) => typeof n === "number"))
+			return `Color3.fromRGB(${Math.round(v[0] * 255)}, ${Math.round(v[1] * 255)}, ${Math.round(v[2] * 255)})`;
+		if (Array.isArray(v)) return `{ ${v.map(luaValue).join(", ")} }`;
+		throw new Error("sync-lighting: valor no convertible: " + JSON.stringify(v));
+	};
+
+	const propLines = Object.keys(props).map((k) => `Lighting.${k} = ${luaValue(props[k])}`);
+
+	const childBlocks = children.map((name) => {
+		const node = lighting[name];
+		const cls = node.$className;
+		const assigns = Object.keys(node.$properties)
+			.map((k) => `\tfx.${k} = ${luaValue(node.$properties[k])}`)
+			.join("\n");
+		return [
+			`-- ${name}: se reutiliza si ya existe, para no duplicar el efecto.`,
+			`local fx = Lighting:FindFirstChild("${name}")`,
+			`if not (fx and fx:IsA("${cls}")) then`,
+			`\tfx = Instance.new("${cls}")`,
+			`\tfx.Name = "${name}"`,
+			`\tfx.Parent = Lighting`,
+			`end`,
+			assigns,
+		].join("\n");
+	});
+
+	return [
+		"-- sync-lighting.lua",
+		"-- ARCHIVO GENERADO por tools/generate-project.js. NO editar a mano: se",
+		"-- sobrescribe en cada generacion y el valor unico esta en la",
+		"-- definicion de `Lighting` de ese generador.",
+		"--",
+		"-- MEDIDO con tools/probe-lighting.lua: antes de generarse, este script",
+		"-- solo creaba el ColorCorrectionEffect y dejaba el resto del Servicio",
+		"-- con los valores de la sesion (Brightness 2.4, Haze 1.6, Threshold",
+		"-- 0.85). El lobby salia blanco y nada lo delataba.",
+		"",
+		'local Lighting = game:GetService("Lighting")',
+		"",
+		"-- Ajustes del propio Servicio.",
+		propLines.join("\n"),
+		"",
+		"-- Efectos hijos.",
+		childBlocks.join("\n\n"),
+		"",
+		'return ("Lighting sincronizado: brillo %s, %d efectos"):format(',
+		"\tLighting.Brightness,",
+		"\t#Lighting:GetChildren()",
+		")",
+		"",
+	].join("\n");
+}
+
 const project = {
 	name: "KeshusyTomy-LanD",
 	tree: {
@@ -1856,31 +1965,66 @@ const project = {
 			$className: "Lighting",
 			$properties: {
 				GlobalShadows: true,
+				// MEDIDO en la captura del cliente: con `Brightness = 2.4` el
+				// lobby salia BLANCO. El suelo de Concrete (124,134,146)
+				// quemado a blanco, los portales del color que tuvieran
+				// perdian el tono y el Keshusy Core se leia como una mancha
+				// palida sin forma. `Brightness` multiplica la luz final: por
+				// encima de ~1.2 satura los canales y TODO el mapa se ve
+				// igual. El valor de un lugar iluminado tiene que dejar
+				// margen para que el Neon y el Bloom tienen algo que destacar.
 				ClockTime: 15.2,
-				Brightness: 2.4,
-				Ambient: color(92, 104, 118),
-				OutdoorAmbient: color(126, 148, 138),
-				EnvironmentDiffuseScale: 0.6,
-				EnvironmentSpecularScale: 0.4,
-				ShadowSoftness: 0.25,
+				Brightness: 1.05,
+				// Ambiente mas bajo y mas frio que antes. Antes (92,104,118)
+				// rellenaba cada sombra de gris claro, y una sombra gris
+				// clara sobre un suelo claro no es sombra: es ruido. Con un
+				// ambiente oscuro el contraste lo pone la luz de las piezas.
+				Ambient: color(52, 62, 78),
+				OutdoorAmbient: color(74, 96, 92),
+				// Menos difuso y menos especular: el terreno se leia como
+				// plastico encerado cuando ambos estaban altos.
+				EnvironmentDiffuseScale: 0.4,
+				EnvironmentSpecularScale: 0.22,
+				ShadowSoftness: 0.2,
 			},
 			Atmosphere: {
 				$className: "Atmosphere",
 				$properties: {
-					Density: 0.22,
-					Haze: 1.6,
-					Color: color(178, 206, 196),
-					Decay: color(126, 152, 140),
-					Glare: 0.25,
-					Offset: 0.1,
+					// `Haze = 1.6` con `Glare = 0.25` metia una lechada blanca
+					// sobre las paredes lejanas. La niebla debe dar PROFUNDIDAD
+					// (saber que hay algo mas alla), no borrar el color.
+					Density: 0.18,
+					Haze: 0.7,
+					Color: color(150, 186, 180),
+					Decay: color(96, 124, 116),
+					Glare: 0.02,
+					Offset: 0.15,
+				},
+			},
+			// Tinte y saturacion. Sin esto el mapa se lava hacia el cyan:
+			// el cielo, la niebla y el Neon comparten tono y no hay
+			// jerarquia de color. El contraste-enhanced separa el
+			// personaje del fondo, que es lo que hace legible una escena.
+			KeshusyGrade: {
+				$className: "ColorCorrectionEffect",
+				$properties: {
+					Brightness: 0.01,
+					Contrast: 0.16,
+					Saturation: 0.12,
+					TintColor: color(255, 248, 238),
 				},
 			},
 			ForestBloom: {
 				$className: "BloomEffect",
 				$properties: {
-					Intensity: 0.45,
-					Size: 28,
-					Threshold: 0.85,
+					// `Threshold = 0.85` con el lobby quemado hacia blanco
+					// hacia que el bloom se comiera los portales enteros. Un
+					// umbral por encima de 1 deja brillar SOLO lo que de
+					// verdad es una fuente de luz (el Core, los cristales,
+					// las explosiones) y no las superficies claras.
+					Intensity: 0.3,
+					Size: 24,
+					Threshold: 1.05,
 				},
 			},
 		},
@@ -1889,7 +2033,29 @@ const project = {
 
 fs.writeFileSync(PROJECT, JSON.stringify(project, null, 2) + "\n");
 
-console.log("default.project.json generado.");
+// ---------------------------------------------------------------------------
+// tools/sync-lighting.lua
+//
+// `Lighting` es un SERVICIO: `import_rbxm` solo trabaja con modelos, asi que
+// sus ajustes NUNCA viajan a Studio por la via normal. Antes de este paso,
+// `sync-lighting.lua` estaba escrito a mano y solo creaba el
+// `ColorCorrectionEffect`: `Brightness`, `Ambient`, `Atmosphere` y
+// `BloomEffect` se quedaban en los valores de la sesion vieja (Brightness
+// 2.4, Haze 1.6, Threshold 0.85) y el lobby seguia quemado a blanco aunque
+// el repositorio dijera lo contrario. MEDIDO con `tools/probe-lighting.lua`.
+//
+// Se GENERA desde la misma definicion de arriba en vez de escribirse a mano,
+// por una sola razon: dos listas de valores siempre divergen, y aqui la
+// divergencia era invisible, porque el unico sitio donde se nota es una
+// captura de pantalla que nadie mira hasta tarde.
+// ---------------------------------------------------------------------------
+fs.writeFileSync(
+	path.join(__dirname, "sync-lighting.lua"),
+	luauLightingScript(project.tree.Lighting),
+	"utf8"
+);
+
+console.log("default.project.json y tools/sync-lighting.lua generados.");
 console.log("  bloques destructibles:", blockIndex);
 console.log("  parts de lobby:", lobbyParts.length);
 console.log("  parts de arena:", arenaChildren.length);

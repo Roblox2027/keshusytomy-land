@@ -321,6 +321,15 @@ async function main() {
 
 	for (const file of files) {
 		const instancePath = "game." + instancePathFor(file);
+		// El fuente se lee TAL CUAL, sin recortar.
+		//
+		// MEDIDO: Studio NO normaliza el texto al guardarlo. Un archivo del
+		// disco que acaba en "\n" se queda con ese "\n" en Studio, y uno que
+		// no lo tiene se queda sin el. Por eso el archivo se compara contra
+		// si mismo y no contra una forma " canonica": si aqui se hiciera
+		// `.trim()`, el hash de un archivo con salto final jamas podria
+		// coincidir con el de Studio, y el sincronizador declararia
+		// divergente un archivo byte a byte identico.
 		const source = fs.readFileSync(file, "utf8");
 
 		// Comprobacion de "ya esta al dia", por hash del fuente completo.

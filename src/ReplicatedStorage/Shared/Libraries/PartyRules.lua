@@ -21,7 +21,7 @@
 	   dos veces seguido daria dos grupos y cada uno creeria ser el lider.
 
 	2. LA PARTY TIENE UN LIDER, y solo el lider puede invitar o expulsar.
-	   Un miembro no puede escalar privilegios pidiéndole a otro que le
+	   Un miembro no puede escalar privilegios pidiendole a otro que le
 	   expulse y entre.
 
 	3. OPERAR SIN LIDER ES INDEFINIDO. Si el lider se va, la party se

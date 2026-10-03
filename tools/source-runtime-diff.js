@@ -60,6 +60,30 @@ const ENGINE_OWNED = new Set([
 ]);
 
 /**
+ * Diferencias de CLASE que NO son divergencia.
+ *
+ * MEDIDO: Rojo escribe `StarterGui` como un `Folder` plano, porque asi lo
+ * declara el proyecto. El motor lo convierte en el `StarterGui` REAL al
+ * arrancar: es un contenedor del juego, no un Folder cualquiera. Lo mismo
+ * ocurre con `StarterPlayer`, que Rojo trata como Carpeta y Roblox como
+ * `StarterPlayer`.
+ *
+ * No se "arregla" declarando `StarterGui` con su clase real en el proyecto:
+ * Rojo no lo permite (el servicio ya existe) y el resultado seria el mismo
+ * arbol con una forma que el motor va a cambiar igualmente. Exigir aqui la
+ * igualdad literal convierte una diferencia SEMANTICA del motor en un FAIL
+ * permanente, y un FAIL permanente es peor que ninguno: entrena a ignorar
+ * el informe entero.
+ *
+ * La lista se limita a lo medido. Si aparece una diferencia de clase nueva,
+ * se investiga: puede ser un defecto real de construccion.
+ */
+const CLASS_EQUIVALENT = new Map([
+	["StarterGui", new Set(["Folder", "StarterGui"])],
+	["StarterPlayer", new Set(["Folder", "StarterPlayer"])],
+]);
+
+/**
  * Lee el nombre de un Item dentro de su bloque `<Properties>`.
  *
  * Rojo escribe siempre `<string name="Name">X</string>`. Se limita la
@@ -199,13 +223,40 @@ function main() {
 	// no. Sin esto el informe arrastraba 2 diferencias permanentes.
 	const isEngineOwned = (p) => p.split(".").some((seg) => ENGINE_OWNED.has(seg));
 
+	/**
+	 * Padre de una ruta con puntos. Para un SERVICIO de primer nivel
+	 * (`StarterGui`) no hay padre: el nombre es el propio segmento, porque
+	 * es el contenedor del motor el que difiere, no una carpeta dentro.
+	 */
+	const tailOf = (p) => {
+		const parts = p.split(".");
+		return parts.length === 1
+			? { leaf: parts[0], parent: parts[0] }
+			: { leaf: parts[parts.length - 1], parent: parts[parts.length - 2] };
+	};
+
+	/**
+	 * Una diferencia de clase es REAL salvo que el padre sea un contenedor
+	 * del motor cuya clase Rojo no puede reproducir.
+	 */
+	const isSemanticClassDiff = (p, sourceCls, runtimeCls) => {
+		const { parent } = tailOf(p);
+		const allowed = CLASS_EQUIVALENT.get(parent);
+		return allowed !== undefined && allowed.has(sourceCls) && allowed.has(runtimeCls);
+	};
+
 	const missing = []; // esta en SOURCE, no en RUNTIME
 	const extra = []; // esta en RUNTIME, no en SOURCE
 	const classMismatch = [];
+	const semanticDiffs = [];
 
 	for (const [path, cls] of src) {
 		if (!rt.map.has(path)) missing.push(`${path} [${cls}]`);
-		else if (rt.map.get(path) !== cls) classMismatch.push(`${path}: source=${cls} runtime=${rt.map.get(path)}`);
+		else if (rt.map.get(path) !== cls) {
+			const line = `${path}: source=${cls} runtime=${rt.map.get(path)}`;
+			if (isSemanticClassDiff(path, cls, rt.map.get(path))) semanticDiffs.push(line);
+			else classMismatch.push(line);
+		}
 	}
 	for (const [path, cls] of rt.map) {
 		if (!src.has(path) && !isEngineOwned(path)) extra.push(`${path} [${cls}]`);
@@ -220,6 +271,7 @@ function main() {
 	report.push(`FALTAN EN STUDIO (en source, no en runtime): ${missing.length}`);
 	report.push(`SOBRAN EN STUDIO (en runtime, no en source): ${extra.length}`);
 	report.push(`CLASE DISTINTA                          : ${classMismatch.length}`);
+	report.push(`CLASE EQUIVALENTE (motor)               : ${semanticDiffs.length}`);
 	report.push("");
 
 	if (missing.length) {
@@ -240,12 +292,20 @@ function main() {
 		for (const c of classMismatch) report.push(`- ${c}`);
 		report.push("");
 	}
+	if (semanticDiffs.length) {
+		// No son divergencia, pero se LISTAN: si aparece una nueva, hay que
+		// mirar por que. Ocultarlas del todo seria perder esa senal.
+		report.push("## Clase equivalente (el motor la cambia, no es un defecto)");
+		report.push("");
+		for (const c of semanticDiffs) report.push(`- ${c}`);
+		report.push("");
+	}
 
 	const out = path.join(ROOT, "docs", "runtime-source-diff.md");
 	fs.mkdirSync(path.dirname(out), { recursive: true });
 	fs.writeFileSync(out, report.join("\n"), "utf8");
 
-	console.log(report.slice(0, 6).join("\n"));
+	console.log(report.slice(0, 7).join("\n"));
 	console.log("informe escrito en docs/runtime-source-diff.md");
 	console.log(missing.length + extra.length + classMismatch.length === 0 ? "RESULTADO: PASS" : "RESULTADO: DIVERGE");
 	process.exit(missing.length + extra.length + classMismatch.length === 0 ? 0 : 1);
