@@ -13,13 +13,28 @@
 
 | Ambito | Estado | Evidencia |
 | --- | --- | --- |
-| Suite de logica pura | PASS | 219/219 con `tools\luau\luau.exe tests\RunTests.lua` |
+| Suite de logica pura | PASS | 350/350 con `tools\luau\luau.exe tests\RunTests.lua` |
 | Estructura de servicios | PASS | `node tools/verify-structure.js` |
 | Wiring remotos | PASS | `node tools/verify-wiring.js` |
-| Analisis estatico | PASS | `node tools/analyze.js` |
+| Analisis estatico | **FAIL** | `node tools/analyze.js` -> 714 incidencias (691 TypeError). Preexistente; ver nota abajo |
 | Build Rojo | PASS | `rojo\rojo.exe build default.project.json` |
-| Tree de Workspace del lugar | BLOCKED | el lugar abierto en Studio no es el build |
-| Play con jugador real | BLOCKED | requiere sesion de Studio + jugador |
+| Sync fuente -> Studio | PASS | `node tools/sync-scripts.js` -> 61 iguales, 0 fallidos |
+| Runtime servidor en PLAY | PASS | `node tools/probe.js tools/probes/snapshot.lua server` con ronda en curso |
+| Arbol de Workspace del lugar | BLOCKED | el lugar abierto en Studio no es el build |
+| **PLAY con jugador (lado cliente)** | **BLOCKED** | `eval_client_runtime` agota tiempo de espera en el par cliente |
+| DataStore real | BLOCKED | exige lugar publicado; ver `tools/probes/persistence-harness.lua` |
+
+> **analalyze.js NO se maquilla como PASS.** Las 691 incidencias
+> `TypeError` son casi todas del preludio de definiciones
+> (`Unknown type 'table'`, `Unknown type 'Vector3'`) y preexistentes a
+> esta linea de trabajo. Se corrigen por etapas, no se ocultan.
+
+> **MCP Client BLOCKED (medido, no supuesto).** El servidor MCP
+> responde con 48 herramientas y `eval_server_runtime` funciona, pero
+> `eval_client_runtime` agota el tiempo de espera incluso con `return 1+1`.
+> Por eso toda certificacion que exija observar el LADO CLIENTE (UI
+> abierta/cerrada, HUD, elementos pegados en pantalla) queda **BLOCKED**,
+> nunca PASS. Ver `.ai/qa/REGRESSION_MATRIX.md`.
 
 Las fases 0 y 1 siguen marcadas **BLOCKED** en `docs/phases.md` por
 esto mismo: el codigo es solido, la ejecucion dentro de Studio todavia

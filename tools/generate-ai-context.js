@@ -46,7 +46,11 @@ function readIfExists(p, fallback = null) {
 
 function listLuauFiles() {
 	const out = [];
-	const skip = new Set([".git", "node_modules", ".ai", ".cache", ".gradle", ".android", "rojo"]);
+	// `.kilo` contiene COPIAS DE TRABAJO del repositorio dentro del propio
+	// repositorio (`.kilo/worktrees/...` con su propio `tests/`). Contarlas
+	// inflaba el inventario: 36 suites donde hay 21. Un indice que miente
+	// sobre cuantos tests existen es peor que no tener indice.
+	const skip = new Set([".git", "node_modules", ".ai", ".cache", ".gradle", ".android", "rojo", ".kilo"]);
 
 	(function walk(dir) {
 		if (!fs.existsSync(dir)) return;
@@ -100,9 +104,12 @@ if (verification) {
 }
 
 const luau = listLuauFiles();
-const services = luau.filter((f) => /Services?[/\\]/.test(f));
-const controllers = luau.filter((f) => /Controllers?[/\\]/.test(f));
-const specs = luau.filter((f) => f.includes("tests/") && f.endsWith(".spec.lua"));
+const services = luau.filter((f) => /^src[\\/]ServerScriptService[\\/]Services[\\/]/.test(f));
+const controllers = luau.filter((f) => /^src[\\/]StarterPlayer[\\/].*Controllers[\\/]/.test(f));
+// El separador de ruta NO es fijo: en Windows `listLuauFiles` devuelve
+// backslashes, y un filtro con `tests/` adelante no cuenta ninguna suite.
+// Ese fue el motivo de que el indice dijera "Suites de prueba: 0".
+const specs = luau.filter((f) => /(^|[\\/])tests[\\/]/.test(f) && f.endsWith(".spec.lua"));
 
 const status = run("git status --short") || "CLEAN";
 const branch = run("git branch --show-current") || "?";
