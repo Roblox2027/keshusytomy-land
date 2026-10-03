@@ -44,6 +44,12 @@ Service._nextMonsterId = 0
 Service._spawned = 0
 Service._killed = 0
 
+-- QuestService: receptor del progreso de misiones (monstruos derrotados).
+--
+-- Es OPCIONAL a proposito: sin el, los monstruos mueren y pagan igual, y lo
+-- UNICO que se pierde es el progreso de las misiones.
+Service._questService = nil
+
 local MaidRef = nil
 
 --- Carpeta de monstruos, creada una sola vez.
@@ -73,6 +79,15 @@ function Service.SetDependencies(
 	Service._combatService = combatService
 	Service._playerService = playerService
 	Service._worldService = worldService
+end
+
+--- Conecta el receptor de progreso de misiones.
+---
+--- Es OPCIONAL: sin el, los monstruos mueren y pagan igual, y solo las
+--- misiones que cuentan monstruos derrotados no avanzan.
+--- @param questService any?
+function Service.SetQuestService(questService: any)
+	Service._questService = questService
 end
 
 --- Monstruos vivos ahora mismo.
@@ -303,6 +318,18 @@ function Service.OnMonsterDied(monsterId: number)
 			def.XP,
 			def.Coins
 		))
+	end
+
+	-- El progreso de mision va DENTRO del bloque del asesino, y no aparte
+	-- con un segundo `if killer`: si se escribiera fuera, un monstruo que
+	-- muere por su propia explosion intentaria progresar la mision con
+	-- `killer = nil`, que es justo el caso que NO debe contar.
+	--
+	-- Y va DESPUES de pagar: si el pago falla, el monstruo esta muerto y la
+	-- ronda continua. Al reves, una mision que no avanza seria un fallo mas
+	-- dificil de ver que uno registrado de mas.
+	if killer and Service._questService ~= nil then
+		Service._questService.RecordMetric(killer, "MonsterDefeated", 1)
 	end
 
 	Logger.Debug(("monstruo %d (%s) eliminado"):format(monsterId, def.Id))

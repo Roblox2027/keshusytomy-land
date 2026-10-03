@@ -39,6 +39,12 @@ Service._bombService = nil
 Service._destructionService = nil
 Service._combatService = nil
 
+-- QuestService: receptor del progreso de misiones (rondas ganadas).
+--
+-- Es OPCIONAL a proposito: sin el, las rondas funcionan igual y solo la
+-- mision "ganar una ronda" no avanza.
+Service._questService = nil
+
 -- Destinos por nombre: "Lobby" / "Arena".
 Service._destinations = {}
 
@@ -324,6 +330,22 @@ function Service.OnRoundStateChanged(from: string, to: string)
 	elseif to == RoundState.Rewards then
 		Service.GrantRoundRewards()
 
+		-- Progreso de mision: "ganar 1 ronda".
+		--
+		-- Se emite en `Rewards`, que es el estado donde el servidor YA ha
+		-- decidido que la ronda termino bien. Emitirlo en `RoundEnding`
+		-- contaria rondas perdidas, y emitirlo antes de pagar abriria la
+		-- puerta a "mision completada" sin recompensa por la ronda.
+		--
+		-- Se recorre a los jugadores CONECTADOS, no a los que hayian
+		-- dalam la arena: quien se salio antes no gano la ronda, y
+		-- contarle haria que la mision se completara sola.
+		if Service._questService ~= nil then
+			for _, player in ipairs(Players:GetPlayers()) do
+				Service._questService.RecordMetric(player, "RoundWon", 1)
+			end
+		end
+
 	elseif to == RoundState.ReturningToLobby then
 		Service.MoveAllPlayers("Lobby")
 
@@ -334,6 +356,15 @@ function Service.OnRoundStateChanged(from: string, to: string)
 			Logger.Info(("%d bloques restaurados"):format(restored))
 		end
 	end
+end
+
+--- Conecta el receptor de progreso de misiones.
+---
+--- Es OPCIONAL: sin el, las rondas funcionan igual y solo la mision "ganar
+--- una ronda" no avanza.
+--- @param questService any?
+function Service.SetQuestService(questService: any)
+	Service._questService = questService
 end
 
 --- Inyecta las dependencias del servicio.

@@ -30,6 +30,31 @@ Service.IsInitialized = false
 --- Prefijo de nombre que marca un bloque como destruible.
 Service.BLOCK_PREFIX = "Block_"
 
+-- QuestService: recibe el evento "un bloque ha sido destruido" para
+-- avanzar las misiones que lo escuchan.
+--
+-- Es UNA referencia a un servicio de dominio, no una conexion a un evento:
+-- el patron es el mismo que `ExplosionService.SetMonsterService`, y evita
+-- que `DestructionService` tenga que saber que existen las misiones.
+--
+-- Es OPCIONAL a proposito: sin el, la destruccion sigue funcionando igual y
+-- solo las misiones no avanzan. Un fallo del sistema de misiones no puede
+-- tumbar la destruccion, que es de lo que depende la ronda.
+--
+-- NOTA: `DestructionService` NO emite el evento de "bloque destruido".
+-- El metodo `ApplyDamage` no sabe QUIEN rompio el bloque, y anadirle un
+-- parametro de propietario obligaria a cambiar su firma y a todos sus
+-- llamantes. El evento se emite donde el dato existe: `ExplosionService`,
+-- que ya recibe el `sourceUserId` de la bomba. Aqui se conserva el setter
+-- por si el dia que exista el propietario se cablee desde aqui.
+Service._questService = nil
+
+--- Conecta el receptor de progreso de misiones.
+--- @param questService any?
+function Service.SetQuestService(questService: any)
+	Service._questService = questService
+end
+
 -- Bloque -> vida restante.
 Service._blocks = {}
 -- Bloque -> estado original (vida, transparencia, colision, material).

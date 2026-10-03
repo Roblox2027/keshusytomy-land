@@ -22,6 +22,11 @@
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Workspace = game:GetService("Workspace")
+-- Necesario para resolver el `sourceUserId` de una explosion a un jugador
+-- real. Se importa aqui y no se pasa como dependencia porque es un dato
+-- de PLATAFORMA, no de dominio: cualquier servicio puede leer el jugador
+-- sin que eso sea una razon para conocer a los demas servicios.
+local Players = game:GetService("Players")
 
 local SHARED = ReplicatedStorage:WaitForChild("Shared")
 local CONFIG = SHARED:WaitForChild("Config")
@@ -40,6 +45,12 @@ Service.IsInitialized = false
 -- servicios: el registro los pasa al arrancar.
 Service._destruction = nil
 Service._combat = nil
+
+-- MonsterService (inyectado por la flecha inversa que cablea
+-- `ServerMain`) y QuestService. Los dos son OPCIONALES: sin ellos el
+-- combate funciona igual y solo se pierde el progreso de misiones.
+Service._monsters = nil
+Service._questService = nil
 
 -- Contadores (diagnostico).
 Service._explosionCount = 0
@@ -67,6 +78,16 @@ end
 --- @param monsterService any
 function Service.SetMonsterService(monsterService: any)
 	Service._monsters = monsterService
+end
+
+--- Conecta el receptor de progreso de misiones.
+---
+--- Es OPCIONAL: sin el, las explosiones funcionan igual y solo las misiones
+--- que cuentan bloques destruidos no avanzan. El sistema de misiones no
+--- puede ser un punto unico de fallo del combate.
+--- @param questService any?
+function Service.SetQuestService(questService: any)
+	Service._questService = questService
 end
 
 --- @return number
@@ -282,6 +303,25 @@ function Service.Detonate(center: Vector3, radius: number, sourceUserId: number?
 
 			if Service._destruction.ApplyDamage(part, blockDamage) then
 				affected += 1
+
+				-- Un bloque recien DESTRUIDO (no danado) avanza la metrica.
+				--
+				-- Aqui, y no en `DestructionService`, porque este es el
+				-- UNICO sitio donde existe el dato de QUIEN lo rompio:
+				-- `ApplyDamage` no recibe propietario y anadirselo obligaria
+				-- a cambiar su firma y a todos sus llamantes.
+				--
+				-- El evento va DESPUES de aplicar el dano: si `RecordMetric`
+				-- fallara, el bloque ya esta roto y la ronda continua. Al
+				-- reves, una mision que no avanza seria un fallo mucho mas
+				-- dificil de ver que uno que se registro de mas.
+				if Service._questService ~= nil and sourceUserId ~= nil then
+					local player = Players:GetPlayerByUserId(sourceUserId)
+
+					if player then
+						Service._questService.RecordMetric(player, "BlockDestroyed", 1)
+					end
+				end
 			end
 		end
 	end

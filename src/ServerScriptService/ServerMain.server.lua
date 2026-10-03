@@ -117,6 +117,7 @@ local inventoryService = nil
 local progressionService = nil
 local shopService = nil
 local codeService = nil
+local questService = nil
 
 -- Registro de servicios. Cada entrada declara sus dependencias para
 -- que el orden de arranque sea determinista.
@@ -172,6 +173,19 @@ local SERVICES = {
 	{
 		name = "CodeService",
 		module = SERVER.Services.CodeService,
+		dependencies = { "ProfileService", "EconomyService" },
+	},
+
+	-- QuestService paga recompensas con la economia y guarda el progreso
+	-- en el perfil, asi que depende de los dos. NO depende de
+	-- `RoundService` ni de `MatchService`: no los consulta, solo RECIBE
+	-- eventos de ellos a traves de `RecordMetric`.
+	--
+	-- Se declara despues de `CodeService` porque los dos tocan el mismo
+	-- ledger, y el orden topologico no garantiza el orden de escritura.
+	{
+		name = "QuestService",
+		module = SERVER.Services.QuestService,
 		dependencies = { "ProfileService", "EconomyService" },
 	},
 
@@ -370,6 +384,14 @@ local monsterService = registry:Get("MonsterService")
 		end
 	)
 
+	-- QuestService comparte pareja con la tienda y el canje: perfil para
+	-- el estado, economia para el pago.
+	connect("QuestService", questService, { "ProfileService", "EconomyService" },
+		function(service: any)
+			service.SetDependencies(profileService, economyService)
+		end
+	)
+
 	connect("ExplosionService", explosionService, { "DestructionService", "CombatService" },
 		function(service: any)
 			service.SetDependencies(destructionService, combatService)
@@ -474,6 +496,37 @@ local monsterService = registry:Get("MonsterService")
 		table.insert(report, "[WIRING OK] ExplosionService -> MonsterService")
 	else
 		table.insert(report, "[WIRING FAIL] ExplosionService/MonsterService no disponibles")
+	end
+
+	-- QuestService NO depende de los servicios de juego: al reves, son los
+	-- que le AVISAN de que algo ocurrio. Se cablea con setters y no con
+	-- `connect`, porque declararla como dependencia crearia un ciclo en el
+	-- orden topologico del registro.
+	--
+	-- Se hace con un `pcall` por servicio: un fallo al cablear las misiones
+	-- NO puede impedir que las bombas, las explosiones o las rondas
+	-- funcionen. Perder el progreso de las misiones es una degradacion
+	-- visible; perder el combate es el juego caido.
+	if questService then
+		for _, name in ipairs({
+			"BombService",
+			"ExplosionService",
+			"MonsterService",
+			"MatchService",
+		}) do
+			local target = registry:Get(name)
+			local wired = pcall(function()
+				if target and target.SetQuestService then
+					target.SetQuestService(questService)
+				end
+			end)
+
+			if wired and target and target.SetQuestService then
+				table.insert(report, ("[WIRING OK] %s -> QuestService"):format(name))
+			elseif target and target.SetQuestService then
+				table.insert(report, ("[WIRING FAIL] %s -> QuestService"):format(name))
+			end
+		end
 	end
 
 	-- MatchService necesita conocer el mundo por defecto para validar
@@ -622,7 +675,32 @@ local REMOTE_CHANNELS = {
 		end,
 	},
 
-	[GameConstants.RemoteAction.Quest] = {},
+	-- El canal de misiones. El payload es el `questId` que el jugador quiere
+	-- reclamar, NUNCA el progreso ni la recompensa: el servidor mira SU
+	-- estado y decide.
+	--
+	-- `ClaimDaily` NO lleva payload. El cliente no dice "es el dia 3": el
+	-- servidor mira la fecha y su propio registro. Aceptar un indice de
+	-- racha desde el cliente seria permitir saltarse la espera.
+	[GameConstants.RemoteAction.Quest] = {
+		Claim = function(player: Player, payload: any)
+			if not questService then
+				Logger.Warn("QuestAction.Claim recibido sin QuestService")
+				return
+			end
+
+			questService.TryClaim(player, payload)
+		end,
+
+		ClaimDaily = function(player: Player, _payload: any)
+			if not questService then
+				Logger.Warn("QuestAction.ClaimDaily recibido sin QuestService")
+				return
+			end
+
+			questService.TryClaimDaily(player)
+		end,
+	},
 
 	-- El canal de codigos. El payload es el TEXTO escrito por el jugador,
 	-- nunca la recompensa: el cliente no dice "dame 9999 coins", dice
@@ -829,6 +907,7 @@ function ServerMain.Start(): boolean
 	-- lo veria como `nil` en tiempo de ejecucion. Es el mismo fallo que
 	-- quedo documentado para los seis de la columna economica.
 	codeService = registry:Get("CodeService")
+	questService = registry:Get("QuestService")
 
 	for _, name in ipairs({
 		"DataService",
@@ -838,6 +917,7 @@ function ServerMain.Start(): boolean
 		"ProgressionService",
 		"ShopService",
 		"CodeService",
+		"QuestService",
 	}) do
 		if not registry:Get(name) then
 			table.insert(report, ("[WIRING FAIL] %s no arranco"):format(name))

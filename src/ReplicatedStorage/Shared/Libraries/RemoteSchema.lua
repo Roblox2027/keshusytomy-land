@@ -63,6 +63,10 @@ function Schema.new(remoteAction: { [string]: string })
 		},
 		[remoteAction.Quest] = {
 			Claim = PayloadType.String,
+			-- Sin payload: el dia y la racha los decide el servidor a
+			-- partir de su reloj y del perfil. Aceptarlos del cliente
+			-- permitiria reclamar el diario sin esperar.
+			ClaimDaily = PayloadType.None,
 		},
 		-- El canje de codigos. El payload es el TEXTO que el jugador
 		-- escribio, nunca la recompensa: si el cliente mandara la

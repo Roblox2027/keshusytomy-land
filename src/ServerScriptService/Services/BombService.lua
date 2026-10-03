@@ -43,6 +43,14 @@ Service.IsInitialized = false
 Service._roundService = nil
 Service._explosionService = nil
 
+-- QuestService: receptor del progreso de misiones (bombas colocadas).
+--
+-- Es OPCIONAL a proposito: sin el, las bombas se colocan, explotan y dañan
+-- exactamente igual, y lo UNICO que se pierde es el progreso de las
+-- misiones. El sistema de misiones no puede ser un punto unico de fallo
+-- del combate.
+Service._questService = nil
+
 -- UserId -> momento (os.clock) en que puede volver a colocar.
 Service._cooldowns = {}
 -- BombId -> { Part: Part, OwnerUserId: number?, Position: Vector3, Depth: number }
@@ -86,6 +94,15 @@ end
 function Service.SetDependencies(roundService: any, explosionService: any)
 	Service._roundService = roundService
 	Service._explosionService = explosionService
+end
+
+--- Conecta el receptor de progreso de misiones.
+---
+--- Es OPCIONAL: sin el, las bombas se colocan igual y solo las misiones que
+--- cuentan bombas no avanzan.
+--- @param questService any?
+function Service.SetQuestService(questService: any)
+	Service._questService = questService
 end
 
 --- Indica si una posicion esta dentro de los limites del mapa.
@@ -410,6 +427,14 @@ function Service.TryPlaceBomb(player: Player, position: any): (boolean, string?)
 		GameConfig.DefaultBombFuseTime
 	))
 
+	-- Progreso de mision: se cuenta la bomba COLOCADA, no la que explota.
+	-- Va DESPUES de crearla y ANTES de devolver, para que lo que el jugador
+	-- ya hizo (pagar el cooldown y colocar) cuente aunque la mecha todavia
+	-- no haya vencido.
+	if Service._questService ~= nil then
+		Service._questService.RecordMetric(player, "BombPlaced", 1)
+	end
+
 	return true, nil
 end
 
@@ -545,6 +570,7 @@ function Service.Destroy(): boolean
 	Service._arenaBounds = nil
 	Service._roundService = nil
 	Service._explosionService = nil
+	Service._questService = nil
 	Service.IsInitialized = false
 
 	return true
