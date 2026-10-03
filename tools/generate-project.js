@@ -1,4 +1,4 @@
-// generate-project.js
+﻿// generate-project.js
 // Genera default.project.json, incluyendo el MAPA del juego.
 //
 // Por que un generador y no JSON a mano: el mapa son ~120 bloques
@@ -56,6 +56,73 @@ function asChildren(list) {
 		map[node.name] = node.node;
 	}
 	return map;
+	return map;
+}
+
+/**
+ * Enum `Material` de Roblox, tal y como lo acepta Rojo 7.
+ *
+ * POR QUE ESTA LISTA ESTA EN EL GENERADOR
+ * ---------------------------------------
+ * Rojo acepta `Material: <lo que sea>` al escribir el JSON y falla DESPUES, al
+ * compilar, con un error que no senala el sitio: "Invalid value for property
+ * Part.Material. Got an array of three numbers but expected a member of the
+ * Material enum". Ese "array of three numbers" es un COLOR escrito en el campo
+ * equivocado, y el mensaje no dice donde ni que se ha escrito un color ahi.
+ *
+ * Ocurrio de verdad con las rutas de los mundos: `deckMat` devolvia
+ * `P.groundAlt`, que es un color. Se gasto media hora leyendo el enum de
+ * Material cuando el fallo estaba en una sola linea. `checkMaterials` delata
+ * eso ANTES de escribir el archivo, con el camino exacto.
+ */
+const VALID_MATERIALS = new Set([
+	"Air", "Asphalt", "Basalt", "Brick", "Cardboard", "Carpet", "CeramicTiles",
+	"Cobblestone", "Concrete", "CorrodedMetal", "DiamondPlate", "Dirt",
+	"Fabric", "Foil", "ForceField", "Glass", "Glacier", "Granite", "Grass",
+	"Ground", "Ice", "LeafyGrass", "Lime", "Marble", "Metal", "Mud",
+	"Pavement", "Pearl", "Pine", "Plaster", "Plastic", "Rattan", "Ribbed",
+	"Rock", "RoofTiles", "Rust", "Sand", "Sandstone", "SandstoneStuds",
+	"Scorch", "ScratchedMetal", "Shale", "Sky", "Slate", "SmoothPlastic",
+	"Snow", "Sparkle", "Steel", "Stone", "StoneBrick", "Studs", "Snowtrail",
+	"Wood", "WoodPlanks", "WoodShow",
+
+	// `Neon` y `Glass` los usa el generador desde hace tiempo y Rojo los acepta
+	// en Part. Se comprobaba contra una lista que se habia escrito a mano y se
+	// le habian olvidado, que es la forma habitual de que una puerta de calidad
+	// termine estorbando: ahora que `checkMaterials` EXISTE, se ejecuta sobre el
+	// arbol entero en cada build, asi que cualquier olvido sale a la luz en
+	// segundos y no en la sesion de Rojo.
+	"Neon", "Glass",
+]);
+
+/**
+ * Recorre el arbol y delata cualquier `Material` que no sea del enum, o que
+ * sea un array de tres numeros (un color escrito en el campo equivocado).
+ *
+ * @param {object} node nodo del proyecto
+ * @param {string} pathPrefix camino acumulado
+ * @param {Array<string>} problems salida
+ */
+function checkMaterials(node, pathPrefix, problems) {
+	for (const key of Object.keys(node)) {
+		if (key.startsWith("$")) continue;
+		const child = node[key];
+		if (!child || typeof child !== "object") continue;
+		const here = pathPrefix ? pathPrefix + "." + key : key;
+		const props = child.$properties;
+
+		if (props && "Material" in props) {
+			const mat = props.Material;
+			if (Array.isArray(mat)) {
+				problems.push(here + ".Material = " + JSON.stringify(mat) +
+					" (es un COLOR; Material debe ser un nombre del enum)");
+			} else if (typeof mat === "string" && !VALID_MATERIALS.has(mat)) {
+				problems.push(here + ".Material = '" + mat + "' (no existe en el enum de Roblox)");
+			}
+		}
+
+		checkMaterials(child, here, problems);
+	}
 }
 
 /**
@@ -411,1105 +478,6 @@ for (let i = 0; i < 8; i++) {
 	}));
 }
 
-// ---------------------------------------------------------------- FOREST
-// La arena vive lejos del lobby (500 studs) para que las dos zonas
-// sean independientes y el jugador no pueda interactuar con ambas.
-const ARENA_CX = 500;
-const ARENA_CZ = 0;
-const ARENA_HALF = 90;
-
-// Paleta de Keshusy Forest.
-//
-// Un unico color de "suelo" y un unico material es exactamente lo que
-// hace que un escenario parezca un prototipo. La paleta se declara UNA
-// vez y la reutilizan terreno, bloques, decoracion y luz, de modo que
-// el conjunto se lea como un lugar y no como un assemblaje de piezas.
-const FOREST = {
-	barkDark: [74, 54, 36],
-	barkMid: [104, 78, 50],
-	barkLight: [136, 104, 66],
-	moss: [78, 118, 54],
-	leafDeep: [42, 104, 56],
-	leafMid: [66, 138, 68],
-	leafLight: [116, 184, 82],
-	stoneMid: [122, 126, 132],
-	stoneDark: [86, 90, 98],
-	stoneWarm: [148, 136, 116],
-	sand: [214, 196, 142],
-	dirt: [104, 82, 58],
-	grass: [82, 128, 62],
-	crystal: [86, 214, 226],
-	crystalHot: [168, 246, 255],
-	ember: [232, 148, 74],
-};
-
-/**
- * Ruido DETERMINISTA en [0,1).
- *
- * POR QUE NO `Math.random()`
- * ----------------------------
- * El mapa tiene que ser reproducible: el mismo `default.project.json`
- * tiene que salir byte a byte en cada ejecucion, porque de el depende
- * el diff de SOURCE contra RUNTIME. Con `Math.random()` cada build
- * moveria los arboles de sitio y `source-runtime-diff` no llegaria
- * nunca a PASS.
- *
- * Ademas el ruido se indexa por posicion logica, no por orden de
- * generacion: ASI se puede anadir decoracion nueva sin que lo ya
- * generado cambie de sitio.
- */
-function hash01(seed, salt) {
-	// Constants de Wang, mezcladas: barato y suficientemente repartido
-	// para colocar decoracion sin patrones visibles.
-	let h = (seed * 374761393 + (salt || 0) * 668265263) | 0;
-	h = (h ^ (h >>> 13)) * 1274126177;
-	h = h ^ (h >>> 16);
-	return ((h >>> 0) % 100000) / 100000;
-}
-
-/** Variacion en un rango, estable por semilla. */
-function vary(seed, salt, min, max) {
-	return min + hash01(seed, salt) * (max - min);
-}
-
-// Terreno. `ArenaFloor` conserva su nombre porque es parte del
-// contrato que ya verifican `tools/audit-rbxlx.js` y
-// `tools/source-map-audit.js`.
-const arenaParts = [
-	part("ArenaFloor", {
-		position: [ARENA_CX, -1, ARENA_CZ],
-		size: [ARENA_HALF * 2, 2, ARENA_HALF * 2],
-		material: "Grass",
-		color: FOREST.grass,
-	}),
-
-	marker("ArenaCenter", [ARENA_CX, 0.2, ARENA_CZ], { color: [255, 190, 110] }),
-	marker("ArenaNorth", [ARENA_CX, 0.2, ARENA_CZ - 60], { color: [255, 160, 90] }),
-	marker("ArenaSouth", [ARENA_CX, 0.2, ARENA_CZ + 60], { color: [255, 160, 90] }),
-	marker("ArenaEast", [ARENA_CX + 60, 0.2, ARENA_CZ], { color: [255, 160, 90] }),
-	marker("ArenaWest", [ARENA_CX - 60, 0.2, ARENA_CZ], { color: [255, 160, 90] }),
-];
-
-// Muralla natural. Sigue teniendo colision (delimita la arena) pero se
-// decora despues con raices y arboles para que no lea como un muro liso.
-for (const p of perimeter("ArenaWall", ARENA_CX, ARENA_CZ, ARENA_HALF, 26, FOREST.stoneDark)) {
-	arenaParts.push(p);
-}
-
-// (La definicion de `perimeter` vive arriba del bloque LOBBY. Antes vivia
-// aqui, DESPUES de que el lobby ya la usara, y solo funcionaba por el
-// hoisting de `function`. Declararla antes elimina esa dependencia sutil.)
-
-// ------------------------------------------------- BLOQUES DESTRUCTIBLES
-// Estructuras que las bombas destruyen. Los nombres empiezan por "Block_"
-// y el servicio de destruccion los localiza por ese prefijo: es el unico
-// contrato entre el mapa y el codigo. NO SE TOCA.
-//
-// CONTRASTE CON LA VERSION ANTERIOR
-// ---------------------------------
-// Antes cada bloque era `size = [8,8,8]`, `material = WoodPlanks`, sin
-// rotacion, en una reticula de paso 8.25 sobre un unico plano. Cuarenta
-// y ocho cubos identicos se leen como un prototipo, por muy bonito que sea
-// el material.
-//
-// Ahora cada bloque elige una de cuatro variantes que cambian DIMENSION,
-// FORMA, ORIENTACION y MATERIAL, y anaden hijos decorativos. La geome-
-// tria principal sigue siendo UNA sola `BasePart` porque:
-//
-//   1. `IsDestructibleBlock` exige `instance:IsA("BasePart")`. Si el
-//      bloque fuera un Model con hijos, dejaria de ser destruible.
-//   2. El radio de explosion se calcula por DISTANCIA ENTRE CENTROS
-//      (`ExplosionService` -> `CombatMath.FalloffDamage`). Cambiar el
-//      tamano y la rotacion no altera ese calculo; cambiar la FORMA si lo
-//      haria, asi que la forma se expresa con partes HIJO, no con la
-//      principal.
-//   3. `snapshotBlock` guarda `Transparency`, `CanCollide` y `CanTouch`
-//      para el restore. Nada de eso depende de la forma.
-//
-// POR QUE 48 Y NO MAS
-// -------------------
-// `tests/shared/Destruction.spec.lua` comprueba que las 48 bloques del
-// mapa siguen reparables. La cantidad es parte del contrato.
-const WALL_DISTANCE = 45;
-const BLOCK_VARIANTS = ["A", "B", "C", "D"];
-let blockIndex = 0;
-
-/**
- * LIBRERIA DE VARIANTES.
- *
- * Cuatro entradas, no cuarenta: el objetivo es que el conjunto tenga
- * ritmo y no ruido. Cada variante tiene silueta propia, para que la
- * arena se reconozca aunque no se recuerden los colores.
- *
- * `size` siempre es una caja alrededor de la caja de colision de la
- * version anterior, de modo que el area ocupada por el conjunto no crece
- * y las distancias entre bloques siguen siendo las que se calibraron.
- */
-const VARIANTS = {
-	// Troncos: altos y estrechos, coronados de copa.
-	A: {
-		size: [6, 11, 6],
-		material: "Wood",
-		colors: [FOREST.barkDark, FOREST.barkMid, FOREST.barkLight],
-		tilt: 7,
-		canopy: true,
-		roots: true,
-	},
-	// Losas de musgo: anchas, bajas, muy inclinadas.
-	B: {
-		size: [12, 4, 10],
-		material: "Grass",
-		colors: [FOREST.moss, FOREST.leafDeep, FOREST.leafMid],
-		tilt: 12,
-		canopy: false,
-		roots: true,
-	},
-	// Rocas: compactas, facetadas, sin vegetacion encima.
-	C: {
-		size: [8, 7, 9],
-		material: "Rock",
-		colors: [FOREST.stoneDark, FOREST.stoneMid, FOREST.stoneWarm],
-		tilt: 9,
-		canopy: false,
-		roots: false,
-	},
-	// Nodos de cristal: el elemento Keshusy. Bloque sobrio con una veta
-	// luminosa que lo identifica como material dimensional.
-	D: {
-		size: [7, 9, 7],
-		material: "Slate",
-		colors: [FOREST.stoneDark, FOREST.stoneMid, FOREST.crystal],
-		tilt: 5,
-		canopy: false,
-		roots: false,
-		crystal: true,
-	},
-};
-
-/**
- * Asigna variante de forma determinista y repartida.
- *
- * El ciclo con salto de 2 recorre A,C,B,D: dos bloques contiguos nunca
- * comparten silueta y el reparto es exactamente 12 de cada una sobre 48.
- * Es reproducible sin `Math.random()`, que es lo que permite que
- * `source-runtime-diff` siga dando PASS.
- */
-function variantFor(index) {
-	return BLOCK_VARIANTS[(index * 2 + (index >= 12 ? 1 : 0)) % 4];
-}
-
-/**
- * Crea un bloque destructible con su decoracion secundaria.
- *
- * @param {number} x @param {number} y @param {number} z centro
- * @param {object} opts { scale, seedOffset }
- */
-function makeBlock(x, y, z, opts) {
-	const o = opts || {};
-	const index = blockIndex;
-	const variantKey = variantFor(index);
-	const v = VARIANTS[variantKey];
-	const scale = o.scale === undefined ? 1 : o.scale;
-	const seed = index + (o.seedOffset || 0) * 1000;
-
-	const size = [v.size[0] * scale, v.size[1] * scale, v.size[2] * scale];
-	const color = v.colors[index % v.colors.length];
-
-	// Rotacion: inclinacion propia de la variante mas un giro Y estable.
-	// Se mantiene por debajo de 15 grados porque una inclinacion fuerte
-	// levanta una esquina del suelo y el jugador "tropieza" con un
-	// escalon invisible.
-	const tilt = ((index % 3) - 1) * v.tilt;
-	const yaw = Math.round(hash01(seed, 7) * 360);
-
-	const node = part("Block_" + index, {
-		position: [x, y, z],
-		size: size,
-		material: v.material,
-		color: color,
-		orientation: [tilt, yaw, ((index % 5) - 2) * (v.tilt / 2)],
-	});
-
-	// La variante viaja DENTRO DEL NOMBRE de la decoracion hija, no como
-	// atributo de la instancia.
-	//
-	// POR QUE NO UN ATRIBUTO
-	// -----------------------
-	// Lo natural seria `block:SetAttribute("ForestVariant", "A")`, y se
-	// intento por dos vias (`tools/attr-probe.js`):
-	//
-	//     $attributes: {...}              -> Rojo 7.7.0 lo IGNORA en silencio
-	//     $properties: { Attributes: {} } -> Rojo RECHAZA el proyecto entero
-	//
-	// Ninguna funciona con esta version de Rojo, que no tiene soporte de
-	// atributos en los archivos de proyecto. Y el atributo tampoco hacia
-	// falta para el contrato `Block_*`: los servicios localizan bloques
-	// por el prefijo del NOMBRE, no por atributos.
-	//
-	// La variante se lleva entonces en el nombre de la decoracion:
-	// `Deco_A_Leaf_12`. Asi sobrevive al build, se lee en Studio sin
-	// ejecutar nada y no depende de una capacidad que no existe.
-	//
-	// Ojo: la silueta NO depende de este nombre. Cada variante tiene su
-	// propio material, tamano e inclinacion, que si viajan como
-	// propiedades. El nombre solo hace la variante legible.
-	const tag = variantKey + "_";
-
-	// ------------------------------------------------ HIJOS DECORATIVOS
-	//
-	// Los hijos NUNCA llevan el prefijo `Block_`: si lo llevaran,
-	// `CollectBlocks` los contaria como bloques destructibles y el
-	// recuento pasaria de 48. Todos empiezan por `Deco_`.
-	const children = [];
-
-	if (v.canopy) {
-		const canopyY = y + size[1] / 2 + 1.8;
-		children.push(decor("Deco_" + tag + "Canopy_" + index, {
-			position: [x, canopyY, z],
-			size: [size[0] * 1.9, 3.6, size[2] * 1.9],
-			shape: "Ball",
-			material: "Grass",
-			color: FOREST.leafMid,
-		}));
-		children.push(decor("Deco_" + tag + "CanopyTop_" + index, {
-			position: [x, canopyY + 2.6, z],
-			size: [size[0] * 1.2, 2.8, size[2] * 1.2],
-			shape: "Ball",
-			material: "Grass",
-			color: FOREST.leafLight,
-		}));
-	}
-
-	if (v.roots) {
-		// Raices en las cuatro diagonales, orientadas hacia fuera: el
-		// bloque lee como algo ARRANCADO del suelo en lugar de puesto
-		// encima.
-		for (let r = 0; r < 4; r++) {
-			const a = (r / 4) * Math.PI * 2 + hash01(seed, r) * 0.4;
-			const reach = size[0] * 0.9;
-			children.push(decor("Deco_" + tag + "Root_" + index + "_" + r, {
-				position: [x + Math.cos(a) * reach, 0.35, z + Math.sin(a) * reach],
-				size: [4.4, 1.2, 1.6],
-				material: "Wood",
-				color: FOREST.barkDark,
-				orientation: [0, Math.round((a * 180) / Math.PI), 0],
-			}));
-		}
-		children.push(decor("Deco_" + tag + "Moss_" + index, {
-			position: [x, y + size[1] / 2 + 0.08, z],
-			size: [size[0] * 0.74, 0.3, size[2] * 0.74],
-			material: "Grass",
-			color: FOREST.moss,
-		}));
-	}
-
-	if (v.crystal) {
-		// Vetas de cristal Keshusy asomando por la cara del bloque. Es lo
-		// que hace que la arena se lea como KeshusyTomy-LanD y no como un
-		// bosque generico.
-		for (let c = 0; c < 3; c++) {
-			const a = hash01(seed, c + 11) * Math.PI * 2;
-			const r = size[0] * 0.5;
-			children.push(decor("Deco_" + tag + "Crystal_" + index + "_" + c, {
-				position: [
-					x + Math.cos(a) * r,
-					y + size[1] * 0.18 + c * (size[1] / 4),
-					z + Math.sin(a) * r,
-				],
-				size: [1.2, size[1] * 0.5, 1.2],
-				shape: "Ball",
-				material: "Neon",
-				color: c === 1 ? FOREST.crystalHot : FOREST.crystal,
-			}));
-		}
-	}
-
-	// Piedras y setas alrededor del pie, para que la union bloque-suelo no
-	// sea un corte limpio.
-	const rubble = 2 + Math.floor(hash01(seed, 3) * 3);
-	for (let r = 0; r < rubble; r++) {
-		const a = hash01(seed, r + 21) * Math.PI * 2;
-		const d = size[0] * 0.65 + hash01(seed, r + 31) * 2.6;
-		const isMushroom = hash01(seed, r + 41) > 0.55;
-		children.push(decor("Deco_" + tag + (isMushroom ? "Shroom" : "Rubble") + "_" + index + "_" + r, {
-			position: [x + Math.cos(a) * d, 0.32, z + Math.sin(a) * d],
-			size: isMushroom ? [1.3, 0.9, 1.3] : [0.9, 0.7, 1.1],
-			material: isMushroom ? "Neon" : "Rock",
-			color: isMushroom ? FOREST.ember : FOREST.stoneMid,
-		}));
-	}
-
-	if (children.length > 0) {
-		node.node = Object.assign({}, node.node, asChildren(children));
-	}
-
-	blockIndex += 1;
-	return node;
-}
-
-// ------------------------------------------------ DISPOSICION EN JUEGO
-//
-// Se conservan los dos EJES que ya funcionan: una muralla perimetral con
-// dos huecos al norte y al sur, y una estructura central con tres
-// accesos. Lo que cambia es que cada pieza se apoya en la altura que le
-// corresponde a su variante, en vez de a una caja unica de 8.
-//
-// COMO SE CALCULA LA ALTURA
-// -------------------------
-// La version anterior ponia TODOS los bloques en `y = 4`, porque todos
-// median 8. Ahora las variantes miden entre 4 y 11 de alto: si se
-// mantuviera `y = 4`, los troncos de 11 quedarian medio enterrados y las
-// losas de 4 flotarian a media altura. `restY` calcula el suelo de cada
-// variante una vez, y el mismo valor se usa al apilar el segundo nivel,
-// de modo que una torre nunca queda con un escalon entre pisos.
-function restY(index) {
-	const v = VARIANTS[variantFor(index)];
-	return v.size[1] / 2;
-}
-
-// Cuatro murallas con huecos de paso, en dos alturas en las esquinas.
-const perimeterBlocks = [];
-for (let i = 0; i < 6; i++) {
-	const t = -WALL_DISTANCE / 2 + i * (WALL_DISTANCE / 5);
-
-	// Murallas norte y sur: los bloques centrales se omiten para dejar
-	// dos puertas de paso hacia el interior.
-	if (i !== 2 && i !== 3) {
-		perimeterBlocks.push(makeBlock(ARENA_CX + t, restY(blockIndex), ARENA_CZ - WALL_DISTANCE));
-		perimeterBlocks.push(makeBlock(ARENA_CX + t, restY(blockIndex), ARENA_CZ + WALL_DISTANCE));
-	}
-
-	// Murallas este y oeste, sin hueco.
-	perimeterBlocks.push(makeBlock(ARENA_CX - WALL_DISTANCE, restY(blockIndex), ARENA_CZ + t));
-	perimeterBlocks.push(makeBlock(ARENA_CX + WALL_DISTANCE, restY(blockIndex), ARENA_CZ + t));
-
-	// Segundo nivel en los extremos: torres en las esquinas.
-	//
-	// La altura del segundo piso se calcula sobre el bloque de abajo ya
-	// colocado, no con una constante: apilar sobre una cota fija dejaba
-	// huecos de hasta 7 studs con las variantes altas.
-	if (i === 0 || i === 5) {
-		const base = restY(blockIndex);
-		const above = VARIANTS[variantFor(blockIndex)];
-		const y2 = base + VARIANTS[variantFor(blockIndex - 4)].size[1] / 2 + above.size[1] / 2;
-		perimeterBlocks.push(makeBlock(ARENA_CX + t, y2, ARENA_CZ - WALL_DISTANCE));
-		perimeterBlocks.push(makeBlock(ARENA_CX + t, y2, ARENA_CZ + WALL_DISTANCE));
-		perimeterBlocks.push(makeBlock(ARENA_CX - WALL_DISTANCE, y2, ARENA_CZ + t));
-		perimeterBlocks.push(makeBlock(ARENA_CX + WALL_DISTANCE, y2, ARENA_CZ + t));
-	}
-}
-
-// Estructura central: relicario 3x3x3 hueco, con tres accesos.
-//
-// Antes era un cubo perfecto de cajas de 8. Ahora es un "relicario": cada
-// pieza elige variante y el conjunto se lee como un monumento derruido
-// alrededor de un nucleo luminoso, en vez de como un cubo de Minecraft.
-const CENTRAL_STEP = 9.25;
-const centralBlocks = [];
-for (let x = 0; x < 3; x++) {
-	for (let y = 0; y < 3; y++) {
-		for (let z = 0; z < 3; z++) {
-			// Quitar el centro y las aristas de entrada para poder entrar.
-			if (x === 1 && y === 1) continue;
-			if (x === 1 && z === 1) continue;
-			if (y === 1 && z === 1) continue;
-
-			// Las cuatro esquinas superiores se CAEN: una torre inclinada
-			// y mas baja. Sigue siendo una `BasePart` unica y colisionable,
-			// pero el perfil del monumento deja de ser una caja perfecta.
-			const isBrokenCorner = y === 2 && (x === 0 || x === 2) && (z === 0 || z === 2);
-			const scale = isBrokenCorner ? 0.62 : 1;
-
-			centralBlocks.push(
-				makeBlock(
-					ARENA_CX + (x - 1) * CENTRAL_STEP,
-					restY(blockIndex) * scale,
-					ARENA_CZ + (z - 1) * CENTRAL_STEP,
-					{ scale: scale }
-				)
-			);
-		}
-	}
-}
-
-// --------------------------------------------------------- TERRENO Y VIAS
-//
-// El suelo era UNA losa de 180x180 de Concrete: 32 400 studs de un solo
-// color plano. Aunque la camara cambie, eso se lee como vacio de pruebas.
-//
-// Ahora el suelo se compone por capas, todas con `canCollide: false` y
-// ligeramente por encima de `ArenaFloor`, para que NADIE pueda chocar
-// con la decoracion del terreno. La colision real la sigue llevando
-// `ArenaFloor`; estas capas solo pintar.
-const terrainParts = [];
-
-// Cresta interior: un escalon de hierba oscura 6 studs por dentro del
-// muro, que marca el limite de la zona jugable sin anadir colision.
-const RIDGE = ARENA_HALF - 6;
-const ridgeParts = [
-	decor("Terrain_Ridge_N", { position: [ARENA_CX, 0.18, ARENA_CZ - RIDGE], size: [RIDGE * 2, 0.36, 1.6], material: "Grass", color: FOREST.leafDeep }),
-	decor("Terrain_Ridge_S", { position: [ARENA_CX, 0.18, ARENA_CZ + RIDGE], size: [RIDGE * 2, 0.36, 1.6], material: "Grass", color: FOREST.leafDeep }),
-	decor("Terrain_Ridge_W", { position: [ARENA_CX - RIDGE, 0.18, ARENA_CZ], size: [1.6, 0.36, RIDGE * 2], material: "Grass", color: FOREST.leafDeep }),
-	decor("Terrain_Ridge_E", { position: [ARENA_CX + RIDGE, 0.18, ARENA_CZ], size: [1.6, 0.36, RIDGE * 2], material: "Grass", color: FOREST.leafDeep }),
-];
-terrainParts.push(...ridgeParts);
-
-// Cuatro senderos que van del relicario central a cada muro, con las
-// baldosas desplazadas para que no formen una linea perfecta.
-for (let axis = 0; axis < 4; axis++) {
-	const along = axis % 2 === 0;
-	const sign = axis < 2 ? -1 : 1;
-	for (let step = 1; step <= 8; step++) {
-		const d = step * 9 + vary(step, axis + 60, -1.2, 1.2);
-		const px = along ? ARENA_CX + d * sign : ARENA_CX + vary(step, axis + 70, -2, 2);
-		const pz = along ? ARENA_CZ + vary(step, axis + 80, -2, 2) : ARENA_CZ + d * sign;
-		terrainParts.push(decor("Path_" + axis + "_" + step, {
-			position: [px, 0.06, pz],
-			size: along ? [7.4, 0.12, 6.2] : [6.2, 0.12, 7.4],
-			material: "Ground",
-			color: step % 2 === 0 ? FOREST.dirt : FOREST.barkDark,
-			orientation: [0, Math.round(vary(step, axis + 90, -9, 9)), 0],
-		}));
-	}
-}
-
-// Tres claros de arena: rompen el verde y dan puntos de referencia
-// memorables desde lejos.
-const clearings = [
-	{ x: ARENA_CX - 62, z: ARENA_CZ - 58, r: 20 },
-	{ x: ARENA_CX + 66, z: ARENA_CZ + 54, r: 17 },
-	{ x: ARENA_CX + 70, z: ARENA_CZ - 50, r: 14 },
-];
-for (let c = 0; c < clearings.length; c++) {
-	const cl = clearings[c];
-	terrainParts.push(decor("Sand_Clearing_" + c, {
-		position: [cl.x, 0.04, cl.z],
-		size: [cl.r * 2, 0.1, cl.r * 1.7],
-		shape: "Cylinder",
-		material: "Sand",
-		color: FOREST.sand,
-	}));
-
-	// Borde de piedra alrededor del claro: el paso de hierba a arena deja
-	// de ser un corte recto.
-	for (let r = 0; r < 9; r++) {
-		const a = (r / 9) * Math.PI * 2;
-		terrainParts.push(decor("Sand_Edge_" + c + "_" + r, {
-			position: [cl.x + Math.cos(a) * cl.r, 0.16, cl.z + Math.sin(a) * cl.r * 0.85],
-			size: [2.4, 0.5, 1.4],
-			material: "Rock",
-			color: FOREST.stoneMid,
-			orientation: [0, Math.round((a * 180) / Math.PI), 0],
-		}));
-	}
-}
-
-// ------------------------------------------------------ DECORACION FOREST
-//
-// REGLA QUE SEPARA JUEGO DE DECORADO
-// -----------------------------------
-// TODO lo de esta seccion se crea con `decor()`, es decir SIEMPRE con
-// `CanCollide = false`. La decoracion no puede frenar al jugador ni
-// alterar la fisica de las bombas: si un arbol frenara al personaje,
-// seria un fallo de gameplay disfrazado de scenery.
-//
-// La excepcion declarada es la muralla perimetral (`ArenaWall_*`), que si
-// colisiona porque delimita la arena. Y nada mas.
-const decoParts = [];
-
-/**
- * Un arbol: tronco + dos copas. Tres partes, todas sin colision.
- *
- * @param {string} name clave estable para el ruido determinista
- * @param {number} x @param {number} z
- * @param {number} height
- * @param {number[]} tint color de la copa
- */
-function tree(name, x, z, height, tint) {
-	const seed = name.length * 31 + name.charCodeAt(name.length - 1);
-	const trunkColor = hash01(seed, 5) > 0.5 ? FOREST.barkDark : FOREST.barkMid;
-	decoParts.push(decor("Tree_Trunk_" + name, {
-		position: [x, height / 2, z],
-		size: [1.8, height, 1.8],
-		material: "Wood",
-		color: trunkColor,
-		orientation: [0, Math.round(vary(seed, 5, -10, 10)), 0],
-	}));
-	decoParts.push(decor("Tree_Canopy_" + name, {
-		position: [x, height + 1.2, z],
-		size: [height * 0.85, height * 0.7, height * 0.85],
-		shape: "Ball",
-		material: "Grass",
-		color: tint,
-	}));
-	decoParts.push(decor("Tree_CanopyTop_" + name, {
-		position: [x, height + height * 0.45, z],
-		size: [height * 0.55, height * 0.45, height * 0.55],
-		shape: "Ball",
-		material: "Grass",
-		color: FOREST.leafLight,
-	}));
-}
-
-// Bosque perimetral: tres anillos de densidad CRECIENTE hacia el muro.
-// El anillo exterior es el mas denso, para que el limite de la arena se
-// lea como una masa forestAL continua y no como una fila de arboles.
-for (let ring = 0; ring < 3; ring++) {
-	const radius = RIDGE - 2 - ring * 9;
-	const count = 18 + ring * 10;
-	for (let i = 0; i < count; i++) {
-		const a = (i / count) * Math.PI * 2 + ring * 0.37;
-		const jitter = vary(i + ring * 100, 13, -3.5, 3.5);
-		const x = ARENA_CX + Math.cos(a) * (radius + jitter);
-		const z = ARENA_CZ + Math.sin(a) * (radius + jitter);
-
-		// No se siembran arboles encima de los senderos: bloquearian la
-		// lectura de las vias aunque no colisionen.
-		const nearPath = Math.abs(Math.abs(x - ARENA_CX) - Math.abs(z - ARENA_CZ)) < 7;
-		if (nearPath) continue;
-
-		const height = vary(i + ring * 50, 17, 7, 17);
-		const tint = vary(i + ring * 30, 23) > 0.5 ? FOREST.leafMid : FOREST.leafDeep;
-		tree(ring + "_" + i, x, z, height, tint);
-	}
-}
-
-// Matorrales, flores y setas dispersos por el interior, evitando el
-// relicario, los senderos y los claros.
-for (let i = 0; i < 90; i++) {
-	const x = ARENA_CX + vary(i, 101, -80, 80);
-	const z = ARENA_CZ + vary(i, 103, -80, 80);
-	const dCenter = Math.sqrt((x - ARENA_CX) * (x - ARENA_CX) + (z - ARENA_CZ) * (z - ARENA_CZ));
-	if (dCenter < 22 || dCenter > RIDGE - 4) continue;
-
-	const kind = hash01(i, 107);
-	if (kind < 0.42) {
-		decoParts.push(decor("Bush_" + i, {
-			position: [x, 1.3, z],
-			size: [vary(i, 109, 2.4, 4.6), vary(i, 111, 1.6, 3), vary(i, 113, 2.4, 4.6)],
-			shape: "Ball",
-			material: "Grass",
-			color: vary(i, 115) > 0.5 ? FOREST.leafMid : FOREST.leafDeep,
-		}));
-	} else if (kind < 0.72) {
-		const fh = vary(i, 117, 1.2, 2.6);
-		decoParts.push(decor("Flower_Stem_" + i, {
-			position: [x, fh / 2, z], size: [0.22, fh, 0.22],
-			material: "Grass", color: FOREST.moss,
-		}));
-		decoParts.push(decor("Flower_Head_" + i, {
-			position: [x, fh + 0.2, z], size: [0.75, 0.75, 0.75],
-			shape: "Ball", material: "Neon",
-			color: vary(i, 119) > 0.6 ? FOREST.ember : [242, 208, 122],
-		}));
-	} else {
-		const sh = vary(i, 121, 0.9, 2);
-		decoParts.push(decor("Shroom_Stem_" + i, {
-			position: [x, sh / 2, z], size: [0.5, sh, 0.5],
-			material: "Snow", color: [226, 220, 206],
-		}));
-		decoParts.push(decor("Shroom_Cap_" + i, {
-			position: [x, sh, z], size: [1.5, 0.7, 1.5],
-			shape: "Cylinder", material: "Neon", color: FOREST.ember,
-		}));
-	}
-}
-
-// ------------------------------------------------- BORDE DE LA ARENA
-//
-// Fuera del muro hay, por defecto, el vacio de pruebas: el jugador ve que
-// el suelo acaba en un canto y no hay nada mas. Esto pone un cierre
-// visual alrededor del mapa para que se lea "aqui termina la arena".
-//
-// Son piezas SIN COLISION (decoracion pura) que trabajan en el hueco entre
-// el muro y el limite del terreno, de modo que el muro sigue siendo el
-// unico limite fisico.
-const borderParts = [];
-
-// Colina de tierra y helechos justo detras del muro, en las 4 caras.
-for (let side = 0; side < 4; side++) {
-	const along = side % 2 === 0;
-	const sign = side < 2 ? -1 : 1;
-	for (let i = 0; i < 16; i++) {
-		const t = -ARENA_HALF + 5 + i * ((ARENA_HALF * 2 - 10) / 15);
-		const out = ARENA_HALF + vary(i, 200 + side, 3, 16);
-		const x = along ? ARENA_CX + t : ARENA_CX + out * sign;
-		const z = along ? ARENA_CZ + out * sign : ARENA_CZ + t;
-		const h = vary(i, 210 + side, 10, 24);
-		borderParts.push(decor("Border_Hill_" + side + "_" + i, {
-			position: [x, h / 2 - 2, z],
-			size: [vary(i, 220 + side, 16, 30), h, vary(i, 230 + side, 14, 26)],
-			shape: "Ball",
-			material: "Ground",
-			color: FOREST.leafDeep,
-		}));
-		// Arboles en la ladera: el borde no es una colina pelada.
-		if (hash01(i, 240 + side) > 0.35) {
-			tree("border_" + side + "_" + i, x, z, vary(i, 250 + side, 14, 26), FOREST.leafDeep);
-		}
-	}
-}
-
-// Raices organicas que trepan por el muro: rompen la silueta recta.
-for (let side = 0; side < 4; side++) {
-	for (let i = 0; i < 10; i++) {
-		const t = -ARENA_HALF + 8 + i * ((ARENA_HALF * 2 - 16) / 9);
-		const sign = side < 2 ? -1 : 1;
-		const along = side % 2 === 0;
-		const edge = ARENA_HALF - 1;
-		const x = along ? ARENA_CX + t : ARENA_CX + edge * sign;
-		const z = along ? ARENA_CZ + edge * sign : ARENA_CZ + t;
-		borderParts.push(decor("Border_Root_" + side + "_" + i, {
-			position: [x, vary(i, 260 + side, 3, 20), z],
-			size: [vary(i, 270 + side, 2, 5), vary(i, 280 + side, 6, 16), 1.2],
-			material: "Wood",
-			color: FOREST.barkDark,
-			orientation: [0, Math.round(vary(i, 290 + side, -25, 25)), Math.round(vary(i, 300 + side, -35, 35))],
-		}));
-	}
-}
-// ------------------------------------------------------ ELEMENTOS KESHUSY
-//
-// Lo que hace que esto sea KeshusyTomy-LanD y no un bosque de Roblox:
-// cristales dimensionales, energia suspendida y luciernagas. Ninguna de
-// estas piezas colisiona, y solo cuatro emiten luz real (ver la seccion
-// de iluminacion), porque un bosque con 200 luces no renderiza.
-const keshusyParts = [];
-
-/**
- * Cristal Keshusy: dos prismas cruzados mas un fragmento flotante.
- *
- * @param {string} name
- * @param {number} x @param {number} y @param {number} z
- * @param {number} scale
- * @param {number[]} tint
- */
-function crystal(name, x, y, z, scale, tint) {
-	const h = 5 * scale;
-	keshusyParts.push(decor("Crystal_Shard_" + name, {
-		position: [x, y + h / 2, z],
-		size: [1.5 * scale, h, 1.5 * scale],
-		shape: "Cylinder",
-		material: "Neon",
-		color: tint,
-		orientation: [0, 0, Math.round(vary(name.length, 310, -18, 18))],
-	}));
-	keshusyParts.push(decor("Crystal_ShardLow_" + name, {
-		position: [x, y + h * 0.32, z],
-		size: [1.1 * scale, h * 0.72, 1.1 * scale],
-		shape: "Cylinder",
-		material: "Neon",
-		color: FOREST.crystalHot,
-		orientation: [0, Math.round(vary(name.length, 320, -30, 30)), 20],
-	}));
-	// Fragmento suspendido: da la sensacion de energia inestable.
-	keshusyParts.push(decor("Crystal_Shard_" + name + "_Float", {
-		position: [x + vary(name.length, 330, -1.5, 1.5), y + h + 1.4, z + vary(name.length, 340, -1.5, 1.5)],
-		size: [0.8 * scale, 0.8 * scale, 0.8 * scale],
-		shape: "Ball",
-		material: "Neon",
-		color: FOREST.crystalHot,
-	}));
-}
-
-// Cristales enracados: siete, repartidos en puntos con significado
-// (cerca de los claros, sobre el relicario, en los cruces de senderos).
-const crystalSpots = [
-	{ x: ARENA_CX - 26, z: ARENA_CZ - 30 },
-	{ x: ARENA_CX + 30, z: ARENA_CZ + 26 },
-	{ x: ARENA_CX - 34, z: ARENA_CZ + 34 },
-	{ x: ARENA_CX + 62, z: ARENA_CZ - 12 },
-	{ x: ARENA_CX - 14, z: ARENA_CZ - 52 },
-	{ x: ARENA_CX + 16, z: ARENA_CZ + 52 },
-	{ x: ARENA_CX + 52, z: ARENA_CZ + 34 },
-];
-for (let i = 0; i < crystalSpots.length; i++) {
-	const s = crystalSpots[i];
-	crystal(i, s.x, 0, s.z, 0.7 + hash01(i, 350) * 0.9, i % 2 === 0 ? FOREST.crystal : [136, 168, 246]);
-	// Base de raices: el cristal tiene que salir del suelo, no flotar.
-	for (let r = 0; r < 5; r++) {
-		const a = (r / 5) * Math.PI * 2 + i;
-		keshusyParts.push(decor("Crystal_Root_" + i + "_" + r, {
-			position: [s.x + Math.cos(a) * 3.4, 0.3, s.z + Math.sin(a) * 3.4],
-			size: [3.4, 1, 1.2],
-			material: "Wood",
-			color: FOREST.barkDark,
-			orientation: [0, Math.round((a * 180) / Math.PI), 0],
-		}));
-	}
-}
-
-// Anillo de energia sobre el relicario central: el "punto de interaccion"
-// de la arena queda marcado desde cualquier angulo.
-for (let i = 0; i < 3; i++) {
-	keshusyParts.push(decor("Energy_Ring_" + i, {
-		position: [ARENA_CX, 9 + i * 3.4, ARENA_CZ],
-		size: [26 - i * 5, 0.35, 26 - i * 5],
-		shape: "Cylinder",
-		material: "Neon",
-		color: i === 1 ? FOREST.crystalHot : FOREST.crystal,
-		transparency: 0.55,
-	}));
-}
-
-// Luciernagas: puntos de luz flotantes que dan escala y movimiento.
-// Son partes pequenas y translucidas; NOPointLight (la luz de verdad la
-// pone Lighting, con presupuesto).
-for (let i = 0; i < 70; i++) {
-	const a = vary(i, 400, 0, Math.PI * 2);
-	const r = 20 + hash01(i, 410) * 62;
-	const x = ARENA_CX + Math.cos(a) * r;
-	const z = ARENA_CZ + Math.sin(a) * r;
-	keshusyParts.push(decor("Firefly_" + i, {
-		position: [x, 2.5 + hash01(i, 420) * 9, z],
-		size: [0.7, 0.7, 0.7],
-		shape: "Ball",
-		material: "Neon",
-		color: hash01(i, 430) > 0.75 ? [216, 246, 150] : FOREST.crystalHot,
-		transparency: 0.25,
-	}));
-}
-
-// ---------------------------------------------------- PRESUPUESTO DE LUZ
-//
-// Aqui se decide cuantas luces REALES hay, y son cuatro:
-//
-//   1. El nucleo del relicario (el punto de interaccion central).
-//   2. El cristal mas alto del bosque.
-//   3. El claro de arena del oeste.
-//   4. El hueco de paso norte de la muralla.
-//
-// Cuatro `PointLight` son asumibles. Lo que se descarto de forma
-// consciente: un punto de luz por arbol (serian casi 200 y hundirian el
-// frame rate sin aportar nada legible, porque un bosque de dia no necesita
-// que cada tronco ilumine su propio suelo).
-//
-// Las luces cuelgan de Partes DECORATIVAS, no de las luces de la Piece.
-function pointLight(name, x, y, z, tint, range, brightness) {
-	keshusyParts.push(decor("Light_" + name, {
-		position: [x, y, z],
-		size: [1, 1, 1],
-		material: "Neon",
-		color: tint,
-		transparency: 1,
-	}));
-	const last = keshusyParts[keshusyParts.length - 1];
-	last.node.Light = {
-		$className: "PointLight",
-		$properties: {
-			Color: color(tint[0], tint[1], tint[2]),
-			Brightness: brightness,
-			Range: range,
-			Shadows: false,
-		},
-	};
-}
-
-pointLight("Core", ARENA_CX, 16, ARENA_CZ, FOREST.crystalHot, 70, 2.2);
-pointLight("CrystalTall", crystalSpots[3].x, 9, crystalSpots[3].z, FOREST.crystal, 46, 1.6);
-pointLight("ClearingWest", clearings[0].x, 8, clearings[0].z, FOREST.ember, 38, 1.3);
-pointLight("GateNorth", ARENA_CX, 11, ARENA_CZ - WALL_DISTANCE, [140, 200, 255], 34, 1.1);
-
-// ------------------------------------------------ CONTRATO DE FOREST
-//
-// QUE FALTA Y POR QUE SE CONSTRUYE AQUI
-// -------------------------------------
-// Forest era el unico mundo sin spawn, sin salida, sin peligros, sin spawns
-// de monstruo, sin spawns de powerup y sin plataforma de boss. Era el mundo
-// de ENTRADA, y el portal que lleva a el no llevaba a ninguna parte
-// utilizable.
-//
-// Se construye en el GENERADOR y no a mano en Studio por la regla de la
-// fuente de verdad: `tools/generate-project.js` -> `default.project.json` ->
-// Rojo -> Studio. Editar el `.rbxlx` a mano crearia una segunda fuente y el
-// mapa se perderia en el siguiente build.
-//
-// LOS MISMOS NOMBRES QUE LOS OTROS CUATRO MUNDOS
-// ----------------------------------------------
-// `SpawnPoint_Forest`, `BossSpawn_Forest` y `Exit_Forest` en la raiz del
-// mundo, con las carpetas `Hazards`, `MonsterSpawns` y `PowerupSpawns`. Es el
-// contrato que ya leen `MatchService`, `PortalService` y
-// `tools/world-contract-verify.js`. Si Forest usara otros nombres, el mismo
-// verificador daria FALTA a Forest y PASS a los otros cuatro por el mismo
-// motivo.
-
-// ------------------------------- 1. SPAWN DE ENTRADA DE FOREST
-//
-// El spawn va detras de la puerta SUR de la muralla perimetral (la que deja
-// el hueco en `z = +WALL_DISTANCE`) y NO en el centro: en el centro esta el
-// relicario 3x3 de `CentralStructure`, y aparecer dentro de el significa
-// aparecer dentro de geometria.
-//
-// La razon de estar en `z = +58` y no pegado a la puerta (`z = +45`) es la
-// misma que motivo el `spawnIsClear` del lobby: la plataforma del spawn es de
-// 12x12 y hace falta margen para que el personaje nazca COMPLETO fuera del
-// muro y pueda moverse en el primer fotograma.
-const forestSpawn = {
-	name: "SpawnPoint_Forest",
-	node: {
-		$className: "SpawnLocation",
-		$properties: {
-			Anchored: true,
-			CanCollide: true,
-			CanTouch: false,
-			Neutral: true,
-			Enabled: true,
-			Duration: 0,
-			AllowTeamChangeOnTouch: false,
-			Transparency: 0.4,
-			Material: "Neon",
-			Color: color(FOREST.crystal[0], FOREST.crystal[1], FOREST.crystal[2]),
-			Size: v3(12, 1, 12),
-			Position: v3(ARENA_CX + 16, 1.6, ARENA_CZ + 58),
-			// Mira al centro de la arena: el jugador aparece viendo el
-			// relicario, no la muralla. Misma regla que `facingCenter` en el
-			// lobby: la orientacion se escribe en la FUENTE porque el
-			// `SpawnService` elige spawn por proximidad y no hay forma de
-			// corregirla despues sin un primer fotograma malo.
-			Orientation: facingCenter(ARENA_CX + 16, ARENA_CZ + 58, ARENA_CX, ARENA_CZ),
-		},
-	},
-};
-
-// ------------------------------- 2. SALIDA DE FOREST
-//
-// NO es un Part llamado `Exit`: es una plataforma con arco, senal luminosa y
-// hueco de paso, y es la pieza que el flujo de retorno lee para devolver al
-// jugador al lobby. Va al sur, enfrente del spawn, para que entrar y salir
-// sean dos gestos opuestos y no se confundan.
-const forestExitParts = [
-	part("Exit_Forest", {
-		position: [ARENA_CX, 0.3, ARENA_CZ + ARENA_HALF - 22],
-		size: [16, 0.6, 16],
-		shape: "Cylinder",
-		material: "Slate",
-		color: FOREST.crystal,
-	}),
-	// Arco: dos postes y un dintel, para que se lea como una puerta y no como
-	// un charco de luz en el suelo.
-	decor("Exit_Forest_Post_L", {
-		position: [ARENA_CX - 7, 4, ARENA_CZ + ARENA_HALF - 22],
-		size: [2, 8, 2], material: "Slate", color: FOREST.stoneDark,
-	}),
-	decor("Exit_Forest_Post_R", {
-		position: [ARENA_CX + 7, 4, ARENA_CZ + ARENA_HALF - 22],
-		size: [2, 8, 2], material: "Slate", color: FOREST.stoneDark,
-	}),
-	decor("Exit_Forest_Lintel", {
-		position: [ARENA_CX, 8.4, ARENA_CZ + ARENA_HALF - 22],
-		size: [18, 1.6, 2.4], material: "Slate", color: FOREST.stoneMid,
-	}),
-	// Flecha luminosa: senal de "por aqui se vuelve al lobby".
-	decor("Exit_Forest_Sign", {
-		position: [ARENA_CX, 10.6, ARENA_CZ + ARENA_HALF - 22],
-		size: [4.4, 4.4, 0.4], shape: "Ball", material: "Neon",
-		color: FOREST.crystalHot, transparency: 0.15,
-	}),
-	decor("Exit_Forest_SignGlow", {
-		position: [ARENA_CX, 10.6, ARENA_CZ + ARENA_HALF - 24.5],
-		size: [7, 7, 0.3], material: "Neon",
-		color: FOREST.crystal, transparency: 0.6,
-	}),
-];
-
-// ------------------------------- 3. PELIGROS DE FOREST
-//
-// TRES TIPOS, Y NO SON LO MISMO
-// -------------------------------
-// El bosque no es un circulo de lava con otro color, asi que cada peligro
-// tiene su lectura y su efecto:
-//
-//   Hazard_Poison_*   CHARCO VENENOSO. Plano, verde, ancho. Quita vida
-//                     mientras estas dentro. Es el aviso de "no te quedes".
-//   Hazard_ThornRoot_* RAIZ VENENOSA. No hace dano continuo: al ENTRAR en
-//                     contacto engancha y ralentiza (estado, no muerte). Se
-//                     distingue porque es solida y alta.
-//   Hazard_Spore_*     ESPORA. Nube flotante translucida. NO hace dano: solo
-//                     VFX y oclusion. Por DISENO no es dañina, y queda
-//                     documentado aqui porque un peligro invisible que hace
-//                     dano sin explicarlo seria peor que no tenerlo.
-//
-// Las tres son `decor()`: NO colisionan. El dano lo aplica el sistema de
-// combate leyendo el nombre, no una Piece invisible que empuja al jugador.
-const hazardParts = [];
-
-// Charcos de veneno. Los dos primeros caen sobre los claros existentes, que
-// ya son arena despejada: el peligro se ve desde lejos porque contrasta con
-// la hierba. El tercero llena el hueco libre del sureste.
-const POISON_SPOTS = [
-	{ x: clearings[0].x, z: clearings[0].z, r: 13 },
-	{ x: clearings[1].x, z: clearings[1].z, r: 10 },
-	{ x: ARENA_CX - 30, z: ARENA_CZ + 30, r: 9 },
-];
-for (let i = 0; i < POISON_SPOTS.length; i++) {
-	const s = POISON_SPOTS[i];
-	hazardParts.push(decor("Hazard_Poison_" + i, {
-		position: [s.x, 0.16, s.z],
-		size: [s.r * 2, 0.3, s.r * 2],
-		shape: "Cylinder",
-		material: "Slate",
-		color: [122, 214, 96],
-		transparency: 0.35,
-	}));
-	// Burbujas: dan movimiento a un plano translucido, que de otro modo se
-	// leeria como un disco de pintura pegado al suelo.
-	for (let b = 0; b < 3; b++) {
-		hazardParts.push(decor("Hazard_Poison_" + i + "_Bubble_" + b, {
-			position: [
-				s.x + vary(i, 700 + b, -s.r * 0.6, s.r * 0.6),
-				0.45,
-				s.z + vary(i, 710 + b, -s.r * 0.6, s.r * 0.6),
-			],
-			size: [1.2, 1.2, 1.2], shape: "Ball", material: "Neon",
-			color: [168, 246, 140], transparency: 0.45,
-		}));
-	}
-}
-
-// Raices venenosas: solidas y altas, en anillo alrededor del relicario. A 26
-// studs quedan fuera del pasillo de los senderos, para no cerrar las vias.
-for (let i = 0; i < 4; i++) {
-	const a = (i / 4) * Math.PI * 2 + 0.78;
-	const x = ARENA_CX + Math.cos(a) * 26;
-	const z = ARENA_CZ + Math.sin(a) * 26;
-	hazardParts.push(decor("Hazard_ThornRoot_" + i, {
-		position: [x, 1.6, z],
-		size: [2.2, 3.2, 2.2], shape: "Cylinder",
-		material: "Wood", color: FOREST.barkDark,
-		orientation: [0, Math.round(vary(i, 720, 0, 360)), 0],
-	}));
-	for (let s = 0; s < 3; s++) {
-		const sa = (s / 3) * Math.PI * 2;
-		hazardParts.push(decor("Hazard_ThornRoot_" + i + "_Spike_" + s, {
-			position: [x + Math.cos(sa) * 2.2, 2.6, z + Math.sin(sa) * 2.2],
-			size: [0.8, 3.4, 0.8], shape: "Cylinder",
-			material: "Rock", color: FOREST.ember,
-			orientation: [0, 0, 24],
-		}));
-	}
-}
-
-// Esporas: nube flotante alta. SIN DAÑO por diseno (ver la nota de arriba).
-for (let i = 0; i < 3; i++) {
-	const a = (i / 3) * Math.PI * 2 + 1.9;
-	hazardParts.push(decor("Hazard_Spore_" + i, {
-		position: [ARENA_CX + Math.cos(a) * 34, 9.5, ARENA_CZ + Math.sin(a) * 34],
-		size: [14, 7, 14], shape: "Ball",
-		material: "ForceField", color: [196, 226, 168], transparency: 0.72,
-	}));
-}
-
-// ------------------------------- 4. SPAWNS DE MONSTRUO
-//
-// Anillo interior a 30 studs del centro: por dentro de la muralla de bloques
-// (45) y por fuera del relicario (9.25). A 30 studs hay sitio para que el
-// jugador vea venir al monstruo por el claro y para que la explosion de una
-// bomba no lo mezcle con la estructura central.
-//
-// `MatchService.CollectMonsterSpawnPoints` los lee por el nombre
-// `MonsterSpawn_<Id>_<n>`: es el MISMO contrato que los otros cuatro mundos.
-const monsterSpawnParts = [];
-for (let i = 0; i < 4; i++) {
-	const a = (i / 4) * Math.PI * 2 + 0.6;
-	monsterSpawnParts.push(marker(
-		"MonsterSpawn_Forest_" + i,
-		[ARENA_CX + Math.cos(a) * 30, 1.6, ARENA_CZ + Math.sin(a) * 30],
-		{ color: FOREST.ember, size: [3, 0.2, 3] }
-	));
-}
-
-// ------------------------------- 5. SPAWNS DE POWERUP
-//
-// A 64 studs del centro, entre la muralla de bloques (45) y el borde de la
-// arena (90): es el anillo donde el jugador ya ha salido del nucleo y todavia
-// esta dentro del recinto, que es donde tiene sentido que caiga un premio.
-const powerupParts = [];
-for (let i = 0; i < 4; i++) {
-	const a = (i / 4) * Math.PI * 2 + 0.35;
-	powerupParts.push(marker(
-		"PowerupSpawn_Forest_" + i,
-		[ARENA_CX + Math.cos(a) * 64, 1.4, ARENA_CZ + Math.sin(a) * 64],
-		{ color: FOREST.crystalHot, size: [2.4, 0.2, 2.4] }
-	));
-}
-
-// ------------------------------- 6. PLATAFORMA DE BOSS
-//
-// Al NORTE, enfrente de la salida, obligando a recorrer la arena entera. Con
-// dos totems de raiz y una corona luminosa para que la zona este VISUALMENTE
-// preparada: un boss que apareciese en una explanada de hierba leeria como
-// un fallo.
-//
-// No se genera aqui ningun boss. Este es el punto donde lo colocara el
-// sistema de boss; generar un enemigo invisible solo para cumplir una
-// estructura seria hacer pasar el contrato por encima del juego.
-const forestBossParts = [
-	part("BossSpawn_Forest", {
-		position: [ARENA_CX, 0.3, ARENA_CZ - ARENA_HALF + 22],
-		size: [26, 0.6, 26],
-		shape: "Cylinder",
-		material: "Slate",
-		color: FOREST.stoneDark,
-	}),
-	decor("Boss_Forest_Totem_A", {
-		position: [ARENA_CX - 9, 6, ARENA_CZ - ARENA_HALF + 22],
-		size: [2.4, 12, 2.4], shape: "Cylinder", color: FOREST.barkDark,
-	}),
-	decor("Boss_Forest_Totem_B", {
-		position: [ARENA_CX + 9, 6, ARENA_CZ - ARENA_HALF + 22],
-		size: [2.4, 12, 2.4], shape: "Cylinder", color: FOREST.barkDark,
-	}),
-	decor("Boss_Forest_Crown", {
-		position: [ARENA_CX, 13.5, ARENA_CZ - ARENA_HALF + 22],
-		size: [11, 1.2, 3], shape: "Cylinder",
-		material: "Neon", color: FOREST.crystalHot, transparency: 0.2,
-	}),
-	decor("Boss_Forest_Ground", {
-		position: [ARENA_CX, 0.66, ARENA_CZ - ARENA_HALF + 22],
-		size: [19, 0.12, 19], shape: "Cylinder",
-		material: "Neon", color: FOREST.ember, transparency: 0.45,
-	}),
-];
-// ------------------------------------------------------- MONTAJE FOREST
-//
-// El orden de `arenaChildren` es el orden de lectura del jugador:
-//   Spawn/entradas -> terreno -> vias -> relicario -> decoracion
-//
-// Se mantiene `Blocks` y `CentralStructure` como carpetas CON NOMBRE
-// porque son contrato: `Workspace.Worlds.Forest.Blocks` es la ruta que
-// leen los servicios de destruccion y las pruebas.
-// El orden de `arenaChildren` es el orden de lectura del jugador:
-//   spawn -> suelo -> bloques -> terreno -> peligro -> decoracion ->
-//   spawns de monstruo -> spawns de powerup -> boss -> salida
-//
-// Se mantiene `Blocks` y `CentralStructure` como carpetas CON NOMBRE
-// porque son contrato: `Workspace.Worlds.Forest.Blocks` es la ruta que
-// leen los servicios de destruccion y las pruebas.
-//
-// Las seis piezas del CONTRATO van tambien aqui, y por el mismo motivo que
-// los bloques: si vivieran fuera del arbol, un servicio que las busca por
-// nombre las encontraria igual, pero el GENERADOR dejaria de poder prometer
-// que Forest tiene lo mismo que los otros cuatro mundos. La igualdad de
-// nombres entre las cinco arenas es lo que permite que un unico verificador
-// las compruebe a todas.
-const arenaChildren = arenaParts.concat([
-	forestSpawn,
-	folder("Blocks", perimeterBlocks),
-	folder("CentralStructure", centralBlocks),
-	folder("Terrain", terrainParts),
-	folder("Hazards", hazardParts),
-	folder("Decoration", decoParts),
-	folder("Border", borderParts),
-	folder("Keshusy", keshusyParts),
-	folder("MonsterSpawns", monsterSpawnParts),
-	folder("PowerupSpawns", powerupParts),
-].concat(
-	// El boss y la salida son PIEZAS con nombre en la raiz del mundo, no
-	// carpetas: es la forma que leen los otros cuatro mundos, y por eso
-	// quedan fuera de `folder(...)`.
-	forestBossParts,
-	forestExitParts,
-));
 //
 // Razon: `SpawnService` busca `Workspace.SpawnLocations`. Ademas, Roblox
 // elige el SpawnLocation mas cercano al jugador al entrar, asi que
@@ -1700,56 +668,63 @@ const lobbySpawns = SPAWN_LAYOUT.map((entry) => {
 	return spawn;
 });
 
-// ------------------------------------------------------- MUNDOS 2 A 5
+// ------------------------------------------------------------- LOS CINCO MUNDOS
 //
-// Los cuatro mundos que NO son Forest se construyen aqui, con el generico de
+// POR QUE LOS CINCO SE CONSTRUYEN IGUAL
+// -------------------------------------
+// Antes Forest tenia su propio bloque de ~1100 lineas aqui y los otros cuatro
+// usaban el generico de `tools/worlds.js`. Forest era, por tanto, el unico
+// mundo que NO tenia zonas ni rutas: era una losa cuadrada de 180x180 con
+// decoracion. Medido en runtime: bounding box ~211x212, 0 zonas, 0 rutas.
+//
+// Un mundo con motor propio es un mundo que puede volver a ser un cuadrado.
+// Ahora los cinco pasan por el MISMO motor de zonas y lo unico que cambia entre
+// ellos son los datos de `LAYOUTS` y la decoracion de `SCENERY`, que estan en
 // `tools/worlds.js`.
 //
-// POR QUE ANTES NO EXISTIAN
-// -------------------------
-// Estaban declarados como `folder("Desert", [])`: una carpeta VACIA. Medido
-// en PLAY, entrar por el portal de Desert teletransportaba al jugador de
-// vuelta al lobby, porque `PortalService` solo tenia destino de arena para
-// Forest. Cuatro de los cinco portales no llevaban a ninguna parte: habia un
-// nombre en el codigo y no habia nada en el juego.
+// QUE APORTA CADA UNO (contrato con los servicios)
+// ------------------------------------------------
+//   Zones/                       zonas reales, con suelo, borde y obstaculos
+//   Routes/                      recorridos reales entre zonas
+//   Blocks/ CentralStructure/    piezas `Block_*` destruibles por bomba
+//   Terrain/ Hazards/ Decoration/ Border/ Keshusy/
+//   MonsterSpawns/               puntos `MonsterSpawn_<Id>_<nn>`, por zona
+//   PowerupSpawns/               puntos de powerup en la zona de recompensa
+//   SpawnPoint_<Id> BossSpawn_<Id> Exit_<Id>
+//   ArenaFloor ArenaCenter ArenaNorth/South/East/West
 //
-// QUE APORTA CADA UNO
-// -------------------
-// Suelo, muro perimetral, bloques destructibles (`Block_<Id>_<n>`), relicario
-// central, terreno, peligros, decoracion propia, spawn de monstruos, spawns
-// de powerup, plataforma de boss y salida. Todo con los nombres que ya leen
-// `MatchService`, `VisualService` y `DestructionService`.
+// LOS NOMBRES NO SE TOCAN
+// ----------------------
+// `MatchService`, `VisualService`, `BombService`, `PowerupService` y
+// `DestructionService` resuelven esas rutas por NOMBRE. Cambiar uno rompe el
+// juego, y por eso el constructor de mundos no inventa ni un nombre nuevo para
+// el contrato: solo anade `Zones/` y `Routes/`, que nadie leia antes.
 //
 // LAS POSICIONES
 // --------------
-// Se reparten en cruz alrededor del lobby, a 400 studs de separacion entre
-// arenas: distancia de sobra para que no se toquen y la justa para no
-// obligar a cruzar el mapa entero entre un portal y el siguiente.
+// En cruz alrededor del lobby. Cada mundo mide ahora del orden de 350x400
+// studs (antes 180x180), asi que la separacion entre centros es de 1200: con
+// 800 los mundos se solaparian por los bordes y un jugador en Volcano veria el
+// suelo de Cyber.
 //
-// Forest conserva su posicion historica (500, 0): cambiarla invalidaria las
-// posiciones ya verificadas por `tools/verify-*`.
-const EXTRA_ARENA_HALF = 90;
+// Forest conserva su posicion historica (500, 0) por compatibilidad con las
+// herramientas de verificacion que ya la tienen medida.
 
-const extraWorlds = [
-	{ id: "Desert", cx: -400, cz: 400, seedBase: 1000 },
-	{ id: "Ice", cx: 400, cz: 400, seedBase: 2000 },
-	{ id: "Volcano", cx: -400, cz: -400, seedBase: 3000 },
-	{ id: "Cyber", cx: 400, cz: -400, seedBase: 4000 },
-].map(function (w) {
+const WORLD_ORIGINS = [
+	{ id: "Forest", cx: 500, cz: 0, seedBase: 100 },
+	{ id: "Desert", cx: -1300, cz: 1300, seedBase: 1000 },
+	{ id: "Ice", cx: 1300, cz: 1300, seedBase: 2000 },
+	{ id: "Volcano", cx: -1300, cz: -1300, seedBase: 3000 },
+	{ id: "Cyber", cx: 1300, cz: -1300, seedBase: 4000 },
+];
+
+const worldFolders = WORLD_ORIGINS.map(function (w) {
 	return Worlds.buildWorld(
-		{ part: part, decor: decor, marker: marker, folder: folder, perimeter: perimeter },
-		{
-			id: w.id,
-			cx: w.cx,
-			cz: w.cz,
-			half: EXTRA_ARENA_HALF,
-			wallDistance: 45,
-			seedBase: w.seedBase,
-			palette: Worlds.PALETTES[w.id],
-			decorate: Worlds.DECORATORS[w.id],
-		}
+		{ part: part, decor: decor, marker: marker, folder: folder },
+		{ id: w.id, cx: w.cx, cz: w.cz, seedBase: w.seedBase }
 	);
 });
+
 
 // ---------------------------------------------------------------- PROYECTO
 // Los servicios que aun no tienen codigo NO se montan: un Folder vacio
@@ -1932,9 +907,11 @@ const project = {
 				folder("KeshusyCore", coreParts),
 				folder("Portals", portalModels),
 			])).node,
-			Worlds: folder("Worlds", [
-				folder("Forest", arenaChildren),
-			].concat(extraWorlds)).node,
+			// Los cinco mundos se construyen con el motor de zonas de
+			// `tools/worlds.js`. Antes Forest se montaba aqui con su propio
+			// bloque de ~1100 lineas y los otros cuatro con el generico:
+			// dos caminos para la misma idea, y solo uno con zonas.
+			Worlds: folder("Worlds", worldFolders).node,
 		},
 
 		// ------------------------------------------------------------ LIGHTING
@@ -2031,6 +1008,19 @@ const project = {
 	},
 };
 
+// Puerta de MATERIALES antes de escribir. Ver `checkMaterials`: Rojo falla al
+// compilar con un error que no dice donde, y es media hora perdida por un
+// color escrito en el campo equivocado. Aqui el error dice el camino.
+const materialProblems = [];
+checkMaterials(project.tree, "", materialProblems);
+
+if (materialProblems.length) {
+	console.error("MATERIALES INVALIDOS (" + materialProblems.length + "):");
+	for (const p of materialProblems.slice(0, 20)) console.error("  - " + p);
+	if (materialProblems.length > 20) console.error("  ... y " + (materialProblems.length - 20) + " mas");
+	process.exit(1);
+}
+
 fs.writeFileSync(PROJECT, JSON.stringify(project, null, 2) + "\n");
 
 // ---------------------------------------------------------------------------
@@ -2056,7 +1046,13 @@ fs.writeFileSync(
 );
 
 console.log("default.project.json y tools/sync-lighting.lua generados.");
-console.log("  bloques destructibles:", blockIndex);
+console.log("  mundos:", WORLD_ORIGINS.length);
+for (const w of WORLD_ORIGINS) {
+	const L = Worlds.LAYOUTS[w.id];
+	console.log(
+		`  ${w.id.padEnd(8)} zonas ${String(L.zones.length).padStart(2)}` +
+		`  rutas ${String(L.routes.length).padStart(2)}`
+	);
+}
 console.log("  parts de lobby:", lobbyParts.length);
-console.log("  parts de arena:", arenaChildren.length);
 console.log("  spawnlocations:", lobbySpawns.length);

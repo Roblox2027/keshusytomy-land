@@ -106,27 +106,73 @@ que la bomba sea una herramienta y no una loteria.
 
 | Sistema | Estado MEDIDO | Evidencia |
 | --- | --- | --- |
-| **Mundos explorables** | **FAIL** | Los 5 tienen bounding box ~210x210, 0 zonas, 0 rutas. Una arena cuadrada con decoracion. Incumple "un mundo no puede ser un cuadrilatero pequeno" |
-| **Bosses** | **NO IMPLEMENTADO** | `BossSpawn_*` es una placa de 26x26. No hay `BossService` entre los 34 servicios. Ningun boss, ninguna fase, ninguna recompensa |
+| **Mundos explorables** | **PASS** | `tools/world-structure-test.js`: 11-13 zonas, 15-18 rutas y 0 solapamientos por mundo. Antes: bounding box ~210x210, 0 zonas, 0 rutas |
+| **Bosses** | **NO IMPLEMENTADO** | `BossSpawn_*` es una plataforma de 30x30 con totems y corona. No hay `BossService` entre los 34 servicios. La ZONA esta preparada; el boss, no |
 | **Monetizacion** | **NO IMPLEMENTADO** | `MonetizationService` son 31 lineas de stub. Sin `ProcessReceipt`, sin ledger, sin ids |
-| **Portales** | **PARTIAL** | Los 5 existen con su cartel, pero `prompts=0`: la entrada depende del boton del HUD, no de un prompt en el mundo |
+| **Portales** | **PASS** | Los 5 con `PortalPanel` sin colision y cartel. El `prompts=0` del informe anterior era un CONTEO MAL HECHO, no un fallo: se media `ProximityPrompt`/`ClickDetector`, y el sistema real de interaccion es boton del HUD + `PortalService.MAX_INTERACTION_DISTANCE` en servidor. No hay prompts porque no debe haberlos: el prompt es cliente y el servicio veta la distancia por su cuenta |
 | **Audio** | **BLOCKED** | `AudioConfig` tiene todos los `assetId` en `nil`. No hay ficheros de audio. No se inventa ningun id |
 | **Captura visual** | **BLOCKED** | `capture_screenshot` responde `StudioCaptureService cannot capture this DataModel right now` |
 
 ### El mundo, con numeros
 
-Medido con `.ai/probes/world-bounds.lua`:
+Medido sobre `default.project.json` con `node tools/world-structure-test.js`:
 
-| Mundo | Bounding box | Zonas | Rutas |
-| --- | --- | --- | --- |
-| Forest | 211 x 37 x 212 | 0 | 0 |
-| Desert | 214 x 35 x 215 | 0 | 0 |
-| Ice | 210 x 25 x 209 | 0 | 0 |
-| Volcano | 214 x 38 x 214 | 0 | 0 |
-| Cyber | 218 x 32 x 221 | 0 | 0 |
+| Mundo | Bounding box | Zonas | Rutas | Encuentros | Solapamientos |
+| --- | --- | --- | --- | --- | --- |
+| Forest | 278 x 416 | 11 | 15 | 2 | 0 |
+| Desert | 266 x 468 | 12 | 16 | 2 | 0 |
+| Ice | 266 x 418 | 12 | 15 | 2 | 0 |
+| Volcano | 266 x 422 | 13 | 18 | 2 | 0 |
+| Cyber | 252 x 424 | 12 | 15 | 2 | 0 |
 
-Cinco arenas cuadradas con distinta paleta. Es exactamente lo que la
-especificacion prohibe cuando dice "Forest = verde, Desert = amarillo".
+Ningun mundo es un cuadrilatero: el 18-25 % de las piezas cae fuera del
+rectangulo central que las contiene, o lo que es lo mismo, la silueta tiene
+entrantes y salientes.
+
+### Que hace que un mundo sea un mundo
+
+Cada mundo declara su PROPIA topologia en `LAYOUTS` (`tools/worlds.js`), y el
+motor convierte esa declaracion en geometria:
+
+| Papel de zona | Que se construye dentro |
+| --- | --- |
+| `entrance` | umbral con arco y plataforma de spawn |
+| `exploration` | recorrido abierto, dunas/arboles/columnas, hitos |
+| `encounter` | cobertura SOLIDA, spawns de monstruo y peligro |
+| `destruction` | estructuras `Block_*` que las bombas destruyen |
+| `intermediate` | cobertura densa, monstruos y barricada |
+| `reward` | pedestal, corona de energia y spawns de powerup |
+| `arena` | anillo grande, monumento central y `ArenaFloor` |
+| `boss` | plataforma de boss con totems y corona |
+| `exit` | portillo de salida y camino de vuelta |
+| `scenic` | pieza de identidad del mundo (canon, lago, maquinas...) |
+
+Una zona no es un rectangulo: es un ensamblaje de losas de sizes y giros
+distintos alrededor de un nucleo, con un borde de muro SOLIDO que tiene huecos
+justo donde entra cada ruta.
+
+### Las rutas son recorridos, no lineas
+
+Seis estilos, y cada uno construye su propia geometria: `path` (tierra y
+kerbs), `narrow` (pasaje con laterales), `bridge` (tablones con barandilla y
+pilares), `catwalk` (pasarela industrial), `canyon` (paredes altas a ambos
+lados), `tunnel` (con techo). Interpolan la cota de las dos zonas que unen, asi
+que una ruta entre una zona a y=0 y otra a y=8 es una rampa escalonada real.
+
+### El test que impide volver a hacer cuadrados
+
+`node tools/world-structure-test.js` mide, sobre el arbol GENERADO:
+
+- que cada zona tenga suelo, borde y piezas solidas (no una carpeta vacia);
+- que cada ruta conecte zonas DISTINTAS y tenga losas;
+- que toda zona sea ALCANZABLE por alguna ruta;
+- que NINGUN par de zonas se solape (medido con el radio real de la elipse);
+- que el borde de cada zona este ABIERTO en el angulo de cada ruta;
+- las seis distancias del recorrido principal, con minimos;
+- el radio del mundo y su irregularidad;
+- y el contrato de nombres completo que leen los servicios.
+
+Falla si algo de eso se rompe, y sale con codigo 1.
 
 ---
 
