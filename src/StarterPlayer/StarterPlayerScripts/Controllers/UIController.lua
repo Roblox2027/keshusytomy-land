@@ -15,6 +15,7 @@
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local TweenService = game:GetService("TweenService")
 
 local SHARED = ReplicatedStorage:WaitForChild("Shared")
 local UTILS = SHARED:WaitForChild("Utils")
@@ -28,7 +29,55 @@ Controller.IsActive = false
 
 local _gui = nil
 local _labels = {}
+local _panels = {}
 local _maid = nil
+
+--- Nombre del `ScreenGui` generado por `tools/hud.js`.
+---
+--- Es CONTRATO entre el generador y este controller. Si cambia en uno y no en
+--- el otro, el HUD aparece vacio sin error de sintaxis: solo un error de
+--- arranque al no encontrar el GUI.
+local HUD_NAME = "KeshusyHUD"
+
+--- Componentes del HUD que este controller usa, en orden de lectura.
+---
+--- Se declaran aqui y no se recorren todos los hijos del GUI para que un
+--- panel anadido despues no cambie el comportamiento por sorpresa.
+local COMPONENTS = {
+    "TopBar",
+    "PlayerStats",
+    "Currency",
+    "BombStats",
+    "Objective",
+    "Mission",
+    "Timer",
+    "BossBar",
+    "Notifications",
+}
+
+--- Atributos del jugador que el HUD refleja.
+---
+--- Son los que publica el servidor. Se guardan aqui porque son el CONTRATO
+--- de datos: si el servidor deja de publicar uno, el HUD lo muestra como
+--- desconocido en vez de inventar un cero.
+local WATCHED_ATTRIBUTES = {
+    "RoundState",
+    "RoundTimeRemaining",
+    "RoundNumber",
+    "AliveCount",
+    "RoundResult",
+    "Level",
+    "LeveledUpTo",
+    "XP",
+    "Coins",
+    "Gems",
+    "World",
+    "Bombs",
+    "CoreState",
+    "CoreCharge",
+    "QuestCount",
+    "QuestStreak",
+}
 
 -- Marco del cartel de portal y el "token" del temporizador que lo oculta.
 --
@@ -37,6 +86,117 @@ local _maid = nil
 local _portalFrame = nil
 local _portalHideToken = nil
 
+--- Marcos de notificacion VIVOS.
+---
+--- Se guardan para poder destruirlos en `Destroy`. Sin esta lista, un aviso
+--- que salta en el momento de cerrar el controller se queda congelado en
+--- pantalla y el jugador ve texto que ya no significa nada.
+local _liveNotifications = {}
+
+--- Segundos que un aviso permanece en pantalla antes de desvanecerse.
+local NOTIFY_VISIBLE_SECONDS = 2.6
+
+--- Segundos que un aviso tarda en desvanecerse.
+local NOTIFY_FADE_SECONDS = 0.4
+
+--- Maximo de avisos simultaneos.
+---
+--- El limite importa porque los avisos se apilan: sin tope, un jugador que
+--- gana cinco cosas seguidas empuja el ultimo fuera del panel y se ve un
+--- texto cortado por el borde de la pantalla.
+local NOTIFY_MAX = 4
+
+--- Alto de una fila de aviso, en pixels.
+local NOTIFY_ROW_HEIGHT = 30
+
+--- Muestra un aviso temporal en el panel `Notifications`.
+---
+--- CICLO DE VIDA
+--- -------------
+---   CREATE -> SHOW -> ANIMATE -> TIMEOUT -> DESTROY
+---
+--- El paso final no es opcional: una etiqueta que se queda, aunque este
+--- apagada, sigue ocupando espacio y sigue recibiendo eventos, y acaba
+--- amontonando cientos de objetos en una partida larga.
+---
+--- La animacion usa `TweenService` sobre `TextTransparency` y no sobre
+--- `Size`: cambiar el tamano empuja los otros avisos y produce saltos.
+---
+--- @param text string
+--- @param tint Color3? color del texto
+--- @return boolean shown
+function Controller.Notify(text: string, tint: Color3?)
+    local panel = _panels.Notifications
+    if not panel or text == "" then
+        return false
+    end
+
+    -- Tope de simultaneos: al superarlo se retira el MAS ANTIGUO, que es el
+    -- primero de la lista porque los avisos se apilan en orden de llegada.
+    while #_liveNotifications >= NOTIFY_MAX do
+        local oldest = table.remove(_liveNotifications, 1)
+        if oldest and oldest.Parent then
+            oldest:Destroy()
+        end
+    end
+
+    local frame = Instance.new("Frame")
+    frame.Name = "Notify"
+    frame.BackgroundTransparency = 1
+    frame.BorderSizePixel = 0
+    frame.Size = UDim2.new(1, 0, 0, NOTIFY_ROW_HEIGHT - 4)
+    -- Cada aviso ocupa su fila: el mas reciente queda mas abajo y el mas
+    -- antiguo arriba, como una pila de avisos.
+    frame.Position = UDim2.new(0, 0, 0, #_liveNotifications * NOTIFY_ROW_HEIGHT)
+
+    local label = Instance.new("TextLabel")
+    label.Name = "Text"
+    label.BackgroundTransparency = 1
+    label.BorderSizePixel = 0
+    label.Size = UDim2.fromScale(1, 1)
+    label.Font = Enum.Font.GothamBold
+    label.TextSize = 16
+    label.TextScaled = false
+    label.TextColor3 = tint or Color3.fromRGB(236, 241, 255)
+    label.Text = text
+    label.TextXAlignment = Enum.TextXAlignment.Center
+    label.TextYAlignment = Enum.TextYAlignment.Center
+    label.TextWrapped = false
+    label.TextTransparency = 0
+    label.Parent = frame
+    frame.Parent = panel
+
+    table.insert(_liveNotifications, frame)
+
+    task.spawn(function()
+        task.wait(NOTIFY_VISIBLE_SECONDS)
+
+        if not frame.Parent then
+            return
+        end
+
+        local tween = TweenService:Create(label, TweenInfo.new(NOTIFY_FADE_SECONDS), {
+            TextTransparency = 1,
+        })
+        tween:Play()
+        tween.Completed:Wait()
+
+        -- TIMEOUT -> DESTROY. Se saca de la lista ANTES de destruir, para
+        -- que `Destroy` no intente destruir algo ya destruido.
+        for index, tracked in ipairs(_liveNotifications) do
+            if tracked == frame then
+                table.remove(_liveNotifications, index)
+                break
+            end
+        end
+        if frame.Parent then
+            frame:Destroy()
+        end
+    end)
+
+    return true
+end
+
 --- Segundos que el cartel de portal permanece en pantalla.
 --
 -- 3.5 s: suficiente para leer tres lineas (mundo, requisito, nivel) y lo
@@ -44,8 +204,16 @@ local _portalHideToken = nil
 -- intentar enseguida.
 local PORTAL_FEEDBACK_SECONDS = 3.5
 
---- Crea el HUD en PlayerGui. Se construye por codigo para no depender
---- de un .rbxm en StarterGui que habria que mantener a mano.
+--- Localiza el HUD GENERADO en `PlayerGui`.
+---
+--- El HUD ya no se construye por codigo: `tools/hud.js` lo declara como
+--- `ScreenGui` real dentro de `StarterGui`, asi que existe en el SOURCE y se
+--- puede auditar sin entrar en juego. Este metodo solo lo LOCALIZA.
+---
+--- Se sigue creando por codigo SOLO el cartel de portal, porque es
+--- efimero: nace y muere con cada intento de viaje y no tiene sentido
+--- persistirlo en el arbol de origen.
+---
 --- @return ScreenGui?
 local function buildGui()
     local player = Players.LocalPlayer
@@ -59,89 +227,33 @@ local function buildGui()
         return nil
     end
 
-    local gui = Instance.new("ScreenGui")
-    gui.Name = "GameHUD"
-    gui.ResetOnSpawn = false
-    -- DisplayOrder alto para que la UI no quede bajo el GUI del juego.
-    gui.DisplayOrder = 10
-    gui.IgnoreGuiInset = false
-    gui.Parent = playerGui
-
-    local function makeLabel(name, size, position, textColor, textSize)
-        local label = Instance.new("TextLabel")
-        label.Name = name
-        label.Size = size
-        label.Position = position
-        label.BackgroundTransparency = 1
-        label.TextColor3 = textColor
-        -- `TextSize` y `TextScaled` se fijan de forma explicita: por
-        -- defecto una TextLabel ajusta el texto al alto de la caja, y
-        -- con cajas de 12 px el texto se hacia ilegible o se recortaba.
-        label.TextSize = textSize or 18
-        label.TextScaled = false
-        label.Font = Enum.Font.GothamBold
-        label.TextXAlignment = Enum.TextXAlignment.Left
-        label.TextYAlignment = Enum.TextYAlignment.Center
-        label.TextWrapped = false
-        label.Text = ""
-        label.Parent = gui
-        _labels[name] = label
-        return label
+    local gui = playerGui:WaitForChild(HUD_NAME, 10)
+    if not gui then
+        Logger.Error(("UIController: '%s' no aparece en PlayerGui."):format(HUD_NAME))
+        return nil
     end
 
-    -- Alturas de 24 px o mas: con 12 px el texto de 18 se recortaba.
-    makeLabel("RoundState", UDim2.new(0, 320, 0, 24), UDim2.new(0, 16, 0, 8), Color3.fromRGB(235, 240, 255), 20)
-    makeLabel("RoundInfo", UDim2.new(0, 320, 0, 24), UDim2.new(0, 16, 0, 32), Color3.fromRGB(200, 210, 235), 16)
-    makeLabel("Scoreboard", UDim2.new(0, 320, 0, 24), UDim2.new(0, 16, 0, 56), Color3.fromRGB(255, 170, 170), 16)
-    makeLabel("Stats", UDim2.new(0, 360, 0, 24), UDim2.new(0, 16, 1, -56), Color3.fromRGB(255, 214, 120), 16)
-    makeLabel("Results", UDim2.new(0, 460, 0, 44), UDim2.new(0.5, -230, 0.42, 0), Color3.fromRGB(120, 255, 170), 24)
-
-    -- ---------------------------------------------------------------
-    -- HUD de PROGRESION (vertical slice 1)
-    -- ---------------------------------------------------------------
-    -- El HUD existia, pero solo mostraba Ronda, Vivos y Nivel/XP/Monedas.
-    -- Faltaban HP, bombas, poder, gemas, mundo y estado, que son los datos
-    -- que el jugador necesita para decidir si entrar a una ronda. Se
-    -- anaden como su propia columna para no reescribir las etiquetas que ya
-    -- funcionan: anadir campos al HUD existente es un cambio de texto, y
-    -- cambiar su disposicion habria roto lo que ya se veia bien.
+    -- --------------------------------------------------------------------
+    -- Enlace de componentes
     --
-    -- Todo sale de atributos del servidor. La UI no calcula nada.
+    -- Cada panel del HUD generado se registra en `_panels` con su nombre.
+    -- `refresh` los usa por nombre, de modo que cambiar el texto del mundo no
+    -- obliga a saber nada de la disposicion del resto.
+    --
+    -- `WaitForChild` con timeout y NO en silencio: si un panel no existe, el
+    -- HUD aparece a medias y el jugador ve un hueco sin ninguna pista de por
+    -- que. Aqui se avisa al log para que el fallo sea visible en el arranque.
+    -- --------------------------------------------------------------------
+    for _, name in ipairs(COMPONENTS) do
+        local found = gui:FindFirstChild(name)
 
-    -- HP: se muestran vida y maxima. El Humanoid se lee en el cliente
-    -- porque el jugador ve SU propio personaje; el valor de verdad para el
-    -- juego sigue siendo el del servidor.
-    local hpLabel = makeLabel(
-        "HP",
-        UDim2.new(0, 220, 0, 24),
-        UDim2.new(0, 16, 1, -80),
-        Color3.fromRGB(255, 120, 120),
-        16
-    )
+        if not found then
+            Logger.Error(("UIController: falta el panel '%s' en el HUD."):format(name))
+        else
+            _panels[name] = found
+        end
+    end
 
-    makeLabel(
-        "Bombs",
-        UDim2.new(0, 220, 0, 24),
-        UDim2.new(0, 16, 1, -104),
-        Color3.fromRGB(255, 200, 90),
-        16
-    )
-
-    makeLabel(
-        "Power",
-        UDim2.new(0, 220, 0, 24),
-        UDim2.new(0, 16, 1, -128),
-        Color3.fromRGB(150, 200, 255),
-        16
-    )
-
-    -- Mundo actual. Es el dato que responde "donde estoy" y es el primero
-    -- que se mira al salir de un portal, asi que va separado y legible.
-    makeLabel("World", UDim2.new(0, 320, 0, 24), UDim2.new(0, 16, 0, 80), Color3.fromRGB(180, 255, 220), 18)
-
-    -- Gemas, junto a las monedas para que el jugador vea de un vistazo que
-    -- son dos recursos distintos con funciones distintas.
-    makeLabel("Gems", UDim2.new(0, 320, 0, 24), UDim2.new(0, 16, 1, -152), Color3.fromRGB(190, 140, 255), 16)
 
     -- ---------------------------------------------------------------
     -- Cartel de portal
@@ -203,125 +315,162 @@ local function buildGui()
 
     return gui
 end
-
---- Refresca las etiquetas con los valores actuales.
+--- Refresca el HUD con los valores publicados por el servidor.
+---
+--- REGLA DE ORO
+--- ------------
+--- La UI NUNCA calcula nada del juego. Solo lee `player:GetAttribute(...)`, que
+--- solo el servidor puede escribir, y lo pinta. Un cliente modificado puede
+--- mentir en su propia pantalla sin cambiar el juego: el dano, la recompensa y
+--- el viaje los decide el servidor.
+---
+--- Cuando un atributo no existe se escribe "--" y no "0". La diferencia se ve:
+--- un 0 de XP dice "no tienes nada" y un -- dice "no lo se". Confundirlos hace
+--- que el HUD parezca un bug cuando el dato simplemente aun no ha llegado.
 local function refresh()
     local player = Players.LocalPlayer
     if not player then
         return
     end
 
-    local state = _labels.RoundState
-    local info = _labels.RoundInfo
-    local scoreboard = _labels.Scoreboard
-    local stats = _labels.Stats
-    local results = _labels.Results
-
-    if state then
-        state.Text = "Ronda: " .. tostring(player:GetAttribute("RoundState") or "Waiting")
+    local function attr(name)
+        return player:GetAttribute(name)
     end
 
-    if info then
-        local remaining = player:GetAttribute("RoundTimeRemaining")
-
-        if type(remaining) == "number" then
-            -- El servidor publica tambien el numero de ronda y los
-            -- vivos: el HUD los muestra, pero NO los calcula.
-            info.Text = ("Ronda %d  |  Tiempo: %ds"):format(
-                player:GetAttribute("RoundNumber") or 0,
-                math.ceil(remaining)
-            )
-        else
-            info.Text = ""
+    --- Escribe un texto si el panel existe. Nunca falla en silencio.
+    local function setText(panelName, childName, text)
+        local panel = _panels[panelName]
+        if not panel then
+            return
+        end
+        local target = panel:FindFirstChild(childName)
+        if target and target:IsA("TextLabel") then
+            target.Text = text
         end
     end
 
-    if scoreboard then
-        local alive = player:GetAttribute("AliveCount")
-        scoreboard.Text = if type(alive) == "number" then ("Vivos: %d"):format(alive) else ""
-    end
-
-    if stats then
-        stats.Text = ("Nivel %d  |  XP %d  |  Monedas %d"):format(
-            player:GetAttribute("Level") or 1,
-            player:GetAttribute("XP") or 0,
-            player:GetAttribute("Coins") or 0
-        )
-    end
-
-    -- ---------------------------------------------------------------
-    -- Campos nuevos del HUD
-    -- ---------------------------------------------------------------
-
-    -- Gemas. Recurso aparte de las monedas: se paga con gemas, no con
-    -- monedas, asi que mezclarlos en una sola cifra haria que el jugador
-    -- no sepa con que puede pagar.
-    local gems = _labels.Gems
-    if gems then
-        gems.Text = ("Gemas %d"):format(player:GetAttribute("Gems") or 0)
-    end
-
-    -- Mundo actual. Lo publica el servidor; si no hay atributo se muestra
-    -- "Lobby" porque es el punto de partida y es mejor que un hueco vacio.
-    local world = _labels.World
-    if world then
-        world.Text = ("MUNDO: %s"):format(tostring(player:GetAttribute("World") or "Lobby"))
-    end
-
-    -- HP. Se lee el Humanoid del PROPIO personaje. Es informacion de
-    -- presentacion de si mismo: un cliente puede mentir en su pantalla sin
-    -- El dano lo decide el servidor.
-    --
-    -- (Un cliente puede mentir en su propia pantalla sin ningun efecto: el
-    -- dano, la muerte y la recompensa los resuelve el servidor.)
-    local hp = _labels.HP
-    if hp then
-        local character = player.Character
-        local humanoid = character and character:FindFirstChildOfClass("Humanoid")
-
-        if humanoid then
-            hp.Text = ("HP %d / %d"):format(math.ceil(humanoid.Health), math.ceil(humanoid.MaxHealth))
-        else
-            hp.Text = "HP -- / --"
+    --- Pone una barra a la fraccion `value/max`.
+    ---
+    --- Se ESCALA en X en vez de cambiar `Size`: escalar mantiene el ancho del
+    --- marco intacto, y un valor 0 deja la barra visible pero vacia, que es
+    --- como se lee "no tienes vida" de un vistazo.
+    local function setBar(panelName, barName, value, max, caption)
+        local panel = _panels[panelName]
+        if not panel then
+            return
+        end
+        local bar = panel:FindFirstChild(barName)
+        if not bar then
+            return
+        end
+        local fill = bar:FindFirstChild("Fill")
+        if fill and fill:IsA("GuiObject") then
+            local ratio = 0
+            if type(max) == "number" and max > 0 and type(value) == "number" then
+                ratio = math.clamp(value / max, 0, 1)
+            end
+            fill.Size = UDim2.fromScale(ratio, 0)
+        end
+        local captionLabel = bar:FindFirstChild("Text")
+        if captionLabel and captionLabel:IsA("TextLabel") then
+            captionLabel.Text = caption
         end
     end
 
-    -- Bombas: cuantas le quedan. El contador lo lleva el SERVIDOR
-    -- (atributo `Bombs`); aqui solo se pinta. Si el atributo no existe
-    -- todavia, se dice "ilimitadas" en vez de "0", porque 0 quiere decir
-    -- "no te quedan" y ese dato no lo tenemos.
-    local bombs = _labels.Bombs
-    if bombs then
-        local remaining = player:GetAttribute("Bombs")
+    -- ---------------------------------------------------------------- TopBar
+    local worldName = attr("World")
+    setText("TopBar", "World", (if worldName then ("MUNDO: %s"):format(tostring(worldName)) else "MUNDO: --"))
+    setText("TopBar", "Level", ("LV %d"):format(attr("Level") or 1))
 
-        if type(remaining) == "number" then
-            bombs.Text = ("BOMBAS %d"):format(remaining)
-        else
-            bombs.Text = "BOMBAS *"
-        end
+    -- ---------------------------------------------------------------- Timer
+    setText("Timer", "Round", ("RONDA %d"):format(attr("RoundNumber") or 0))
+
+    local remaining = attr("RoundTimeRemaining")
+    if type(remaining) == "number" then
+        local total = math.max(0, math.ceil(remaining))
+        setText("Timer", "Time", ("%02d:%02d"):format(math.floor(total / 60), total % 60))
+    else
+        setText("Timer", "Time", "--:--")
     end
 
-    -- Poder del Core. Es el recurso del lobby: lo que el jugador aporta
-    -- para desbloquear el mundo siguiente.
-    local power = _labels.Power
-    if power then
-        local coreState = player:GetAttribute("CoreState")
+    -- ------------------------------------------------------------- Currency
+    local coins = attr("Coins")
+    local gems = attr("Gems")
+    setText("Currency", "Coins", (if type(coins) == "number" then ("%d"):format(coins) else "--"))
+    setText("Currency", "Gems", (if type(gems) == "number" then ("%d"):format(gems) else "--"))
 
-        if coreState then
-            local charge = player:GetAttribute("CoreCharge")
-            power.Text = ("PODER %s%s"):format(
-                tostring(coreState),
-                if type(charge) == "number" then (" (%d)"):format(charge) else ""
-            )
-        else
-            power.Text = "PODER --"
-        end
+    -- ---------------------------------------------------------- PlayerStats
+    -- HP viene del Humanoid del PROPIO personaje. Es presentacion de si
+    -- mismo: el valor que manda para el juego es el del servidor.
+    local character = player.Character
+    local humanoid = character and character:FindFirstChildOfClass("Humanoid")
+
+    if humanoid then
+        setBar("PlayerStats", "HPBar", humanoid.Health, humanoid.MaxHealth,
+            ("%d / %d"):format(math.ceil(humanoid.Health), math.ceil(humanoid.MaxHealth)))
+    else
+        setBar("PlayerStats", "HPBar", nil, nil, "-- / --")
     end
 
-    if results then
-        -- El servidor publica el mensaje de resultado; si no hay, se
-        -- oculta. La UI no lo redacta ni lo decide.
-        results.Text = tostring(player:GetAttribute("RoundResult") or "")
+    -- XP. Se publica el total (`XP`) y el nivel; el progreso DENTRO del nivel
+    -- no lo inventa la UI: se refleja el dato que llega. La barra queda a 0
+    -- porque no hay total de nivel publicado, y el texto lleva la cifra real.
+    local xp = attr("XP")
+    setBar("PlayerStats", "XPBar", nil, nil,
+        (if type(xp) == "number" then ("XP %d"):format(xp) else "XP --"))
+
+    -- ------------------------------------------------------------ BombStats
+    -- Bombas: las que le quedan. El contador lo lleva el SERVIDOR. Sin
+    -- atributo se muestra "*" y no "0": 0 quiere decir "no te quedan" y es un
+    -- dato que todavia no tenemos.
+    local bombs = attr("Bombs")
+    setText("BombStats", "Bombs", (if type(bombs) == "number" then ("%d"):format(bombs) else "*"))
+
+    local coreState = attr("CoreState")
+    local charge = attr("CoreCharge")
+    if coreState then
+        setText("BombStats", "Power", ("%s%s"):format(
+            tostring(coreState),
+            if type(charge) == "number" then (" (%d)"):format(charge) else ""
+        ))
+    else
+        setText("BombStats", "Power", "--")
+    end
+
+    -- ------------------------------------------------------------ Objective
+    -- El objetivo es el mundo en el que esta el jugador: es lo UNICO que se
+    -- deduce, y solo a partir de un dato ya publicado. La UI no inventa
+    -- reglas de juego ni calcula objetivos propios.
+    setText("Objective", "Text", (if worldName then tostring(worldName) else "--"))
+
+    -- -------------------------------------------------------------- Mission
+    local claimable = attr("QuestCount")
+    local streak = attr("QuestStreak")
+    setText("Mission", "Text", if type(claimable) == "number"
+        then ("Misiones listas: %d%s"):format(claimable,
+            if type(streak) == "number" and streak > 0 then ("  racha %d"):format(streak) else "")
+        else "Misiones: --")
+
+    -- -------------------------------------------------------------- BossBar
+    -- Sin jefe, OCULTA. Un atributo ausente significa "no hay jefe", y una
+    -- barra vacia permanente solo persuade al jugador de ignorarla: el dia
+    -- que aparezca de verdad ya no la mira.
+    local bossPanel = _panels.BossBar
+    local bossName = attr("BossName")
+    local bossHealth = attr("BossHealth")
+    local bossMax = attr("BossMaxHealth")
+
+    if bossPanel then
+        if bossName and type(bossHealth) == "number" then
+            bossPanel.Visible = true
+            setText("BossBar", "Name", tostring(bossName))
+            setBar("BossBar", "Bar", bossHealth, bossMax, ("%d / %d"):format(
+                math.ceil(bossHealth),
+                if type(bossMax) == "number" then math.ceil(bossMax) else 0
+            ))
+        else
+            bossPanel.Visible = false
+        end
     end
 end
 
@@ -441,28 +590,31 @@ function Controller.Start(maid: any?): boolean
 
     -- Escucha SOLO atributos del servidor. Cada cambio refresca el HUD.
     --
-    -- `World`, `Bombs`, `Gems`, `CoreState` y `CoreCharge` se anaden con el
-    -- resto: son los mismos datos, publicados por el mismo servidor. No se
-    -- anade ningun canal nuevo para el HUD.
-    local watched = {
-        "RoundState",
-        "RoundTimeRemaining",
-        "RoundNumber",
-        "AliveCount",
-        "RoundResult",
-        "Level",
-        "XP",
-        "Coins",
-        "Gems",
-        "World",
-        "Bombs",
-        "CoreState",
-        "CoreCharge",
-    }
-    for _, attribute in ipairs(watched) do
+    -- La lista vive en `WATCHED_ATTRIBUTES` (arriba) y no aqui: es el
+    -- CONTRATO de datos del HUD. Tenerla en un unico sitio evita que la
+    -- lista de la conexion y la del render se desincronicen, que es como un
+    -- campo aparece en pantalla y nunca se actualiza.
+    for _, attribute in ipairs(WATCHED_ATTRIBUTES) do
         if _maid then
             _maid:Connect(player:GetAttributeChangedSignal(attribute), refresh)
         end
+    end
+
+    -- El HP no es un atributo: vive en el Humanoid, que cambia al morir y al
+    -- reaparecer. Sin esto el HUD congelaria la vida en el ultimo valor.
+    if _maid then
+        _maid:Connect(player.CharacterAdded, function()
+            refresh()
+            local character = player.Character
+            if character then
+                _maid:Connect(character.ChildAdded, function(child)
+                    if child:IsA("Humanoid") then
+                        _maid:Connect(child:GetPropertyChangedSignal("Health"), refresh)
+                        refresh()
+                    end
+                end)
+            end
+        end)
     end
 
     -- Un refresco periodico cubre el temporizador, que cambia cada
@@ -476,10 +628,65 @@ function Controller.Start(maid: any?): boolean
         end))
     end
 
+    -- AVISOS POR EVENTO REAL
+    --
+    -- Se escuchan ATRIBUTOS, no se hace polling de lo que pasa. Cada aviso
+    -- nace de un dato que el servidor acaba de publicar, asi que no puede
+    -- inventarse: si el servidor no subio de nivel, no aparece "LEVEL UP!".
+    --
+    -- El valor ANTERIOR se guarda para detectar el SALTO, porque un atributo
+    -- que se reescribe con el mismo valor sigue disparando la senal. Sin la
+    -- comparacion, redimir dos veces el mismo codigo daria dos "LEVEL UP!".
+    local lastXP = player:GetAttribute("XP")
+    local lastLevel = player:GetAttribute("Level")
+    local lastCoins = player:GetAttribute("Coins")
+
+    if _maid then
+        _maid:Connect(player:GetAttributeChangedSignal("XP"), function()
+            local xp = player:GetAttribute("XP")
+            if type(xp) == "number" and type(lastXP) == "number" and xp > lastXP then
+                Controller.Notify(("+%d XP"):format(xp - lastXP), Color3.fromRGB(150, 255, 190))
+            end
+            lastXP = xp
+        end)
+
+        _maid:Connect(player:GetAttributeChangedSignal("Coins"), function()
+            local coins = player:GetAttribute("Coins")
+            if type(coins) == "number" and type(lastCoins) == "number" and coins > lastCoins then
+                Controller.Notify(("+%d MONEDAS"):format(coins - lastCoins), Color3.fromRGB(255, 214, 110))
+            end
+            lastCoins = coins
+        end)
+
+        _maid:Connect(player:GetAttributeChangedSignal("Level"), function()
+            local level = player:GetAttribute("Level")
+            if type(level) == "number" and type(lastLevel) == "number" and level > lastLevel then
+                Controller.Notify(("NIVEL %d"):format(level), Color3.fromRGB(255, 236, 150))
+            end
+            lastLevel = level
+        end)
+
+        -- Entrada a un mundo. El nombre llega del servidor, asi que el aviso
+        -- no puede mentir sobre donde esta el jugador.
+        _maid:Connect(player:GetAttributeChangedSignal("World"), function()
+            local world = player:GetAttribute("World")
+            if world then
+                Controller.Notify(("ENTRANDO EN %s"):format(tostring(world)), Color3.fromRGB(150, 220, 255))
+            end
+        end)
+
+        -- Fin de ronda.
+        _maid:Connect(player:GetAttributeChangedSignal("RoundResult"), function()
+            local result = player:GetAttribute("RoundResult")
+            if result then
+                Controller.Notify(tostring(result), Color3.fromRGB(120, 255, 170))
+            end
+        end)
+    end
+
     refresh()
     Controller.IsActive = true
     Logger.Info("UIController listo.")
-
     return true
 end
 
@@ -488,19 +695,33 @@ end
 function Controller.Destroy(): boolean
     Controller.IsActive = false
 
-    if _gui then
-        _gui:Destroy()
-        _gui = nil
+    -- El HUD se DESTRUYE aqui, pero solo lo que este controller creo por
+    -- codigo: el cartel de portal y las notificaciones vivas. El `ScreenGui`
+    -- generado NO se destruye: pertenece al `PlayerGui` del jugador y lo
+    -- borra Roblox al salir. Destruirlo aqui dejaria al jugador sin HUD
+    -- durante el resto de la sesion si el controller se reiniciara.
+    if _portalFrame then
+        _portalFrame:Destroy()
     end
 
-    -- El cartel de portal se limpia con el HUD: `Destroy` lo hace
-    -- desaparecer. Sin esto, un `Destroy` seguido de un `Start` dejaria el
-    -- cartel visible y sin temporizador, y el jugador veria un mensaje
-    -- congelado que ya no responde a nada.
-    _portalFrame = nil
+    -- Avisos residuales: sin esto, un `Destroy` en pleno aviso deja texto
+    -- congelado en pantalla que ya no responde a nada.
+    for _, frame in ipairs(_liveNotifications) do
+        if frame and frame.Parent then
+            frame:Destroy()
+        end
+    end
+    _liveNotifications = {}
+
+    -- El token invalida el temporizador del cartel en vuelo: sin el, su
+    -- `task.wait` despertaria e intentaria operates sobre un Frame ya
+    -- destruido.
     _portalHideToken = (if _portalHideToken then _portalHideToken + 1 else 0)
 
+    _portalFrame = nil
     _labels = {}
+    _panels = {}
+    _gui = nil
     _maid = nil
     return true
 end

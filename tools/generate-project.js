@@ -15,6 +15,7 @@ const path = require("path");
 
 const Worlds = require("./worlds");
 const Portals = require("./portals");
+const Hud = require("./hud");
 
 const ROOT = path.join(__dirname, "..");
 const PROJECT = path.join(ROOT, "default.project.json");
@@ -1186,6 +1187,266 @@ pointLight("CrystalTall", crystalSpots[3].x, 9, crystalSpots[3].z, FOREST.crysta
 pointLight("ClearingWest", clearings[0].x, 8, clearings[0].z, FOREST.ember, 38, 1.3);
 pointLight("GateNorth", ARENA_CX, 11, ARENA_CZ - WALL_DISTANCE, [140, 200, 255], 34, 1.1);
 
+// ------------------------------------------------ CONTRATO DE FOREST
+//
+// QUE FALTA Y POR QUE SE CONSTRUYE AQUI
+// -------------------------------------
+// Forest era el unico mundo sin spawn, sin salida, sin peligros, sin spawns
+// de monstruo, sin spawns de powerup y sin plataforma de boss. Era el mundo
+// de ENTRADA, y el portal que lleva a el no llevaba a ninguna parte
+// utilizable.
+//
+// Se construye en el GENERADOR y no a mano en Studio por la regla de la
+// fuente de verdad: `tools/generate-project.js` -> `default.project.json` ->
+// Rojo -> Studio. Editar el `.rbxlx` a mano crearia una segunda fuente y el
+// mapa se perderia en el siguiente build.
+//
+// LOS MISMOS NOMBRES QUE LOS OTROS CUATRO MUNDOS
+// ----------------------------------------------
+// `SpawnPoint_Forest`, `BossSpawn_Forest` y `Exit_Forest` en la raiz del
+// mundo, con las carpetas `Hazards`, `MonsterSpawns` y `PowerupSpawns`. Es el
+// contrato que ya leen `MatchService`, `PortalService` y
+// `tools/world-contract-verify.js`. Si Forest usara otros nombres, el mismo
+// verificador daria FALTA a Forest y PASS a los otros cuatro por el mismo
+// motivo.
+
+// ------------------------------- 1. SPAWN DE ENTRADA DE FOREST
+//
+// El spawn va detras de la puerta SUR de la muralla perimetral (la que deja
+// el hueco en `z = +WALL_DISTANCE`) y NO en el centro: en el centro esta el
+// relicario 3x3 de `CentralStructure`, y aparecer dentro de el significa
+// aparecer dentro de geometria.
+//
+// La razon de estar en `z = +58` y no pegado a la puerta (`z = +45`) es la
+// misma que motivo el `spawnIsClear` del lobby: la plataforma del spawn es de
+// 12x12 y hace falta margen para que el personaje nazca COMPLETO fuera del
+// muro y pueda moverse en el primer fotograma.
+const forestSpawn = {
+	name: "SpawnPoint_Forest",
+	node: {
+		$className: "SpawnLocation",
+		$properties: {
+			Anchored: true,
+			CanCollide: true,
+			CanTouch: false,
+			Neutral: true,
+			Enabled: true,
+			Duration: 0,
+			AllowTeamChangeOnTouch: false,
+			Transparency: 0.4,
+			Material: "Neon",
+			Color: color(FOREST.crystal[0], FOREST.crystal[1], FOREST.crystal[2]),
+			Size: v3(12, 1, 12),
+			Position: v3(ARENA_CX + 16, 1.6, ARENA_CZ + 58),
+			// Mira al centro de la arena: el jugador aparece viendo el
+			// relicario, no la muralla. Misma regla que `facingCenter` en el
+			// lobby: la orientacion se escribe en la FUENTE porque el
+			// `SpawnService` elige spawn por proximidad y no hay forma de
+			// corregirla despues sin un primer fotograma malo.
+			Orientation: facingCenter(ARENA_CX + 16, ARENA_CZ + 58, ARENA_CX, ARENA_CZ),
+		},
+	},
+};
+
+// ------------------------------- 2. SALIDA DE FOREST
+//
+// NO es un Part llamado `Exit`: es una plataforma con arco, senal luminosa y
+// hueco de paso, y es la pieza que el flujo de retorno lee para devolver al
+// jugador al lobby. Va al sur, enfrente del spawn, para que entrar y salir
+// sean dos gestos opuestos y no se confundan.
+const forestExitParts = [
+	part("Exit_Forest", {
+		position: [ARENA_CX, 0.3, ARENA_CZ + ARENA_HALF - 22],
+		size: [16, 0.6, 16],
+		shape: "Cylinder",
+		material: "Slate",
+		color: FOREST.crystal,
+	}),
+	// Arco: dos postes y un dintel, para que se lea como una puerta y no como
+	// un charco de luz en el suelo.
+	decor("Exit_Forest_Post_L", {
+		position: [ARENA_CX - 7, 4, ARENA_CZ + ARENA_HALF - 22],
+		size: [2, 8, 2], material: "Slate", color: FOREST.stoneDark,
+	}),
+	decor("Exit_Forest_Post_R", {
+		position: [ARENA_CX + 7, 4, ARENA_CZ + ARENA_HALF - 22],
+		size: [2, 8, 2], material: "Slate", color: FOREST.stoneDark,
+	}),
+	decor("Exit_Forest_Lintel", {
+		position: [ARENA_CX, 8.4, ARENA_CZ + ARENA_HALF - 22],
+		size: [18, 1.6, 2.4], material: "Slate", color: FOREST.stoneMid,
+	}),
+	// Flecha luminosa: senal de "por aqui se vuelve al lobby".
+	decor("Exit_Forest_Sign", {
+		position: [ARENA_CX, 10.6, ARENA_CZ + ARENA_HALF - 22],
+		size: [4.4, 4.4, 0.4], shape: "Ball", material: "Neon",
+		color: FOREST.crystalHot, transparency: 0.15,
+	}),
+	decor("Exit_Forest_SignGlow", {
+		position: [ARENA_CX, 10.6, ARENA_CZ + ARENA_HALF - 24.5],
+		size: [7, 7, 0.3], material: "Neon",
+		color: FOREST.crystal, transparency: 0.6,
+	}),
+];
+
+// ------------------------------- 3. PELIGROS DE FOREST
+//
+// TRES TIPOS, Y NO SON LO MISMO
+// -------------------------------
+// El bosque no es un circulo de lava con otro color, asi que cada peligro
+// tiene su lectura y su efecto:
+//
+//   Hazard_Poison_*   CHARCO VENENOSO. Plano, verde, ancho. Quita vida
+//                     mientras estas dentro. Es el aviso de "no te quedes".
+//   Hazard_ThornRoot_* RAIZ VENENOSA. No hace dano continuo: al ENTRAR en
+//                     contacto engancha y ralentiza (estado, no muerte). Se
+//                     distingue porque es solida y alta.
+//   Hazard_Spore_*     ESPORA. Nube flotante translucida. NO hace dano: solo
+//                     VFX y oclusion. Por DISENO no es dañina, y queda
+//                     documentado aqui porque un peligro invisible que hace
+//                     dano sin explicarlo seria peor que no tenerlo.
+//
+// Las tres son `decor()`: NO colisionan. El dano lo aplica el sistema de
+// combate leyendo el nombre, no una Piece invisible que empuja al jugador.
+const hazardParts = [];
+
+// Charcos de veneno. Los dos primeros caen sobre los claros existentes, que
+// ya son arena despejada: el peligro se ve desde lejos porque contrasta con
+// la hierba. El tercero llena el hueco libre del sureste.
+const POISON_SPOTS = [
+	{ x: clearings[0].x, z: clearings[0].z, r: 13 },
+	{ x: clearings[1].x, z: clearings[1].z, r: 10 },
+	{ x: ARENA_CX - 30, z: ARENA_CZ + 30, r: 9 },
+];
+for (let i = 0; i < POISON_SPOTS.length; i++) {
+	const s = POISON_SPOTS[i];
+	hazardParts.push(decor("Hazard_Poison_" + i, {
+		position: [s.x, 0.16, s.z],
+		size: [s.r * 2, 0.3, s.r * 2],
+		shape: "Cylinder",
+		material: "Slate",
+		color: [122, 214, 96],
+		transparency: 0.35,
+	}));
+	// Burbujas: dan movimiento a un plano translucido, que de otro modo se
+	// leeria como un disco de pintura pegado al suelo.
+	for (let b = 0; b < 3; b++) {
+		hazardParts.push(decor("Hazard_Poison_" + i + "_Bubble_" + b, {
+			position: [
+				s.x + vary(i, 700 + b, -s.r * 0.6, s.r * 0.6),
+				0.45,
+				s.z + vary(i, 710 + b, -s.r * 0.6, s.r * 0.6),
+			],
+			size: [1.2, 1.2, 1.2], shape: "Ball", material: "Neon",
+			color: [168, 246, 140], transparency: 0.45,
+		}));
+	}
+}
+
+// Raices venenosas: solidas y altas, en anillo alrededor del relicario. A 26
+// studs quedan fuera del pasillo de los senderos, para no cerrar las vias.
+for (let i = 0; i < 4; i++) {
+	const a = (i / 4) * Math.PI * 2 + 0.78;
+	const x = ARENA_CX + Math.cos(a) * 26;
+	const z = ARENA_CZ + Math.sin(a) * 26;
+	hazardParts.push(decor("Hazard_ThornRoot_" + i, {
+		position: [x, 1.6, z],
+		size: [2.2, 3.2, 2.2], shape: "Cylinder",
+		material: "Wood", color: FOREST.barkDark,
+		orientation: [0, Math.round(vary(i, 720, 0, 360)), 0],
+	}));
+	for (let s = 0; s < 3; s++) {
+		const sa = (s / 3) * Math.PI * 2;
+		hazardParts.push(decor("Hazard_ThornRoot_" + i + "_Spike_" + s, {
+			position: [x + Math.cos(sa) * 2.2, 2.6, z + Math.sin(sa) * 2.2],
+			size: [0.8, 3.4, 0.8], shape: "Cylinder",
+			material: "Rock", color: FOREST.ember,
+			orientation: [0, 0, 24],
+		}));
+	}
+}
+
+// Esporas: nube flotante alta. SIN DAÑO por diseno (ver la nota de arriba).
+for (let i = 0; i < 3; i++) {
+	const a = (i / 3) * Math.PI * 2 + 1.9;
+	hazardParts.push(decor("Hazard_Spore_" + i, {
+		position: [ARENA_CX + Math.cos(a) * 34, 9.5, ARENA_CZ + Math.sin(a) * 34],
+		size: [14, 7, 14], shape: "Ball",
+		material: "ForceField", color: [196, 226, 168], transparency: 0.72,
+	}));
+}
+
+// ------------------------------- 4. SPAWNS DE MONSTRUO
+//
+// Anillo interior a 30 studs del centro: por dentro de la muralla de bloques
+// (45) y por fuera del relicario (9.25). A 30 studs hay sitio para que el
+// jugador vea venir al monstruo por el claro y para que la explosion de una
+// bomba no lo mezcle con la estructura central.
+//
+// `MatchService.CollectMonsterSpawnPoints` los lee por el nombre
+// `MonsterSpawn_<Id>_<n>`: es el MISMO contrato que los otros cuatro mundos.
+const monsterSpawnParts = [];
+for (let i = 0; i < 4; i++) {
+	const a = (i / 4) * Math.PI * 2 + 0.6;
+	monsterSpawnParts.push(marker(
+		"MonsterSpawn_Forest_" + i,
+		[ARENA_CX + Math.cos(a) * 30, 1.6, ARENA_CZ + Math.sin(a) * 30],
+		{ color: FOREST.ember, size: [3, 0.2, 3] }
+	));
+}
+
+// ------------------------------- 5. SPAWNS DE POWERUP
+//
+// A 64 studs del centro, entre la muralla de bloques (45) y el borde de la
+// arena (90): es el anillo donde el jugador ya ha salido del nucleo y todavia
+// esta dentro del recinto, que es donde tiene sentido que caiga un premio.
+const powerupParts = [];
+for (let i = 0; i < 4; i++) {
+	const a = (i / 4) * Math.PI * 2 + 0.35;
+	powerupParts.push(marker(
+		"PowerupSpawn_Forest_" + i,
+		[ARENA_CX + Math.cos(a) * 64, 1.4, ARENA_CZ + Math.sin(a) * 64],
+		{ color: FOREST.crystalHot, size: [2.4, 0.2, 2.4] }
+	));
+}
+
+// ------------------------------- 6. PLATAFORMA DE BOSS
+//
+// Al NORTE, enfrente de la salida, obligando a recorrer la arena entera. Con
+// dos totems de raiz y una corona luminosa para que la zona este VISUALMENTE
+// preparada: un boss que apareciese en una explanada de hierba leeria como
+// un fallo.
+//
+// No se genera aqui ningun boss. Este es el punto donde lo colocara el
+// sistema de boss; generar un enemigo invisible solo para cumplir una
+// estructura seria hacer pasar el contrato por encima del juego.
+const forestBossParts = [
+	part("BossSpawn_Forest", {
+		position: [ARENA_CX, 0.3, ARENA_CZ - ARENA_HALF + 22],
+		size: [26, 0.6, 26],
+		shape: "Cylinder",
+		material: "Slate",
+		color: FOREST.stoneDark,
+	}),
+	decor("Boss_Forest_Totem_A", {
+		position: [ARENA_CX - 9, 6, ARENA_CZ - ARENA_HALF + 22],
+		size: [2.4, 12, 2.4], shape: "Cylinder", color: FOREST.barkDark,
+	}),
+	decor("Boss_Forest_Totem_B", {
+		position: [ARENA_CX + 9, 6, ARENA_CZ - ARENA_HALF + 22],
+		size: [2.4, 12, 2.4], shape: "Cylinder", color: FOREST.barkDark,
+	}),
+	decor("Boss_Forest_Crown", {
+		position: [ARENA_CX, 13.5, ARENA_CZ - ARENA_HALF + 22],
+		size: [11, 1.2, 3], shape: "Cylinder",
+		material: "Neon", color: FOREST.crystalHot, transparency: 0.2,
+	}),
+	decor("Boss_Forest_Ground", {
+		position: [ARENA_CX, 0.66, ARENA_CZ - ARENA_HALF + 22],
+		size: [19, 0.12, 19], shape: "Cylinder",
+		material: "Neon", color: FOREST.ember, transparency: 0.45,
+	}),
+];
 // ------------------------------------------------------- MONTAJE FOREST
 //
 // El orden de `arenaChildren` es el orden de lectura del jugador:
@@ -1194,14 +1455,38 @@ pointLight("GateNorth", ARENA_CX, 11, ARENA_CZ - WALL_DISTANCE, [140, 200, 255],
 // Se mantiene `Blocks` y `CentralStructure` como carpetas CON NOMBRE
 // porque son contrato: `Workspace.Worlds.Forest.Blocks` es la ruta que
 // leen los servicios de destruccion y las pruebas.
+// El orden de `arenaChildren` es el orden de lectura del jugador:
+//   spawn -> suelo -> bloques -> terreno -> peligro -> decoracion ->
+//   spawns de monstruo -> spawns de powerup -> boss -> salida
+//
+// Se mantiene `Blocks` y `CentralStructure` como carpetas CON NOMBRE
+// porque son contrato: `Workspace.Worlds.Forest.Blocks` es la ruta que
+// leen los servicios de destruccion y las pruebas.
+//
+// Las seis piezas del CONTRATO van tambien aqui, y por el mismo motivo que
+// los bloques: si vivieran fuera del arbol, un servicio que las busca por
+// nombre las encontraria igual, pero el GENERADOR dejaria de poder prometer
+// que Forest tiene lo mismo que los otros cuatro mundos. La igualdad de
+// nombres entre las cinco arenas es lo que permite que un unico verificador
+// las compruebe a todas.
 const arenaChildren = arenaParts.concat([
+	forestSpawn,
 	folder("Blocks", perimeterBlocks),
 	folder("CentralStructure", centralBlocks),
 	folder("Terrain", terrainParts),
+	folder("Hazards", hazardParts),
 	folder("Decoration", decoParts),
 	folder("Border", borderParts),
 	folder("Keshusy", keshusyParts),
-]);
+	folder("MonsterSpawns", monsterSpawnParts),
+	folder("PowerupSpawns", powerupParts),
+].concat(
+	// El boss y la salida son PIEZAS con nombre en la raiz del mundo, no
+	// carpetas: es la forma que leen los otros cuatro mundos, y por eso
+	// quedan fuera de `folder(...)`.
+	forestBossParts,
+	forestExitParts,
+));
 //
 // Razon: `SpawnService` busca `Workspace.SpawnLocations`. Ademas, Roblox
 // elige el SpawnLocation mas cercano al jugador al entrar, asi que
@@ -1452,6 +1737,21 @@ const extraWorlds = [
 // servicios que Roblox crea en todos los places por su cuenta, asi que
 // declararlos solo generaria objetos muertos que nadie referencia. Las
 // fases futuras los usan donde ya existen.
+// ------------------------------------------------------------------- HUD
+//
+// `StarterGui` se declara a mano en vez de con `$path` porque el HUD es un
+// ARBOL DE INTERFACES que produce `tools/hud.js`, no un archivo suelto.
+//
+// Antes era `StarterGui: { $path: "src/StarterGui" }`, y lo unico que havia
+// dentro era un Folder `UI` con un README. El HUD se construia por codigo
+// dentro de `UIController.buildGui()`, o sea que en el SOURCE no habia
+// NINGUNA interfaz que auditar: de ahi el "StarterGui = 0 hijos" del informe,
+// que era cierto y a la vez la razon del problema.
+//
+// El `ScreenGui` va dentro de una carpeta `UI`, igual que antes, para no
+// cambiar la ruta que ya leen las herramientas de auditoria.
+const hudGui = Hud.buildHud();
+
 const project = {
 	name: "KeshusyTomy-LanD",
 	tree: {
@@ -1459,7 +1759,26 @@ const project = {
 
 		ReplicatedStorage: { $path: "src/ReplicatedStorage" },
 		ServerScriptService: { $path: "src/ServerScriptService" },
-		StarterGui: { $path: "src/StarterGui" },
+
+		// Se declara `folder("UI", ...)` porque el HUD es un ARBOL DE
+		// INTERFACES que produce `tools/hud.js`, no un archivo suelto, y con
+		// `$path` solo no se puede.
+		//
+		// Antes era `StarterGui: { $path: "src/StarterGui" }`, y lo unico que
+		// habia dentro era un Folder `UI` con un README. El HUD se construia
+		// por codigo dentro de `UIController.buildGui()`, o sea que en el
+		// SOURCE no habia NINGUNA interfaz que auditar: de ahi el
+		// "StarterGui = 0 hijos" del informe, que era cierto y a la vez la
+		// razon del problema.
+		//
+		// OJO con la asignacion: `StarterGui: folder("UI", [...]).node` NO
+		// anade una carpeta `UI` DENTRO de StarterGui, sino que USA ese Folder
+		// COMO si fuera el propio StarterGui. Rojo aplanaba un nivel y el HUD
+		// acababa en `StarterGui.KeshusyHUD` mientras el script de merge lo
+		// colocaba en `StarterGui.UI.KeshusyHUD`: dos rutas distintas para el
+		// mismo objeto, y `source-runtime-diff` lo daba por ausente para
+		// siempre. Por eso se断言 el nombre de la carpeta explicitly.
+		StarterGui: Object.assign({ $className: "Folder" }, folder("UI", [hudGui]).node),
 
 		// `StarterPlayer` NO puede mapearse con `$path` a secas.
 		//

@@ -41,6 +41,32 @@ const CACHE = path.join(ROOT, ".cache");
 const BUILD = path.join(CACHE, "workspace-build.rbxlx");
 const OUT = path.join(CACHE, "workspace-source.rbxm");
 
+/**
+ * CUAL SUBARBOL SE EXTRAE, Y DONDE SE ESCRIBE.
+ *
+ * Antes era fijo (`Workspace`). Se parametriza porque el proyecto tiene mas de
+ * un servicio con geometria importable: el HUD vive en `StarterGui` y sin
+ * importarlo nunca llegaba a Studio.
+ *
+ * El motivo REAL de hacerlo configurable es que `sync-all.js` daba por buena
+ * una sincronizacion incompleta: `source-runtime-diff` comparaba el build con
+ * el runtime y veia 58 interfaces de menos, pero el script solo importaba
+ * Workspace, asi que la diferencia no se podia cerrar por mas que se
+ * reintentara. No era Rojo: era que la herramienta no miraba donde estaba el
+ * HUD.
+ */
+const TARGET_CLASS = process.env.SYNC_CLASS || "Workspace";
+const TARGET_NAME = process.env.SYNC_NAME || "Workspace";
+const OUT_FILE = process.env.SYNC_OUT || OUT;
+
+/**
+ * Nombre EXACTO que debe tener el Item a extraer, o "" para no filtrar.
+ *
+ * Es lo que distingue `ReplicatedStorage` de `StarterGui`: ambos son
+ * `<Item class="Folder">`, asi que la clase sola no dice cual es cual.
+ */
+const TARGET_MATCH = process.env.SYNC_MATCH || "";
+
 /** Ejecuta `rojo build` y devuelve el rbxlx como texto. */
 function buildRbxlx() {
 	fs.mkdirSync(CACHE, { recursive: true });
@@ -61,49 +87,83 @@ function buildRbxlx() {
 }
 
 /**
- * Devuelve el subarbol `<Item ...>...</Item>` que corresponde al primer
- * `<Item>` con la clase indicada, balanceando `<Item>` / `</Item>`.
+ * Devuelve el subarbol `<Item ...>...</Item>` de la clase indicada.
+ *
+ * Si se pasa `wantedName`, busca ademas esa `<string name="Name">` DENTRO del
+ * bloque de propiedades de ese mismo Item.
+ *
+ * POR QUE EL NOMBRE IMPORTA
+ * ------------------------
+ * Rojo emite varios `<Item class="Folder">` (ReplicatedStorage, StarterGui y
+ * cada carpeta del Workspace). Quedarse con el PRIMERO metia el arbol
+ * equivocado: al pedir "Folder" para el HUD se colaba ReplicatedStorage, se
+ * importaban once RemoteEvents y el HUD se quedaba sin sincronizar otra vez,
+ * con un DIVERGE que no explicaba nada.
  *
  * Se hace por texto y no con un parser XML porque hay que conservar el
- * formato EXACTO que Roblox espera, incluidas las referencias `ref="N"`
- * y el orden de las propiedades. Reescribir el documento con un parser
- * generico las perderia.
+ * formato EXACTO que Roblox espera, incluidas las referencias `ref="N"` y el
+ * orden de las propiedades. Reescribir el documento con un parser generico las
+ * perderia.
+ *
+ * @param {string} xml
+ * @param {string} className
+ * @param {string=} wantedName
+ * @returns {string}
  */
-function extractItem(xml, className) {
+function extractItem(xml, className, wantedName) {
 	const openRe = new RegExp(`<Item class="${className}"(\\s[^>]*)?>`, "g");
-	const m = openRe.exec(xml);
-	if (!m) throw new Error(`No se encontro <Item class="${className}">`);
+	let match;
 
-	const start = m.index;
-	// El `<Item ...>` de apertura no puede anidarse en si mismo, asi que
-	// se empieza a contar DESDE el siguiente caracter.
-	let depth = 1;
-	let i = start + m[0].length;
+	while ((match = openRe.exec(xml)) !== null) {
+		const start = match.index;
 
-	while (i < xml.length && depth > 0) {
-		const nextOpen = xml.indexOf("<Item ", i);
-		const nextClose = xml.indexOf("</Item>", i);
-
-		if (nextClose === -1) throw new Error("Subarbol sin cerrar: " + className);
-		if (nextOpen !== -1 && nextOpen < nextClose) {
-			depth += 1;
-			i = nextOpen + 6;
-		} else {
-			depth -= 1;
-			i = nextClose + 7;
+		if (wantedName) {
+			// El nombre se busca dentro del bloque de propiedades de ESTE
+			// Item, nunca en el documento entero: buscarlo globalmente daria
+			// el nombre de un hijo y aceptaria el Item equivocado.
+			const propsEnd = xml.indexOf("</Properties>", start);
+			if (propsEnd === -1) continue;
+			const nameMatch = /<string name="Name">([^<]*)<\/string>/.exec(
+				xml.slice(start, propsEnd)
+			);
+			if (!nameMatch || nameMatch[1] !== wantedName) continue;
 		}
+
+		// El `<Item ...>` de apertura no puede anidarse en si mismo, asi que
+		// se empieza a contar DESDE el siguiente caracter.
+		let depth = 1;
+		let i = start + match[0].length;
+
+		while (i < xml.length && depth > 0) {
+			const nextOpen = xml.indexOf("<Item ", i);
+			const nextClose = xml.indexOf("</Item>", i);
+
+			if (nextClose === -1) throw new Error("Subarbol sin cerrar: " + className);
+			if (nextOpen !== -1 && nextOpen < nextClose) {
+				depth += 1;
+				i = nextOpen + 6;
+			} else {
+				depth -= 1;
+				i = nextClose + 7;
+			}
+		}
+
+		return xml.slice(start, i);
 	}
 
-	return xml.slice(start, i);
+	throw new Error(
+		`No se encontro <Item class="${className}">` +
+			(wantedName ? ` llamado "${wantedName}"` : "")
+	);
 }
 
 function main() {
 	const xml = buildRbxlx();
-	const workspace = extractItem(xml, "Workspace");
+	const subtree = extractItem(xml, TARGET_CLASS, TARGET_MATCH);
 
 	// El cuerpo del subarbol son sus hijos directos. Se reenvuelven en
-	// un Folder para poder importarlos bajo `game.Workspace` sin
-	// intentar crear un segundo Workspace (Roblox no lo permite).
+	// un Folder para poder importarlos bajo el servicio destino sin
+	// intentar crear un segundo servicio (Roblox no lo permite).
 	//
 	// BUG CORREGIDO (auditoria de importacion)
 	// ----------------------------------------
@@ -121,19 +181,19 @@ function main() {
 	// runtime en numero) y solo se veía al medir posiciones.
 	//
 	// El corte correcto es DESPUES del `</Properties>` del Item.
-	const propertiesEnd = workspace.indexOf("</Properties>");
+	const propertiesEnd = subtree.indexOf("</Properties>");
 	if (propertiesEnd === -1) {
-		throw new Error("El <Item class=\"Workspace\"> no tiene bloque <Properties>");
+		throw new Error("El <Item class=\"" + TARGET_CLASS + "\"> no tiene bloque <Properties>");
 	}
-	const bodyStart = workspace.indexOf(">", propertiesEnd) + 1;
-	const bodyEnd = workspace.lastIndexOf("</Item>");
-	const children = workspace.slice(bodyStart, bodyEnd);
+	const bodyStart = subtree.indexOf(">", propertiesEnd) + 1;
+	const bodyEnd = subtree.lastIndexOf("</Item>");
+	const children = subtree.slice(bodyStart, bodyEnd);
 
 	const rbxm =
 		'<roblox version="4">\n' +
 		'  <Item class="Folder">\n' +
 		"    <Properties>\n" +
-		'      <string name="Name">WorkspaceSource</string>\n' +
+		'      <string name="Name">' + TARGET_NAME + 'Source</string>\n' +
 		"    </Properties>\n" +
 		children +
 		"\n  </Item>\n" +
@@ -145,12 +205,12 @@ function main() {
 	}
 
 	fs.mkdirSync(CACHE, { recursive: true });
-	fs.writeFileSync(OUT, rbxm, "utf8");
+	fs.writeFileSync(OUT_FILE, rbxm, "utf8");
 
 	const count = (rbxm.match(/<Item class="/g) || []).length;
-	console.log("Subarbol Workspace extraido del build de Rojo.");
+	console.log("Subarbol " + TARGET_NAME + " extraido del build de Rojo.");
 	console.log("  incluye la raiz Folder: " + count + " Items");
-	console.log("  escrito en: " + path.relative(ROOT, OUT));
+	console.log("  escrito en: " + path.relative(ROOT, OUT_FILE));
 
 	// COMPROBACION ESTRUCTURAL (no es decorativa).
 	//

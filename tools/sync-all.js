@@ -59,6 +59,40 @@ function run(script, args = []) {
 	}
 }
 
+/**
+ * Igual que `run`, pero con variables de entorno para el hijo.
+ *
+ * Existe para que `sync-workspace.js` pueda extraer OTRO subarbol (el HUD de
+ * `StarterGui`) sin duplicar su recorte de XML. Se reutiliza el codigo que ya
+ * funciona en lugar de copiarlo: dos extractores del mismo formato divergen en
+ * cuanto uno corrige un caso limite y el otro no, y entonces el fallo aparece
+ * solo en una de las ramas y cuesta el doble de tiempo.
+ *
+ * @param {{[string]: string}} env variables a inyectar
+ * @param {string} script nombre dentro de tools/
+ * @param {string[]} args
+ * @returns {boolean} exito
+ */
+function runWithEnv(env, script, args = []) {
+	console.log("");
+	console.log("=== " + path.basename(script) + " " + args.join(" ") + " ===");
+	try {
+		const out = execFileSync("node", [path.join(__dirname, script), ...args], {
+			cwd: ROOT,
+			encoding: "utf8",
+			stdio: ["ignore", "pipe", "pipe"],
+			env: Object.assign({}, process.env, env),
+			maxBuffer: 128 * 1024 * 1024,
+		});
+		console.log(out.trimEnd());
+		return true;
+	} catch (err) {
+		console.log((err.stdout || "").trimEnd());
+		console.log("FALLO: " + (err.stderr || err.message).toString().trim());
+		return false;
+	}
+}
+
 /** Ejecuta un snippet Luau en Studio por MCP. */
 function lua(file) {
 	console.log("");
@@ -103,6 +137,52 @@ function main() {
 		"utf8"
 	);
 	run("studio-mcp.js", ["import_rbxm", "--jsonfile", argsFile]);
+
+	// 2-bis. EL HUD DE STARTERGUI.
+	//
+	// El paso anterior solo importa `Workspace`. El HUD vive en `StarterGui`,
+	// y sin este paso se quedaba solo en el SOURCE: `source-runtime-diff`
+	// reportaba 58 interfaces de menos y el script acababa en DIVERGE sin que
+	// nada explicara por que. El mapa estaba sincronizado; faltaba la rama que
+	// la herramienta no miraba.
+	//
+	// Va DESPUES del Workspace y ANTES del diff final: ese diff es el que
+	// declara completa la sincronizacion, y para que pueda decirlo tiene que
+	// haber recibido las dos ramas.
+	const guiArgsFile = path.join(CACHE, "mcp-args-gui.json");
+	fs.writeFileSync(
+		guiArgsFile,
+		JSON.stringify({
+			source: { path: path.join(CACHE, "startergui-source.rbxm") },
+			parent_path: "game.StarterGui",
+			target: "edit",
+		}),
+		"utf8"
+	);
+	// La extraccion REUTILIZA `sync-workspace.js` mediante variables de
+	// entorno en vez de duplicar su recorte de XML: dos copias del mismo
+	// parser divergen en cuanto una corrige un caso y la otra no.
+	runWithEnv(
+		{
+// Rojo NO emite un <Item class="StarterGui">: emite un Folder
+// llamado StarterGui colgando de la raiz del build. Extraer por la
+// clase del servicio fallaba con "No se encontro".
+SYNC_CLASS: "Folder",
+SYNC_NAME: "StarterGui",
+SYNC_MATCH: "StarterGui",
+SYNC_OUT: path.join(CACHE, "startergui-source.rbxm"),
+},
+		"sync-workspace.js"
+	);
+	run("studio-mcp.js", ["import_rbxm", "--jsonfile", guiArgsFile]);
+
+	// El `import_rbxm` deja el .rbxm dentro de una carpeta envoltorio
+	// (`StarterGuiSource`). Para el Workspace lo resuelve `merge-workspace.lua`;
+	// aqui no habia paso equivalente y cada sincronizacion acumulaba una copia
+	// mas, con los RemoteEvents duplicados dentro de StarterGui donde no los
+	// busca nadie.
+	lua(path.join("tools", "merge-startergui.lua"));
+
 
 	// 3-5. Fusionar, colapsar duplicados y arreglar el contenedor.
 	lua(path.join("tools", "merge-workspace.lua"));

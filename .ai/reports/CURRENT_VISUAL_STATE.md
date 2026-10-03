@@ -31,23 +31,100 @@ geometria.
 
 ## MUNDOS
 
-Los cinco existen con geometria. Ninguno esta completo.
+Los cinco existen con geometria y los cinco cumplen el CONTRATO completo.
+Medido con `tools/world-contract-verify.js` contra el DataModel de Studio.
+
+El verificador distingue `STRUCTURE` (la ruta existe), `CONTENT` (hay piezas
+reales) y `USABLE` (el spawn funciona). Una carpeta vacia NO cuenta como PASS:
+es lo que hacia que la tabla anterior no significara nada.
 
 | Mundo | Partes | Bloques | SpawnPoint | Exit | Hazards | MonsterSpawns | PowerupSpawns | BossSpawn |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| Forest | 1123 | 214 | NO | NO | NO | NO | NO | NO |
-| Desert | 368 | 48 | SI | SI | 5 | 4 | 4 | SI |
-| Ice | 390 | 48 | SI | SI | 5 | 4 | 4 | SI |
-| Volcano | 364 | 48 | SI | SI | 5 | 4 | 4 | SI |
-| Cyber | 430 | 48 | SI | SI | 5 | 4 | 4 | SI |
+| Forest | 1174 | 48 | SI (libre) | SI | 31 | 4 | 4 | SI |
+| Desert | 368 | 44 | SI | SI | 5 | 4 | 4 | SI |
+| Ice | 390 | 44 | SI | SI | 5 | 4 | 4 | SI |
+| Volcano | 364 | 44 | SI | SI | 5 | 4 | 4 | SI |
+| Cyber | 430 | 44 | SI | SI | 5 | 4 | 4 | SI |
 
-- Forest es el mundo de entrada del jugador y es EL MAS POBRE de estructura:
-  no tiene por donde aparecer, ni por donde salir, ni donde nacen los
-  monstruos, ni donde aparecen los powerups, ni donde esta el boss. El portal
-  que lleva a el no puede llevar a una arena ronda.
-- Forest si tiene decoracion y terreno (666 Partes de `Decoration` +
-  `Terrain`), por eso es el mas grande en numero de Partes. Cantidad no es
-  completitud.
+**CONTRATO DE MUNDOS: PASS** en los cinco.
+
+### QUE SE CONSTRUYO EN FOREST
+
+Forest era el mundo de ENTRADA y era el mas pobre de estructura: no tenia por
+donde aparecer, ni por donde salir, ni donde nacen los monstruos, ni donde
+aparece el powerup, ni donde esta el boss. El portal que lleva a el no llevaba
+a ninguna parte utilizable.
+
+Todo se genera en `tools/generate-project.js` (fuente de verdad), NO a mano en
+Studio:
+
+| Pieza | Detalle |
+| --- | --- |
+| `SpawnPoint_Forest` | `SpawnLocation` real tras la puerta sur, mirando al relicario. Verificado SIN obstaculos encima. |
+| `Exit_Forest` | Plataforma con arco (dos postes, dintel) y flecha luminosa. Al sur, enfrente del spawn. |
+| `Hazards` | 31 piezas: charcos venenosos, raices venenosas y esporas. |
+| `MonsterSpawns` | 4 marcadores en anillo a 30 studs del centro. |
+| `PowerupSpawns` | 4 marcadores a 64 studs, fuera de la muralla de bloques. |
+| `BossSpawn_Forest` | Plataforma al norte con totems de raiz y corona luminosa. |
+
+Los NOMBRES son los mismos que los otros cuatro mundos a proposito: es lo que
+permite que un unico verificador compruebe las cinco arenas.
+
+### PELIGROS DE FOREST: QUE HACEN Y CUAL NO
+
+| Familia | Efecto | Dano |
+| --- | --- | --- |
+| `Hazard_Poison_*` | Charco bajo. Quitame vida mientras estas dentro. | SI, continuo |
+| `Hazard_ThornRoot_*` | Raiz solida. Engancha y ralentiza al entrar. | SI, estado (no muerte) |
+| `Hazard_Spore_*` | Nube flotante translucida. Solo VFX y oclusion. | NO, por diseno |
+
+La ultima fila esta documentada a proposito: un peligro invisible que hace dano
+sin explicarse seria peor que no tenerlo.
+
+Las tres son `decor()`: NO colisionan. El dano lo aplica el sistema de combate
+leyendo el nombre, no una Piece invisible que empuja al jugador.
+
+## HUD / UI
+
+| Elemento | Estado | Evidencia |
+| --- | --- | --- |
+| `StarterGui.KeshusyHUD` | PASS | `ScreenGui` real en el SOURCE y en Studio. 57 instancias. |
+| Componentes | PASS | 9 paneles: TopBar, PlayerStats, Currency, BombStats, Objective, Mission, Timer, BossBar, Notifications. |
+| HUD conectado al estado real | PARCIAL | `UIController` enlaza los 9 paneles. FALTA sesion de jugador para verlo en runtime. |
+| Notificaciones | IMPLEMENTADO | `Controller.Notify` con ciclo CREATE -> SHOW -> TIMEOUT -> DESTROY, tope de 4 y limpieza en `Destroy`. Sin sesion: no verificado en pantalla. |
+| Inventory UI | MISSING | No existe `ScreenGui` de inventario. |
+| Shop UI | MISSING | No existe `ScreenGui` de tienda. |
+| Missions UI | MISSING | Solo la linea de resumen dentro del HUD. |
+
+### QUE CAMBIO EN EL HUD
+
+Antes el HUD se construia POR CODIGO dentro de `UIController.buildGui()`.
+Eso dejaba a `StarterGui` VACIO en el origen, que es exactamente lo que
+declaraba el informe: 0 hijos. No era un fallo de medicion, era el sintoma de
+que la interfaz no existia como arbol.
+
+Ahora `tools/hud.js` genera el `ScreenGui` y `UIController` se limita a
+ENLAZARLO. La UI no decide nada: lee atributos que solo el servidor escribe.
+
+Consecuencias practicas:
+
+- El HUD se puede auditar sin entrar en juego.
+- Cada campo es un componente reutilizable, no una etiqueta en un monolito.
+- Un atributo ausente se muestra `--`, no `0`: un 0 de XP dice "no tienes
+  nada" y un -- dice "no lo se".
+- Las barras arrancan a escala 0. Una barra llena sin datos seria una mentira
+  visual: el jugador veria la vida al maximo antes de que el servidor
+  publicase nada.
+- `BossBar` nace OCULTA. Una barra de jefe vacia permanente persuade al
+  jugador de ignorarla, y el dia que aparezca de verdad ya no la mira.
+
+### NOTIFICACIONES
+
+Se escuchan ATRIBUTOS, no se hace polling. Cada aviso nace de un dato que el
+servidor acaba de publicar, asi que no puede inventarse: si el servidor no subio
+de nivel, no aparece "NIVEL". El valor ANTERIOR se compara para detectar el
+salto, porque reescribir un atributo con el mismo valor sigue disparando la
+senal.
 
 ## HUD / UI
 
@@ -107,12 +184,36 @@ ejercito de verdad, no solo se administro que no fallara.
 
 ## LO QUE FALTA PARA QUE EL JUGADOR PUEDA JUGAR
 
-1. Forest sin SpawnPoint ni Exit: el flujo JOIN -> LOBBY -> PORTAL 1 no cierra.
-2. StarterGui vacio: el jugador no ve HP, ni bombas, ni XP, ni nivel, ni
-   monedas, ni temporizador, ni barra de boss.
-3. Sin UI de inventario, tienda, misiones ni notificaciones.
-4. Sin iluminacion diferenciada por mundo.
-5. Sin VFX ni audio connected a eventos reales.
+Resuelto en este bloque:
+
+1. ~~Forest sin SpawnPoint ni Exit~~ -> RESUELTO. Spawn verificado libre y
+   salida con arco y senal.
+2. ~~StarterGui vacio~~ -> RESUELTO. `KeshusyHUD` con 9 componentes, 57
+   instancias, presente en el SOURCE y en Studio.
+3. Notificaciones -> IMPLEMENTADO, falta certificarlas con jugador en sesion.
+
+Sigue pendiente:
+
+4. Sin sesion de jugador activa no se ha podido observar el HUD en pantalla.
+   La implementacion esta y sincronizada; la CERTIFICACION de jugador no.
+5. Sin UI de inventario ni de tienda.
+6. Sin iluminacion diferenciada por mundo.
+7. Sin VFX ni audio conectados a eventos reales.
+8. La interaccion de la salida de Forest (`Exit_Forest`) es geometria y punto
+   de retorno, pero el flujo FOREST -> LOBBY no se ha ejercitado con jugador.
+
+## LO QUE ESTA SIN VERIFICAR
+
+- No se ha podido ejecutar `PLAY`: el MCP Client no tiene sesion de jugador,
+  asi que la ruta `JOIN -> LOBBY -> PORTAL -> FOREST -> HUD -> GAMEPLAY` NO
+  esta certificada. Todo lo de arriba es verificacion de SOURCE y de RUNTIME
+  sin jugador.
+- `tools/analyze.js` sigue en FAIL: 886 incidencias, de las que 882 ya estaban
+  antes de este bloque. Ninguna es de los archivos tocados.
+- `sync-all.js` acaba en DIVERGE por una sola diferencia:
+  `StarterGui: source=Folder runtime=StarterGui`. Es el propio servicio
+  declarado como Folder en el proyecto para poder colgar el HUD. Faltan 0
+  instancias y sobran 0.
 
 ## ESTADO GLOBAL
 

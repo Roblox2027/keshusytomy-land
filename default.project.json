@@ -9,7 +9,1605 @@
       "$path": "src/ServerScriptService"
     },
     "StarterGui": {
-      "$path": "src/StarterGui"
+      "$className": "Folder",
+      "KeshusyHUD": {
+        "$className": "ScreenGui",
+        "$properties": {
+          "ResetOnSpawn": false,
+          "IgnoreGuiInset": false,
+          "DisplayOrder": 20,
+          "ZIndexBehavior": "Sibling",
+          "Enabled": true
+        },
+        "TopBar": {
+          "$className": "Frame",
+          "$properties": {
+            "BackgroundColor3": [
+              0.06274509803921569,
+              0.07450980392156863,
+              0.10980392156862745
+            ],
+            "BackgroundTransparency": 0.2,
+            "BorderSizePixel": 0,
+            "Position": {
+              "UDim2": [
+                [
+                  0,
+                  12
+                ],
+                [
+                  0,
+                  10
+                ]
+              ]
+            },
+            "Size": {
+              "UDim2": [
+                [
+                  0,
+                  260
+                ],
+                [
+                  0,
+                  58
+                ]
+              ]
+            }
+          },
+          "UICorner": {
+            "$className": "UICorner",
+            "$properties": {
+              "CornerRadius": {
+                "UDim": [
+                  0,
+                  10
+                ]
+              }
+            }
+          },
+          "UIStroke": {
+            "$className": "UIStroke",
+            "$properties": {
+              "Color": [
+                0.47058823529411764,
+                0.7450980392156863,
+                1
+              ],
+              "Thickness": 1,
+              "Transparency": 0.7
+            }
+          },
+          "World": {
+            "$className": "TextLabel",
+            "$properties": {
+              "BackgroundTransparency": 1,
+              "BorderSizePixel": 0,
+              "Font": "GothamBold",
+              "Position": {
+                "UDim2": [
+                  [
+                    0,
+                    12
+                  ],
+                  [
+                    0,
+                    6
+                  ]
+                ]
+              },
+              "Size": {
+                "UDim2": [
+                  [
+                    1,
+                    -24
+                  ],
+                  [
+                    0,
+                    24
+                  ]
+                ]
+              },
+              "Text": "MUNDO: Lobby",
+              "TextColor3": [
+                0.5882352941176471,
+                0.8627450980392157,
+                1
+              ],
+              "TextSize": 17,
+              "TextScaled": false,
+              "TextXAlignment": "Left",
+              "TextYAlignment": "Center",
+              "TextWrapped": false
+            }
+          },
+          "Level": {
+            "$className": "TextLabel",
+            "$properties": {
+              "BackgroundTransparency": 1,
+              "BorderSizePixel": 0,
+              "Font": "GothamBold",
+              "Position": {
+                "UDim2": [
+                  [
+                    0,
+                    12
+                  ],
+                  [
+                    0,
+                    30
+                  ]
+                ]
+              },
+              "Size": {
+                "UDim2": [
+                  [
+                    1,
+                    -24
+                  ],
+                  [
+                    0,
+                    20
+                  ]
+                ]
+              },
+              "Text": "LV 1",
+              "TextColor3": [
+                1,
+                0.9254901960784314,
+                0.5882352941176471
+              ],
+              "TextSize": 14,
+              "TextScaled": false,
+              "TextXAlignment": "Left",
+              "TextYAlignment": "Center",
+              "TextWrapped": false
+            }
+          }
+        },
+        "Currency": {
+          "$className": "Frame",
+          "$properties": {
+            "BackgroundColor3": [
+              0.06274509803921569,
+              0.07450980392156863,
+              0.10980392156862745
+            ],
+            "BackgroundTransparency": 0.2,
+            "BorderSizePixel": 0,
+            "Position": {
+              "UDim2": [
+                [
+                  1,
+                  -196
+                ],
+                [
+                  0,
+                  12
+                ]
+              ]
+            },
+            "Size": {
+              "UDim2": [
+                [
+                  0,
+                  184
+                ],
+                [
+                  0,
+                  72
+                ]
+              ]
+            }
+          },
+          "UICorner": {
+            "$className": "UICorner",
+            "$properties": {
+              "CornerRadius": {
+                "UDim": [
+                  0,
+                  10
+                ]
+              }
+            }
+          },
+          "UIStroke": {
+            "$className": "UIStroke",
+            "$properties": {
+              "Color": [
+                0.47058823529411764,
+                0.7450980392156863,
+                1
+              ],
+              "Thickness": 1,
+              "Transparency": 0.7
+            }
+          },
+          "Coins": {
+            "$className": "TextLabel",
+            "$properties": {
+              "BackgroundTransparency": 1,
+              "BorderSizePixel": 0,
+              "Font": "GothamBold",
+              "Position": {
+                "UDim2": [
+                  [
+                    0,
+                    12
+                  ],
+                  [
+                    0,
+                    8
+                  ]
+                ]
+              },
+              "Size": {
+                "UDim2": [
+                  [
+                    1,
+                    -24
+                  ],
+                  [
+                    0,
+                    20
+                  ]
+                ]
+              },
+              "Text": "",
+              "TextColor3": [
+                1,
+                0.8392156862745098,
+                0.43137254901960786
+              ],
+              "TextSize": 15,
+              "TextScaled": false,
+              "TextXAlignment": "Left",
+              "TextYAlignment": "Center",
+              "TextWrapped": false
+            }
+          },
+          "Gems": {
+            "$className": "TextLabel",
+            "$properties": {
+              "BackgroundTransparency": 1,
+              "BorderSizePixel": 0,
+              "Font": "GothamBold",
+              "Position": {
+                "UDim2": [
+                  [
+                    0,
+                    12
+                  ],
+                  [
+                    0,
+                    32
+                  ]
+                ]
+              },
+              "Size": {
+                "UDim2": [
+                  [
+                    1,
+                    -24
+                  ],
+                  [
+                    0,
+                    20
+                  ]
+                ]
+              },
+              "Text": "",
+              "TextColor3": [
+                0.7686274509803922,
+                0.5882352941176471,
+                1
+              ],
+              "TextSize": 15,
+              "TextScaled": false,
+              "TextXAlignment": "Left",
+              "TextYAlignment": "Center",
+              "TextWrapped": false
+            }
+          }
+        },
+        "PlayerStats": {
+          "$className": "Frame",
+          "$properties": {
+            "BackgroundColor3": [
+              0.06274509803921569,
+              0.07450980392156863,
+              0.10980392156862745
+            ],
+            "BackgroundTransparency": 0.2,
+            "BorderSizePixel": 0,
+            "Position": {
+              "UDim2": [
+                [
+                  0,
+                  12
+                ],
+                [
+                  1,
+                  -104
+                ]
+              ]
+            },
+            "Size": {
+              "UDim2": [
+                [
+                  0,
+                  260
+                ],
+                [
+                  0,
+                  92
+                ]
+              ]
+            }
+          },
+          "UICorner": {
+            "$className": "UICorner",
+            "$properties": {
+              "CornerRadius": {
+                "UDim": [
+                  0,
+                  10
+                ]
+              }
+            }
+          },
+          "UIStroke": {
+            "$className": "UIStroke",
+            "$properties": {
+              "Color": [
+                0.47058823529411764,
+                0.7450980392156863,
+                1
+              ],
+              "Thickness": 1,
+              "Transparency": 0.7
+            }
+          },
+          "Title": {
+            "$className": "TextLabel",
+            "$properties": {
+              "BackgroundTransparency": 1,
+              "BorderSizePixel": 0,
+              "Font": "GothamBold",
+              "Position": {
+                "UDim2": [
+                  [
+                    0,
+                    12
+                  ],
+                  [
+                    0,
+                    4
+                  ]
+                ]
+              },
+              "Size": {
+                "UDim2": [
+                  [
+                    1,
+                    -24
+                  ],
+                  [
+                    0,
+                    16
+                  ]
+                ]
+              },
+              "Text": "ESTADO",
+              "TextColor3": [
+                0.6901960784313725,
+                0.7372549019607844,
+                0.8392156862745098
+              ],
+              "TextSize": 11,
+              "TextScaled": false,
+              "TextXAlignment": "Left",
+              "TextYAlignment": "Center",
+              "TextWrapped": false
+            }
+          },
+          "HPBar": {
+            "$className": "Frame",
+            "$properties": {
+              "BackgroundColor3": [
+                0.03137254901960784,
+                0.0392156862745098,
+                0.06274509803921569
+              ],
+              "BackgroundTransparency": 0.3,
+              "BorderSizePixel": 0,
+              "Position": {
+                "UDim2": [
+                  [
+                    0,
+                    12
+                  ],
+                  [
+                    0,
+                    22
+                  ]
+                ]
+              },
+              "Size": {
+                "UDim2": [
+                  [
+                    1,
+                    -24
+                  ],
+                  [
+                    0,
+                    18
+                  ]
+                ]
+              }
+            },
+            "UICorner": {
+              "$className": "UICorner",
+              "$properties": {
+                "CornerRadius": {
+                  "UDim": [
+                    0,
+                    7
+                  ]
+                }
+              }
+            },
+            "Fill": {
+              "$className": "Frame",
+              "$properties": {
+                "BackgroundColor3": [
+                  1,
+                  0.3764705882352941,
+                  0.43137254901960786
+                ],
+                "BorderSizePixel": 0,
+                "Size": {
+                  "UDim2": [
+                    [
+                      0,
+                      0
+                    ],
+                    [
+                      0,
+                      8
+                    ]
+                  ]
+                },
+                "Position": {
+                  "UDim2": [
+                    [
+                      0,
+                      3
+                    ],
+                    [
+                      0,
+                      3
+                    ]
+                  ]
+                }
+              },
+              "UICorner": {
+                "$className": "UICorner",
+                "$properties": {
+                  "CornerRadius": {
+                    "UDim": [
+                      0,
+                      5
+                    ]
+                  }
+                }
+              }
+            },
+            "Text": {
+              "$className": "TextLabel",
+              "$properties": {
+                "BackgroundTransparency": 1,
+                "BorderSizePixel": 0,
+                "Font": "GothamBold",
+                "Position": {
+                  "UDim2": [
+                    [
+                      0,
+                      8
+                    ],
+                    [
+                      0,
+                      0
+                    ]
+                  ]
+                },
+                "Size": {
+                  "UDim2": [
+                    [
+                      1,
+                      -16
+                    ],
+                    [
+                      1,
+                      0
+                    ]
+                  ]
+                },
+                "Text": "",
+                "TextColor3": [
+                  0.9254901960784314,
+                  0.9450980392156862,
+                  1
+                ],
+                "TextSize": 11,
+                "TextScaled": false,
+                "TextXAlignment": "Center",
+                "TextYAlignment": "Center",
+                "TextWrapped": false,
+                "ZIndex": 2
+              }
+            }
+          },
+          "XPBar": {
+            "$className": "Frame",
+            "$properties": {
+              "BackgroundColor3": [
+                0.03137254901960784,
+                0.0392156862745098,
+                0.06274509803921569
+              ],
+              "BackgroundTransparency": 0.3,
+              "BorderSizePixel": 0,
+              "Position": {
+                "UDim2": [
+                  [
+                    0,
+                    12
+                  ],
+                  [
+                    0,
+                    46
+                  ]
+                ]
+              },
+              "Size": {
+                "UDim2": [
+                  [
+                    1,
+                    -24
+                  ],
+                  [
+                    0,
+                    18
+                  ]
+                ]
+              }
+            },
+            "UICorner": {
+              "$className": "UICorner",
+              "$properties": {
+                "CornerRadius": {
+                  "UDim": [
+                    0,
+                    7
+                  ]
+                }
+              }
+            },
+            "Fill": {
+              "$className": "Frame",
+              "$properties": {
+                "BackgroundColor3": [
+                  0.5882352941176471,
+                  1,
+                  0.7450980392156863
+                ],
+                "BorderSizePixel": 0,
+                "Size": {
+                  "UDim2": [
+                    [
+                      0,
+                      0
+                    ],
+                    [
+                      0,
+                      8
+                    ]
+                  ]
+                },
+                "Position": {
+                  "UDim2": [
+                    [
+                      0,
+                      3
+                    ],
+                    [
+                      0,
+                      3
+                    ]
+                  ]
+                }
+              },
+              "UICorner": {
+                "$className": "UICorner",
+                "$properties": {
+                  "CornerRadius": {
+                    "UDim": [
+                      0,
+                      5
+                    ]
+                  }
+                }
+              }
+            },
+            "Text": {
+              "$className": "TextLabel",
+              "$properties": {
+                "BackgroundTransparency": 1,
+                "BorderSizePixel": 0,
+                "Font": "GothamBold",
+                "Position": {
+                  "UDim2": [
+                    [
+                      0,
+                      8
+                    ],
+                    [
+                      0,
+                      0
+                    ]
+                  ]
+                },
+                "Size": {
+                  "UDim2": [
+                    [
+                      1,
+                      -16
+                    ],
+                    [
+                      1,
+                      0
+                    ]
+                  ]
+                },
+                "Text": "",
+                "TextColor3": [
+                  0.9254901960784314,
+                  0.9450980392156862,
+                  1
+                ],
+                "TextSize": 11,
+                "TextScaled": false,
+                "TextXAlignment": "Center",
+                "TextYAlignment": "Center",
+                "TextWrapped": false,
+                "ZIndex": 2
+              }
+            }
+          }
+        },
+        "BombStats": {
+          "$className": "Frame",
+          "$properties": {
+            "BackgroundColor3": [
+              0.06274509803921569,
+              0.07450980392156863,
+              0.10980392156862745
+            ],
+            "BackgroundTransparency": 0.2,
+            "BorderSizePixel": 0,
+            "Position": {
+              "UDim2": [
+                [
+                  0,
+                  12
+                ],
+                [
+                  1,
+                  -196
+                ]
+              ]
+            },
+            "Size": {
+              "UDim2": [
+                [
+                  0,
+                  260
+                ],
+                [
+                  0,
+                  60
+                ]
+              ]
+            }
+          },
+          "UICorner": {
+            "$className": "UICorner",
+            "$properties": {
+              "CornerRadius": {
+                "UDim": [
+                  0,
+                  10
+                ]
+              }
+            }
+          },
+          "UIStroke": {
+            "$className": "UIStroke",
+            "$properties": {
+              "Color": [
+                0.47058823529411764,
+                0.7450980392156863,
+                1
+              ],
+              "Thickness": 1,
+              "Transparency": 0.7
+            }
+          },
+          "Bombs": {
+            "$className": "TextLabel",
+            "$properties": {
+              "BackgroundTransparency": 1,
+              "BorderSizePixel": 0,
+              "Font": "GothamBold",
+              "Position": {
+                "UDim2": [
+                  [
+                    0,
+                    12
+                  ],
+                  [
+                    0,
+                    8
+                  ]
+                ]
+              },
+              "Size": {
+                "UDim2": [
+                  [
+                    1,
+                    -24
+                  ],
+                  [
+                    0,
+                    18
+                  ]
+                ]
+              },
+              "Text": "",
+              "TextColor3": [
+                1,
+                0.7843137254901961,
+                0.35294117647058826
+              ],
+              "TextSize": 14,
+              "TextScaled": false,
+              "TextXAlignment": "Left",
+              "TextYAlignment": "Center",
+              "TextWrapped": false
+            },
+            "Icon": {
+              "$className": "TextLabel",
+              "$properties": {
+                "BackgroundTransparency": 1,
+                "BorderSizePixel": 0,
+                "Font": "GothamBold",
+                "Position": {
+                  "UDim2": [
+                    [
+                      0,
+                      -24
+                    ],
+                    [
+                      0,
+                      0
+                    ]
+                  ]
+                },
+                "Size": {
+                  "UDim2": [
+                    [
+                      0,
+                      24
+                    ],
+                    [
+                      1,
+                      0
+                    ]
+                  ]
+                },
+                "Text": "B",
+                "TextColor3": [
+                  1,
+                  0.7843137254901961,
+                  0.35294117647058826
+                ],
+                "TextSize": 15,
+                "TextScaled": false,
+                "TextXAlignment": "Left",
+                "TextYAlignment": "Center",
+                "TextWrapped": false
+              }
+            }
+          },
+          "Power": {
+            "$className": "TextLabel",
+            "$properties": {
+              "BackgroundTransparency": 1,
+              "BorderSizePixel": 0,
+              "Font": "GothamBold",
+              "Position": {
+                "UDim2": [
+                  [
+                    0,
+                    12
+                  ],
+                  [
+                    0,
+                    32
+                  ]
+                ]
+              },
+              "Size": {
+                "UDim2": [
+                  [
+                    1,
+                    -24
+                  ],
+                  [
+                    0,
+                    18
+                  ]
+                ]
+              },
+              "Text": "",
+              "TextColor3": [
+                0.47058823529411764,
+                0.7450980392156863,
+                1
+              ],
+              "TextSize": 14,
+              "TextScaled": false,
+              "TextXAlignment": "Left",
+              "TextYAlignment": "Center",
+              "TextWrapped": false
+            },
+            "Icon": {
+              "$className": "TextLabel",
+              "$properties": {
+                "BackgroundTransparency": 1,
+                "BorderSizePixel": 0,
+                "Font": "GothamBold",
+                "Position": {
+                  "UDim2": [
+                    [
+                      0,
+                      -24
+                    ],
+                    [
+                      0,
+                      0
+                    ]
+                  ]
+                },
+                "Size": {
+                  "UDim2": [
+                    [
+                      0,
+                      24
+                    ],
+                    [
+                      1,
+                      0
+                    ]
+                  ]
+                },
+                "Text": "P",
+                "TextColor3": [
+                  0.47058823529411764,
+                  0.7450980392156863,
+                  1
+                ],
+                "TextSize": 15,
+                "TextScaled": false,
+                "TextXAlignment": "Left",
+                "TextYAlignment": "Center",
+                "TextWrapped": false
+              }
+            }
+          }
+        },
+        "Objective": {
+          "$className": "Frame",
+          "$properties": {
+            "BackgroundColor3": [
+              0.06274509803921569,
+              0.07450980392156863,
+              0.10980392156862745
+            ],
+            "BackgroundTransparency": 0.2,
+            "BorderSizePixel": 0,
+            "Position": {
+              "UDim2": [
+                [
+                  1,
+                  -292
+                ],
+                [
+                  1,
+                  -104
+                ]
+              ]
+            },
+            "Size": {
+              "UDim2": [
+                [
+                  0,
+                  280
+                ],
+                [
+                  0,
+                  48
+                ]
+              ]
+            }
+          },
+          "UICorner": {
+            "$className": "UICorner",
+            "$properties": {
+              "CornerRadius": {
+                "UDim": [
+                  0,
+                  10
+                ]
+              }
+            }
+          },
+          "UIStroke": {
+            "$className": "UIStroke",
+            "$properties": {
+              "Color": [
+                0.47058823529411764,
+                0.7450980392156863,
+                1
+              ],
+              "Thickness": 1,
+              "Transparency": 0.7
+            }
+          },
+          "Title": {
+            "$className": "TextLabel",
+            "$properties": {
+              "BackgroundTransparency": 1,
+              "BorderSizePixel": 0,
+              "Font": "GothamBold",
+              "Position": {
+                "UDim2": [
+                  [
+                    0,
+                    12
+                  ],
+                  [
+                    0,
+                    4
+                  ]
+                ]
+              },
+              "Size": {
+                "UDim2": [
+                  [
+                    1,
+                    -24
+                  ],
+                  [
+                    0,
+                    16
+                  ]
+                ]
+              },
+              "Text": "OBJETIVO",
+              "TextColor3": [
+                0.6901960784313725,
+                0.7372549019607844,
+                0.8392156862745098
+              ],
+              "TextSize": 11,
+              "TextScaled": false,
+              "TextXAlignment": "Left",
+              "TextYAlignment": "Center",
+              "TextWrapped": false
+            }
+          },
+          "Text": {
+            "$className": "TextLabel",
+            "$properties": {
+              "BackgroundTransparency": 1,
+              "BorderSizePixel": 0,
+              "Font": "GothamBold",
+              "Position": {
+                "UDim2": [
+                  [
+                    0,
+                    12
+                  ],
+                  [
+                    0,
+                    22
+                  ]
+                ]
+              },
+              "Size": {
+                "UDim2": [
+                  [
+                    1,
+                    -24
+                  ],
+                  [
+                    0,
+                    20
+                  ]
+                ]
+              },
+              "Text": "",
+              "TextColor3": [
+                0.9254901960784314,
+                0.9450980392156862,
+                1
+              ],
+              "TextSize": 14,
+              "TextScaled": false,
+              "TextXAlignment": "Left",
+              "TextYAlignment": "Center",
+              "TextWrapped": false
+            }
+          }
+        },
+        "Mission": {
+          "$className": "Frame",
+          "$properties": {
+            "BackgroundColor3": [
+              0.06274509803921569,
+              0.07450980392156863,
+              0.10980392156862745
+            ],
+            "BackgroundTransparency": 0.2,
+            "BorderSizePixel": 0,
+            "Position": {
+              "UDim2": [
+                [
+                  1,
+                  -292
+                ],
+                [
+                  1,
+                  -156
+                ]
+              ]
+            },
+            "Size": {
+              "UDim2": [
+                [
+                  0,
+                  280
+                ],
+                [
+                  0,
+                  44
+                ]
+              ]
+            }
+          },
+          "UICorner": {
+            "$className": "UICorner",
+            "$properties": {
+              "CornerRadius": {
+                "UDim": [
+                  0,
+                  10
+                ]
+              }
+            }
+          },
+          "UIStroke": {
+            "$className": "UIStroke",
+            "$properties": {
+              "Color": [
+                0.47058823529411764,
+                0.7450980392156863,
+                1
+              ],
+              "Thickness": 1,
+              "Transparency": 0.7
+            }
+          },
+          "Text": {
+            "$className": "TextLabel",
+            "$properties": {
+              "BackgroundTransparency": 1,
+              "BorderSizePixel": 0,
+              "Font": "GothamBold",
+              "Position": {
+                "UDim2": [
+                  [
+                    0,
+                    12
+                  ],
+                  [
+                    0,
+                    10
+                  ]
+                ]
+              },
+              "Size": {
+                "UDim2": [
+                  [
+                    1,
+                    -24
+                  ],
+                  [
+                    0,
+                    24
+                  ]
+                ]
+              },
+              "Text": "",
+              "TextColor3": [
+                0.9254901960784314,
+                0.9450980392156862,
+                1
+              ],
+              "TextSize": 14,
+              "TextScaled": false,
+              "TextXAlignment": "Left",
+              "TextYAlignment": "Center",
+              "TextWrapped": false
+            }
+          }
+        },
+        "Timer": {
+          "$className": "Frame",
+          "$properties": {
+            "BackgroundColor3": [
+              0.06274509803921569,
+              0.07450980392156863,
+              0.10980392156862745
+            ],
+            "BackgroundTransparency": 0.2,
+            "BorderSizePixel": 0,
+            "Position": {
+              "UDim2": [
+                [
+                  0.5,
+                  -90
+                ],
+                [
+                  0,
+                  10
+                ]
+              ]
+            },
+            "Size": {
+              "UDim2": [
+                [
+                  0,
+                  180
+                ],
+                [
+                  0,
+                  44
+                ]
+              ]
+            }
+          },
+          "UICorner": {
+            "$className": "UICorner",
+            "$properties": {
+              "CornerRadius": {
+                "UDim": [
+                  0,
+                  10
+                ]
+              }
+            }
+          },
+          "UIStroke": {
+            "$className": "UIStroke",
+            "$properties": {
+              "Color": [
+                0.47058823529411764,
+                0.7450980392156863,
+                1
+              ],
+              "Thickness": 1,
+              "Transparency": 0.7
+            }
+          },
+          "Round": {
+            "$className": "TextLabel",
+            "$properties": {
+              "BackgroundTransparency": 1,
+              "BorderSizePixel": 0,
+              "Font": "GothamBold",
+              "Position": {
+                "UDim2": [
+                  [
+                    0,
+                    8
+                  ],
+                  [
+                    0,
+                    4
+                  ]
+                ]
+              },
+              "Size": {
+                "UDim2": [
+                  [
+                    1,
+                    -16
+                  ],
+                  [
+                    0,
+                    18
+                  ]
+                ]
+              },
+              "Text": "RONDA 0",
+              "TextColor3": [
+                0.6901960784313725,
+                0.7372549019607844,
+                0.8392156862745098
+              ],
+              "TextSize": 12,
+              "TextScaled": false,
+              "TextXAlignment": "Center",
+              "TextYAlignment": "Center",
+              "TextWrapped": false
+            }
+          },
+          "Time": {
+            "$className": "TextLabel",
+            "$properties": {
+              "BackgroundTransparency": 1,
+              "BorderSizePixel": 0,
+              "Font": "GothamBold",
+              "Position": {
+                "UDim2": [
+                  [
+                    0,
+                    8
+                  ],
+                  [
+                    0,
+                    20
+                  ]
+                ]
+              },
+              "Size": {
+                "UDim2": [
+                  [
+                    1,
+                    -16
+                  ],
+                  [
+                    0,
+                    20
+                  ]
+                ]
+              },
+              "Text": "--:--",
+              "TextColor3": [
+                1,
+                0.6901960784313725,
+                0.35294117647058826
+              ],
+              "TextSize": 18,
+              "TextScaled": false,
+              "TextXAlignment": "Center",
+              "TextYAlignment": "Center",
+              "TextWrapped": false
+            }
+          }
+        },
+        "BossBar": {
+          "$className": "Frame",
+          "$properties": {
+            "BackgroundColor3": [
+              0.06274509803921569,
+              0.07450980392156863,
+              0.10980392156862745
+            ],
+            "BackgroundTransparency": 0.2,
+            "BorderSizePixel": 0,
+            "Position": {
+              "UDim2": [
+                [
+                  0.5,
+                  -220
+                ],
+                [
+                  0,
+                  78
+                ]
+              ]
+            },
+            "Size": {
+              "UDim2": [
+                [
+                  0,
+                  440
+                ],
+                [
+                  0,
+                  40
+                ]
+              ]
+            },
+            "Visible": false
+          },
+          "UICorner": {
+            "$className": "UICorner",
+            "$properties": {
+              "CornerRadius": {
+                "UDim": [
+                  0,
+                  10
+                ]
+              }
+            }
+          },
+          "UIStroke": {
+            "$className": "UIStroke",
+            "$properties": {
+              "Color": [
+                0.47058823529411764,
+                0.7450980392156863,
+                1
+              ],
+              "Thickness": 1,
+              "Transparency": 0.7
+            }
+          },
+          "Name": {
+            "$className": "TextLabel",
+            "$properties": {
+              "BackgroundTransparency": 1,
+              "BorderSizePixel": 0,
+              "Font": "GothamBold",
+              "Position": {
+                "UDim2": [
+                  [
+                    0,
+                    10
+                  ],
+                  [
+                    0,
+                    2
+                  ]
+                ]
+              },
+              "Size": {
+                "UDim2": [
+                  [
+                    1,
+                    -20
+                  ],
+                  [
+                    0,
+                    16
+                  ]
+                ]
+              },
+              "Text": "",
+              "TextColor3": [
+                1,
+                0.3764705882352941,
+                0.43137254901960786
+              ],
+              "TextSize": 13,
+              "TextScaled": false,
+              "TextXAlignment": "Center",
+              "TextYAlignment": "Center",
+              "TextWrapped": false
+            }
+          },
+          "Bar": {
+            "$className": "Frame",
+            "$properties": {
+              "BackgroundColor3": [
+                0.03137254901960784,
+                0.0392156862745098,
+                0.06274509803921569
+              ],
+              "BackgroundTransparency": 0.3,
+              "BorderSizePixel": 0,
+              "Position": {
+                "UDim2": [
+                  [
+                    0,
+                    10
+                  ],
+                  [
+                    0,
+                    20
+                  ]
+                ]
+              },
+              "Size": {
+                "UDim2": [
+                  [
+                    1,
+                    -20
+                  ],
+                  [
+                    0,
+                    16
+                  ]
+                ]
+              }
+            },
+            "UICorner": {
+              "$className": "UICorner",
+              "$properties": {
+                "CornerRadius": {
+                  "UDim": [
+                    0,
+                    7
+                  ]
+                }
+              }
+            },
+            "Fill": {
+              "$className": "Frame",
+              "$properties": {
+                "BackgroundColor3": [
+                  1,
+                  0.3764705882352941,
+                  0.43137254901960786
+                ],
+                "BorderSizePixel": 0,
+                "Size": {
+                  "UDim2": [
+                    [
+                      0,
+                      0
+                    ],
+                    [
+                      0,
+                      8
+                    ]
+                  ]
+                },
+                "Position": {
+                  "UDim2": [
+                    [
+                      0,
+                      3
+                    ],
+                    [
+                      0,
+                      3
+                    ]
+                  ]
+                }
+              },
+              "UICorner": {
+                "$className": "UICorner",
+                "$properties": {
+                  "CornerRadius": {
+                    "UDim": [
+                      0,
+                      5
+                    ]
+                  }
+                }
+              }
+            },
+            "Text": {
+              "$className": "TextLabel",
+              "$properties": {
+                "BackgroundTransparency": 1,
+                "BorderSizePixel": 0,
+                "Font": "GothamBold",
+                "Position": {
+                  "UDim2": [
+                    [
+                      0,
+                      8
+                    ],
+                    [
+                      0,
+                      0
+                    ]
+                  ]
+                },
+                "Size": {
+                  "UDim2": [
+                    [
+                      1,
+                      -16
+                    ],
+                    [
+                      1,
+                      0
+                    ]
+                  ]
+                },
+                "Text": "",
+                "TextColor3": [
+                  0.9254901960784314,
+                  0.9450980392156862,
+                  1
+                ],
+                "TextSize": 11,
+                "TextScaled": false,
+                "TextXAlignment": "Center",
+                "TextYAlignment": "Center",
+                "TextWrapped": false,
+                "ZIndex": 2
+              }
+            }
+          }
+        },
+        "Notifications": {
+          "$className": "Frame",
+          "$properties": {
+            "BackgroundColor3": [
+              0.06274509803921569,
+              0.07450980392156863,
+              0.10980392156862745
+            ],
+            "BackgroundTransparency": 1,
+            "BorderSizePixel": 0,
+            "Position": {
+              "UDim2": [
+                [
+                  0.5,
+                  -190
+                ],
+                [
+                  0,
+                  300
+                ]
+              ]
+            },
+            "Size": {
+              "UDim2": [
+                [
+                  0,
+                  380
+                ],
+                [
+                  0,
+                  200
+                ]
+              ]
+            }
+          },
+          "UICorner": {
+            "$className": "UICorner",
+            "$properties": {
+              "CornerRadius": {
+                "UDim": [
+                  0,
+                  10
+                ]
+              }
+            }
+          },
+          "UIStroke": {
+            "$className": "UIStroke",
+            "$properties": {
+              "Color": [
+                0.47058823529411764,
+                0.7450980392156863,
+                1
+              ],
+              "Thickness": 1,
+              "Transparency": 1
+            }
+          }
+        }
+      }
     },
     "StarterPlayer": {
       "$className": "StarterPlayer",
@@ -3741,6 +5339,40 @@
               "Position": [
                 590,
                 13,
+                0
+              ]
+            }
+          },
+          "SpawnPoint_Forest": {
+            "$className": "SpawnLocation",
+            "$properties": {
+              "Anchored": true,
+              "CanCollide": true,
+              "CanTouch": false,
+              "Neutral": true,
+              "Enabled": true,
+              "Duration": 0,
+              "AllowTeamChangeOnTouch": false,
+              "Transparency": 0.4,
+              "Material": "Neon",
+              "Color": [
+                0.33725490196078434,
+                0.8392156862745098,
+                0.8862745098039215
+              ],
+              "Size": [
+                12,
+                1,
+                12
+              ],
+              "Position": [
+                516,
+                1.6,
+                58
+              ],
+              "Orientation": [
+                0,
+                15,
                 0
               ]
             }
@@ -16249,6 +17881,941 @@
                   320,
                   0
                 ]
+              }
+            }
+          },
+          "Hazards": {
+            "$className": "Folder",
+            "Hazard_Poison_0": {
+              "$className": "Part",
+              "$properties": {
+                "Anchored": true,
+                "CanCollide": false,
+                "CanTouch": false,
+                "TopSurface": "Smooth",
+                "BottomSurface": "Smooth",
+                "Material": "Slate",
+                "Color": [
+                  0.47843137254901963,
+                  0.8392156862745098,
+                  0.3764705882352941
+                ],
+                "Size": [
+                  26,
+                  0.3,
+                  26
+                ],
+                "Position": [
+                  438,
+                  0.16,
+                  -58
+                ],
+                "Transparency": 0.35,
+                "Shape": "Cylinder"
+              }
+            },
+            "Hazard_Poison_0_Bubble_0": {
+              "$className": "Part",
+              "$properties": {
+                "Anchored": true,
+                "CanCollide": false,
+                "CanTouch": false,
+                "TopSurface": "Smooth",
+                "BottomSurface": "Smooth",
+                "Material": "Neon",
+                "Color": [
+                  0.6588235294117647,
+                  0.9647058823529412,
+                  0.5490196078431373
+                ],
+                "Size": [
+                  1.2,
+                  1.2,
+                  1.2
+                ],
+                "Position": [
+                  440.811432,
+                  0.45,
+                  -56.405992
+                ],
+                "Transparency": 0.45,
+                "Shape": "Ball"
+              }
+            },
+            "Hazard_Poison_0_Bubble_1": {
+              "$className": "Part",
+              "$properties": {
+                "Anchored": true,
+                "CanCollide": false,
+                "CanTouch": false,
+                "TopSurface": "Smooth",
+                "BottomSurface": "Smooth",
+                "Material": "Neon",
+                "Color": [
+                  0.6588235294117647,
+                  0.9647058823529412,
+                  0.5490196078431373
+                ],
+                "Size": [
+                  1.2,
+                  1.2,
+                  1.2
+                ],
+                "Position": [
+                  440.768844,
+                  0.45,
+                  -65.119996
+                ],
+                "Transparency": 0.45,
+                "Shape": "Ball"
+              }
+            },
+            "Hazard_Poison_0_Bubble_2": {
+              "$className": "Part",
+              "$properties": {
+                "Anchored": true,
+                "CanCollide": false,
+                "CanTouch": false,
+                "TopSurface": "Smooth",
+                "BottomSurface": "Smooth",
+                "Material": "Neon",
+                "Color": [
+                  0.6588235294117647,
+                  0.9647058823529412,
+                  0.5490196078431373
+                ],
+                "Size": [
+                  1.2,
+                  1.2,
+                  1.2
+                ],
+                "Position": [
+                  432.610824,
+                  0.45,
+                  -53.791276
+                ],
+                "Transparency": 0.45,
+                "Shape": "Ball"
+              }
+            },
+            "Hazard_Poison_1": {
+              "$className": "Part",
+              "$properties": {
+                "Anchored": true,
+                "CanCollide": false,
+                "CanTouch": false,
+                "TopSurface": "Smooth",
+                "BottomSurface": "Smooth",
+                "Material": "Slate",
+                "Color": [
+                  0.47843137254901963,
+                  0.8392156862745098,
+                  0.3764705882352941
+                ],
+                "Size": [
+                  20,
+                  0.3,
+                  20
+                ],
+                "Position": [
+                  566,
+                  0.16,
+                  54
+                ],
+                "Transparency": 0.35,
+                "Shape": "Cylinder"
+              }
+            },
+            "Hazard_Poison_1_Bubble_0": {
+              "$className": "Part",
+              "$properties": {
+                "Anchored": true,
+                "CanCollide": false,
+                "CanTouch": false,
+                "TopSurface": "Smooth",
+                "BottomSurface": "Smooth",
+                "Material": "Neon",
+                "Color": [
+                  0.6588235294117647,
+                  0.9647058823529412,
+                  0.5490196078431373
+                ],
+                "Size": [
+                  1.2,
+                  1.2,
+                  1.2
+                ],
+                "Position": [
+                  562.7864,
+                  0.45,
+                  50.54184
+                ],
+                "Transparency": 0.45,
+                "Shape": "Ball"
+              }
+            },
+            "Hazard_Poison_1_Bubble_1": {
+              "$className": "Part",
+              "$properties": {
+                "Anchored": true,
+                "CanCollide": false,
+                "CanTouch": false,
+                "TopSurface": "Smooth",
+                "BottomSurface": "Smooth",
+                "Material": "Neon",
+                "Color": [
+                  0.6588235294117647,
+                  0.9647058823529412,
+                  0.5490196078431373
+                ],
+                "Size": [
+                  1.2,
+                  1.2,
+                  1.2
+                ],
+                "Position": [
+                  566.04188,
+                  0.45,
+                  51.29544
+                ],
+                "Transparency": 0.45,
+                "Shape": "Ball"
+              }
+            },
+            "Hazard_Poison_1_Bubble_2": {
+              "$className": "Part",
+              "$properties": {
+                "Anchored": true,
+                "CanCollide": false,
+                "CanTouch": false,
+                "TopSurface": "Smooth",
+                "BottomSurface": "Smooth",
+                "Material": "Neon",
+                "Color": [
+                  0.6588235294117647,
+                  0.9647058823529412,
+                  0.5490196078431373
+                ],
+                "Size": [
+                  1.2,
+                  1.2,
+                  1.2
+                ],
+                "Position": [
+                  569.1176,
+                  0.45,
+                  51.33372
+                ],
+                "Transparency": 0.45,
+                "Shape": "Ball"
+              }
+            },
+            "Hazard_Poison_2": {
+              "$className": "Part",
+              "$properties": {
+                "Anchored": true,
+                "CanCollide": false,
+                "CanTouch": false,
+                "TopSurface": "Smooth",
+                "BottomSurface": "Smooth",
+                "Material": "Slate",
+                "Color": [
+                  0.47843137254901963,
+                  0.8392156862745098,
+                  0.3764705882352941
+                ],
+                "Size": [
+                  18,
+                  0.3,
+                  18
+                ],
+                "Position": [
+                  470,
+                  0.16,
+                  30
+                ],
+                "Transparency": 0.35,
+                "Shape": "Cylinder"
+              }
+            },
+            "Hazard_Poison_2_Bubble_0": {
+              "$className": "Part",
+              "$properties": {
+                "Anchored": true,
+                "CanCollide": false,
+                "CanTouch": false,
+                "TopSurface": "Smooth",
+                "BottomSurface": "Smooth",
+                "Material": "Neon",
+                "Color": [
+                  0.6588235294117647,
+                  0.9647058823529412,
+                  0.5490196078431373
+                ],
+                "Size": [
+                  1.2,
+                  1.2,
+                  1.2
+                ],
+                "Position": [
+                  475.130648,
+                  0.45,
+                  27.023088
+                ],
+                "Transparency": 0.45,
+                "Shape": "Ball"
+              }
+            },
+            "Hazard_Poison_2_Bubble_1": {
+              "$className": "Part",
+              "$properties": {
+                "Anchored": true,
+                "CanCollide": false,
+                "CanTouch": false,
+                "TopSurface": "Smooth",
+                "BottomSurface": "Smooth",
+                "Material": "Neon",
+                "Color": [
+                  0.6588235294117647,
+                  0.9647058823529412,
+                  0.5490196078431373
+                ],
+                "Size": [
+                  1.2,
+                  1.2,
+                  1.2
+                ],
+                "Position": [
+                  475.051268,
+                  0.45,
+                  35.33466
+                ],
+                "Transparency": 0.45,
+                "Shape": "Ball"
+              }
+            },
+            "Hazard_Poison_2_Bubble_2": {
+              "$className": "Part",
+              "$properties": {
+                "Anchored": true,
+                "CanCollide": false,
+                "CanTouch": false,
+                "TopSurface": "Smooth",
+                "BottomSurface": "Smooth",
+                "Material": "Neon",
+                "Color": [
+                  0.6588235294117647,
+                  0.9647058823529412,
+                  0.5490196078431373
+                ],
+                "Size": [
+                  1.2,
+                  1.2,
+                  1.2
+                ],
+                "Position": [
+                  470.300672,
+                  0.45,
+                  34.36428
+                ],
+                "Transparency": 0.45,
+                "Shape": "Ball"
+              }
+            },
+            "Hazard_ThornRoot_0": {
+              "$className": "Part",
+              "$properties": {
+                "Anchored": true,
+                "CanCollide": false,
+                "CanTouch": false,
+                "TopSurface": "Smooth",
+                "BottomSurface": "Smooth",
+                "Material": "Wood",
+                "Color": [
+                  0.2901960784313726,
+                  0.21176470588235294,
+                  0.1411764705882353
+                ],
+                "Size": [
+                  2.2,
+                  3.2,
+                  2.2
+                ],
+                "Position": [
+                  518.4837519883192,
+                  1.6,
+                  18.285264899210663
+                ],
+                "Orientation": [
+                  0,
+                  142,
+                  0
+                ],
+                "Shape": "Cylinder"
+              }
+            },
+            "Hazard_ThornRoot_0_Spike_0": {
+              "$className": "Part",
+              "$properties": {
+                "Anchored": true,
+                "CanCollide": false,
+                "CanTouch": false,
+                "TopSurface": "Smooth",
+                "BottomSurface": "Smooth",
+                "Material": "Rock",
+                "Color": [
+                  0.9098039215686274,
+                  0.5803921568627451,
+                  0.2901960784313726
+                ],
+                "Size": [
+                  0.8,
+                  3.4,
+                  0.8
+                ],
+                "Position": [
+                  520.6837519883193,
+                  2.6,
+                  18.285264899210663
+                ],
+                "Orientation": [
+                  0,
+                  0,
+                  24
+                ],
+                "Shape": "Cylinder"
+              }
+            },
+            "Hazard_ThornRoot_0_Spike_1": {
+              "$className": "Part",
+              "$properties": {
+                "Anchored": true,
+                "CanCollide": false,
+                "CanTouch": false,
+                "TopSurface": "Smooth",
+                "BottomSurface": "Smooth",
+                "Material": "Rock",
+                "Color": [
+                  0.9098039215686274,
+                  0.5803921568627451,
+                  0.2901960784313726
+                ],
+                "Size": [
+                  0.8,
+                  3.4,
+                  0.8
+                ],
+                "Position": [
+                  517.3837519883192,
+                  2.6,
+                  20.19052078753643
+                ],
+                "Orientation": [
+                  0,
+                  0,
+                  24
+                ],
+                "Shape": "Cylinder"
+              }
+            },
+            "Hazard_ThornRoot_0_Spike_2": {
+              "$className": "Part",
+              "$properties": {
+                "Anchored": true,
+                "CanCollide": false,
+                "CanTouch": false,
+                "TopSurface": "Smooth",
+                "BottomSurface": "Smooth",
+                "Material": "Rock",
+                "Color": [
+                  0.9098039215686274,
+                  0.5803921568627451,
+                  0.2901960784313726
+                ],
+                "Size": [
+                  0.8,
+                  3.4,
+                  0.8
+                ],
+                "Position": [
+                  517.3837519883192,
+                  2.6,
+                  16.380009010884898
+                ],
+                "Orientation": [
+                  0,
+                  0,
+                  24
+                ],
+                "Shape": "Cylinder"
+              }
+            },
+            "Hazard_ThornRoot_1": {
+              "$className": "Part",
+              "$properties": {
+                "Anchored": true,
+                "CanCollide": false,
+                "CanTouch": false,
+                "TopSurface": "Smooth",
+                "BottomSurface": "Smooth",
+                "Material": "Wood",
+                "Color": [
+                  0.2901960784313726,
+                  0.21176470588235294,
+                  0.1411764705882353
+                ],
+                "Size": [
+                  2.2,
+                  3.2,
+                  2.2
+                ],
+                "Position": [
+                  481.7147351007893,
+                  1.6,
+                  18.48375198831921
+                ],
+                "Orientation": [
+                  0,
+                  230,
+                  0
+                ],
+                "Shape": "Cylinder"
+              }
+            },
+            "Hazard_ThornRoot_1_Spike_0": {
+              "$className": "Part",
+              "$properties": {
+                "Anchored": true,
+                "CanCollide": false,
+                "CanTouch": false,
+                "TopSurface": "Smooth",
+                "BottomSurface": "Smooth",
+                "Material": "Rock",
+                "Color": [
+                  0.9098039215686274,
+                  0.5803921568627451,
+                  0.2901960784313726
+                ],
+                "Size": [
+                  0.8,
+                  3.4,
+                  0.8
+                ],
+                "Position": [
+                  483.9147351007893,
+                  2.6,
+                  18.48375198831921
+                ],
+                "Orientation": [
+                  0,
+                  0,
+                  24
+                ],
+                "Shape": "Cylinder"
+              }
+            },
+            "Hazard_ThornRoot_1_Spike_1": {
+              "$className": "Part",
+              "$properties": {
+                "Anchored": true,
+                "CanCollide": false,
+                "CanTouch": false,
+                "TopSurface": "Smooth",
+                "BottomSurface": "Smooth",
+                "Material": "Rock",
+                "Color": [
+                  0.9098039215686274,
+                  0.5803921568627451,
+                  0.2901960784313726
+                ],
+                "Size": [
+                  0.8,
+                  3.4,
+                  0.8
+                ],
+                "Position": [
+                  480.6147351007893,
+                  2.6,
+                  20.389007876644975
+                ],
+                "Orientation": [
+                  0,
+                  0,
+                  24
+                ],
+                "Shape": "Cylinder"
+              }
+            },
+            "Hazard_ThornRoot_1_Spike_2": {
+              "$className": "Part",
+              "$properties": {
+                "Anchored": true,
+                "CanCollide": false,
+                "CanTouch": false,
+                "TopSurface": "Smooth",
+                "BottomSurface": "Smooth",
+                "Material": "Rock",
+                "Color": [
+                  0.9098039215686274,
+                  0.5803921568627451,
+                  0.2901960784313726
+                ],
+                "Size": [
+                  0.8,
+                  3.4,
+                  0.8
+                ],
+                "Position": [
+                  480.6147351007893,
+                  2.6,
+                  16.578496099993444
+                ],
+                "Orientation": [
+                  0,
+                  0,
+                  24
+                ],
+                "Shape": "Cylinder"
+              }
+            },
+            "Hazard_ThornRoot_2": {
+              "$className": "Part",
+              "$properties": {
+                "Anchored": true,
+                "CanCollide": false,
+                "CanTouch": false,
+                "TopSurface": "Smooth",
+                "BottomSurface": "Smooth",
+                "Material": "Wood",
+                "Color": [
+                  0.2901960784313726,
+                  0.21176470588235294,
+                  0.1411764705882353
+                ],
+                "Size": [
+                  2.2,
+                  3.2,
+                  2.2
+                ],
+                "Position": [
+                  481.5162480116808,
+                  1.6,
+                  -18.285264899210667
+                ],
+                "Orientation": [
+                  0,
+                  131,
+                  0
+                ],
+                "Shape": "Cylinder"
+              }
+            },
+            "Hazard_ThornRoot_2_Spike_0": {
+              "$className": "Part",
+              "$properties": {
+                "Anchored": true,
+                "CanCollide": false,
+                "CanTouch": false,
+                "TopSurface": "Smooth",
+                "BottomSurface": "Smooth",
+                "Material": "Rock",
+                "Color": [
+                  0.9098039215686274,
+                  0.5803921568627451,
+                  0.2901960784313726
+                ],
+                "Size": [
+                  0.8,
+                  3.4,
+                  0.8
+                ],
+                "Position": [
+                  483.71624801168076,
+                  2.6,
+                  -18.285264899210667
+                ],
+                "Orientation": [
+                  0,
+                  0,
+                  24
+                ],
+                "Shape": "Cylinder"
+              }
+            },
+            "Hazard_ThornRoot_2_Spike_1": {
+              "$className": "Part",
+              "$properties": {
+                "Anchored": true,
+                "CanCollide": false,
+                "CanTouch": false,
+                "TopSurface": "Smooth",
+                "BottomSurface": "Smooth",
+                "Material": "Rock",
+                "Color": [
+                  0.9098039215686274,
+                  0.5803921568627451,
+                  0.2901960784313726
+                ],
+                "Size": [
+                  0.8,
+                  3.4,
+                  0.8
+                ],
+                "Position": [
+                  480.41624801168075,
+                  2.6,
+                  -16.3800090108849
+                ],
+                "Orientation": [
+                  0,
+                  0,
+                  24
+                ],
+                "Shape": "Cylinder"
+              }
+            },
+            "Hazard_ThornRoot_2_Spike_2": {
+              "$className": "Part",
+              "$properties": {
+                "Anchored": true,
+                "CanCollide": false,
+                "CanTouch": false,
+                "TopSurface": "Smooth",
+                "BottomSurface": "Smooth",
+                "Material": "Rock",
+                "Color": [
+                  0.9098039215686274,
+                  0.5803921568627451,
+                  0.2901960784313726
+                ],
+                "Size": [
+                  0.8,
+                  3.4,
+                  0.8
+                ],
+                "Position": [
+                  480.41624801168075,
+                  2.6,
+                  -20.190520787536432
+                ],
+                "Orientation": [
+                  0,
+                  0,
+                  24
+                ],
+                "Shape": "Cylinder"
+              }
+            },
+            "Hazard_ThornRoot_3": {
+              "$className": "Part",
+              "$properties": {
+                "Anchored": true,
+                "CanCollide": false,
+                "CanTouch": false,
+                "TopSurface": "Smooth",
+                "BottomSurface": "Smooth",
+                "Material": "Wood",
+                "Color": [
+                  0.2901960784313726,
+                  0.21176470588235294,
+                  0.1411764705882353
+                ],
+                "Size": [
+                  2.2,
+                  3.2,
+                  2.2
+                ],
+                "Position": [
+                  518.2852648992107,
+                  1.6,
+                  -18.48375198831921
+                ],
+                "Orientation": [
+                  0,
+                  259,
+                  0
+                ],
+                "Shape": "Cylinder"
+              }
+            },
+            "Hazard_ThornRoot_3_Spike_0": {
+              "$className": "Part",
+              "$properties": {
+                "Anchored": true,
+                "CanCollide": false,
+                "CanTouch": false,
+                "TopSurface": "Smooth",
+                "BottomSurface": "Smooth",
+                "Material": "Rock",
+                "Color": [
+                  0.9098039215686274,
+                  0.5803921568627451,
+                  0.2901960784313726
+                ],
+                "Size": [
+                  0.8,
+                  3.4,
+                  0.8
+                ],
+                "Position": [
+                  520.4852648992107,
+                  2.6,
+                  -18.48375198831921
+                ],
+                "Orientation": [
+                  0,
+                  0,
+                  24
+                ],
+                "Shape": "Cylinder"
+              }
+            },
+            "Hazard_ThornRoot_3_Spike_1": {
+              "$className": "Part",
+              "$properties": {
+                "Anchored": true,
+                "CanCollide": false,
+                "CanTouch": false,
+                "TopSurface": "Smooth",
+                "BottomSurface": "Smooth",
+                "Material": "Rock",
+                "Color": [
+                  0.9098039215686274,
+                  0.5803921568627451,
+                  0.2901960784313726
+                ],
+                "Size": [
+                  0.8,
+                  3.4,
+                  0.8
+                ],
+                "Position": [
+                  517.1852648992107,
+                  2.6,
+                  -16.578496099993444
+                ],
+                "Orientation": [
+                  0,
+                  0,
+                  24
+                ],
+                "Shape": "Cylinder"
+              }
+            },
+            "Hazard_ThornRoot_3_Spike_2": {
+              "$className": "Part",
+              "$properties": {
+                "Anchored": true,
+                "CanCollide": false,
+                "CanTouch": false,
+                "TopSurface": "Smooth",
+                "BottomSurface": "Smooth",
+                "Material": "Rock",
+                "Color": [
+                  0.9098039215686274,
+                  0.5803921568627451,
+                  0.2901960784313726
+                ],
+                "Size": [
+                  0.8,
+                  3.4,
+                  0.8
+                ],
+                "Position": [
+                  517.1852648992107,
+                  2.6,
+                  -20.389007876644975
+                ],
+                "Orientation": [
+                  0,
+                  0,
+                  24
+                ],
+                "Shape": "Cylinder"
+              }
+            },
+            "Hazard_Spore_0": {
+              "$className": "Part",
+              "$properties": {
+                "Anchored": true,
+                "CanCollide": false,
+                "CanTouch": false,
+                "TopSurface": "Smooth",
+                "BottomSurface": "Smooth",
+                "Material": "ForceField",
+                "Color": [
+                  0.7686274509803922,
+                  0.8862745098039215,
+                  0.6588235294117647
+                ],
+                "Size": [
+                  14,
+                  7,
+                  14
+                ],
+                "Position": [
+                  489.0081547266409,
+                  9.5,
+                  32.17420298137209
+                ],
+                "Transparency": 0.72,
+                "Shape": "Ball"
+              }
+            },
+            "Hazard_Spore_1": {
+              "$className": "Part",
+              "$properties": {
+                "Anchored": true,
+                "CanCollide": false,
+                "CanTouch": false,
+                "TopSurface": "Smooth",
+                "BottomSurface": "Smooth",
+                "Material": "ForceField",
+                "Color": [
+                  0.7686274509803922,
+                  0.8862745098039215,
+                  0.6588235294117647
+                ],
+                "Size": [
+                  14,
+                  7,
+                  14
+                ],
+                "Position": [
+                  477.6322455082943,
+                  9.5,
+                  -25.606318731882943
+                ],
+                "Transparency": 0.72,
+                "Shape": "Ball"
+              }
+            },
+            "Hazard_Spore_2": {
+              "$className": "Part",
+              "$properties": {
+                "Anchored": true,
+                "CanCollide": false,
+                "CanTouch": false,
+                "TopSurface": "Smooth",
+                "BottomSurface": "Smooth",
+                "Material": "ForceField",
+                "Color": [
+                  0.7686274509803922,
+                  0.8862745098039215,
+                  0.6588235294117647
+                ],
+                "Size": [
+                  14,
+                  7,
+                  14
+                ],
+                "Position": [
+                  533.3595997650648,
+                  9.5,
+                  -6.567884249489177
+                ],
+                "Transparency": 0.72,
+                "Shape": "Ball"
               }
             }
           },
@@ -35365,6 +37932,525 @@
                   "Shadows": false
                 }
               }
+            }
+          },
+          "MonsterSpawns": {
+            "$className": "Folder",
+            "MonsterSpawn_Forest_0": {
+              "$className": "Part",
+              "$properties": {
+                "Anchored": true,
+                "CanCollide": false,
+                "CanTouch": false,
+                "TopSurface": "Smooth",
+                "BottomSurface": "Smooth",
+                "Material": "Neon",
+                "Color": [
+                  0.9098039215686274,
+                  0.5803921568627451,
+                  0.2901960784313726
+                ],
+                "Size": [
+                  3,
+                  0.2,
+                  3
+                ],
+                "Position": [
+                  524.7600684472903,
+                  1.6,
+                  16.93927420185106
+                ],
+                "Transparency": 0.4
+              }
+            },
+            "MonsterSpawn_Forest_1": {
+              "$className": "Part",
+              "$properties": {
+                "Anchored": true,
+                "CanCollide": false,
+                "CanTouch": false,
+                "TopSurface": "Smooth",
+                "BottomSurface": "Smooth",
+                "Material": "Neon",
+                "Color": [
+                  0.9098039215686274,
+                  0.5803921568627451,
+                  0.2901960784313726
+                ],
+                "Size": [
+                  3,
+                  0.2,
+                  3
+                ],
+                "Position": [
+                  483.06072579814895,
+                  1.6,
+                  24.76006844729035
+                ],
+                "Transparency": 0.4
+              }
+            },
+            "MonsterSpawn_Forest_2": {
+              "$className": "Part",
+              "$properties": {
+                "Anchored": true,
+                "CanCollide": false,
+                "CanTouch": false,
+                "TopSurface": "Smooth",
+                "BottomSurface": "Smooth",
+                "Material": "Neon",
+                "Color": [
+                  0.9098039215686274,
+                  0.5803921568627451,
+                  0.2901960784313726
+                ],
+                "Size": [
+                  3,
+                  0.2,
+                  3
+                ],
+                "Position": [
+                  475.23993155270966,
+                  1.6,
+                  -16.93927420185106
+                ],
+                "Transparency": 0.4
+              }
+            },
+            "MonsterSpawn_Forest_3": {
+              "$className": "Part",
+              "$properties": {
+                "Anchored": true,
+                "CanCollide": false,
+                "CanTouch": false,
+                "TopSurface": "Smooth",
+                "BottomSurface": "Smooth",
+                "Material": "Neon",
+                "Color": [
+                  0.9098039215686274,
+                  0.5803921568627451,
+                  0.2901960784313726
+                ],
+                "Size": [
+                  3,
+                  0.2,
+                  3
+                ],
+                "Position": [
+                  516.939274201851,
+                  1.6,
+                  -24.760068447290358
+                ],
+                "Transparency": 0.4
+              }
+            }
+          },
+          "PowerupSpawns": {
+            "$className": "Folder",
+            "PowerupSpawn_Forest_0": {
+              "$className": "Part",
+              "$properties": {
+                "Anchored": true,
+                "CanCollide": false,
+                "CanTouch": false,
+                "TopSurface": "Smooth",
+                "BottomSurface": "Smooth",
+                "Material": "Neon",
+                "Color": [
+                  0.6588235294117647,
+                  0.9647058823529412,
+                  1
+                ],
+                "Size": [
+                  2.4,
+                  0.2,
+                  2.4
+                ],
+                "Position": [
+                  560.1198536222322,
+                  1.4,
+                  21.945459677148886
+                ],
+                "Transparency": 0.4
+              }
+            },
+            "PowerupSpawn_Forest_1": {
+              "$className": "Part",
+              "$properties": {
+                "Anchored": true,
+                "CanCollide": false,
+                "CanTouch": false,
+                "TopSurface": "Smooth",
+                "BottomSurface": "Smooth",
+                "Material": "Neon",
+                "Color": [
+                  0.6588235294117647,
+                  0.9647058823529412,
+                  1
+                ],
+                "Size": [
+                  2.4,
+                  0.2,
+                  2.4
+                ],
+                "Position": [
+                  478.0545403228511,
+                  1.4,
+                  60.11985362223225
+                ],
+                "Transparency": 0.4
+              }
+            },
+            "PowerupSpawn_Forest_2": {
+              "$className": "Part",
+              "$properties": {
+                "Anchored": true,
+                "CanCollide": false,
+                "CanTouch": false,
+                "TopSurface": "Smooth",
+                "BottomSurface": "Smooth",
+                "Material": "Neon",
+                "Color": [
+                  0.6588235294117647,
+                  0.9647058823529412,
+                  1
+                ],
+                "Size": [
+                  2.4,
+                  0.2,
+                  2.4
+                ],
+                "Position": [
+                  439.88014637776774,
+                  1.4,
+                  -21.945459677148886
+                ],
+                "Transparency": 0.4
+              }
+            },
+            "PowerupSpawn_Forest_3": {
+              "$className": "Part",
+              "$properties": {
+                "Anchored": true,
+                "CanCollide": false,
+                "CanTouch": false,
+                "TopSurface": "Smooth",
+                "BottomSurface": "Smooth",
+                "Material": "Neon",
+                "Color": [
+                  0.6588235294117647,
+                  0.9647058823529412,
+                  1
+                ],
+                "Size": [
+                  2.4,
+                  0.2,
+                  2.4
+                ],
+                "Position": [
+                  521.9454596771488,
+                  1.4,
+                  -60.11985362223226
+                ],
+                "Transparency": 0.4
+              }
+            }
+          },
+          "BossSpawn_Forest": {
+            "$className": "Part",
+            "$properties": {
+              "Anchored": true,
+              "CanCollide": true,
+              "CanTouch": false,
+              "TopSurface": "Smooth",
+              "BottomSurface": "Smooth",
+              "Material": "Slate",
+              "Color": [
+                0.33725490196078434,
+                0.35294117647058826,
+                0.3843137254901961
+              ],
+              "Size": [
+                26,
+                0.6,
+                26
+              ],
+              "Position": [
+                500,
+                0.3,
+                -68
+              ],
+              "Shape": "Cylinder"
+            }
+          },
+          "Boss_Forest_Totem_A": {
+            "$className": "Part",
+            "$properties": {
+              "Anchored": true,
+              "CanCollide": false,
+              "CanTouch": false,
+              "TopSurface": "Smooth",
+              "BottomSurface": "Smooth",
+              "Material": "Neon",
+              "Color": [
+                0.2901960784313726,
+                0.21176470588235294,
+                0.1411764705882353
+              ],
+              "Size": [
+                2.4,
+                12,
+                2.4
+              ],
+              "Position": [
+                491,
+                6,
+                -68
+              ],
+              "Shape": "Cylinder"
+            }
+          },
+          "Boss_Forest_Totem_B": {
+            "$className": "Part",
+            "$properties": {
+              "Anchored": true,
+              "CanCollide": false,
+              "CanTouch": false,
+              "TopSurface": "Smooth",
+              "BottomSurface": "Smooth",
+              "Material": "Neon",
+              "Color": [
+                0.2901960784313726,
+                0.21176470588235294,
+                0.1411764705882353
+              ],
+              "Size": [
+                2.4,
+                12,
+                2.4
+              ],
+              "Position": [
+                509,
+                6,
+                -68
+              ],
+              "Shape": "Cylinder"
+            }
+          },
+          "Boss_Forest_Crown": {
+            "$className": "Part",
+            "$properties": {
+              "Anchored": true,
+              "CanCollide": false,
+              "CanTouch": false,
+              "TopSurface": "Smooth",
+              "BottomSurface": "Smooth",
+              "Material": "Neon",
+              "Color": [
+                0.6588235294117647,
+                0.9647058823529412,
+                1
+              ],
+              "Size": [
+                11,
+                1.2,
+                3
+              ],
+              "Position": [
+                500,
+                13.5,
+                -68
+              ],
+              "Transparency": 0.2,
+              "Shape": "Cylinder"
+            }
+          },
+          "Boss_Forest_Ground": {
+            "$className": "Part",
+            "$properties": {
+              "Anchored": true,
+              "CanCollide": false,
+              "CanTouch": false,
+              "TopSurface": "Smooth",
+              "BottomSurface": "Smooth",
+              "Material": "Neon",
+              "Color": [
+                0.9098039215686274,
+                0.5803921568627451,
+                0.2901960784313726
+              ],
+              "Size": [
+                19,
+                0.12,
+                19
+              ],
+              "Position": [
+                500,
+                0.66,
+                -68
+              ],
+              "Transparency": 0.45,
+              "Shape": "Cylinder"
+            }
+          },
+          "Exit_Forest": {
+            "$className": "Part",
+            "$properties": {
+              "Anchored": true,
+              "CanCollide": true,
+              "CanTouch": false,
+              "TopSurface": "Smooth",
+              "BottomSurface": "Smooth",
+              "Material": "Slate",
+              "Color": [
+                0.33725490196078434,
+                0.8392156862745098,
+                0.8862745098039215
+              ],
+              "Size": [
+                16,
+                0.6,
+                16
+              ],
+              "Position": [
+                500,
+                0.3,
+                68
+              ],
+              "Shape": "Cylinder"
+            }
+          },
+          "Exit_Forest_Post_L": {
+            "$className": "Part",
+            "$properties": {
+              "Anchored": true,
+              "CanCollide": false,
+              "CanTouch": false,
+              "TopSurface": "Smooth",
+              "BottomSurface": "Smooth",
+              "Material": "Slate",
+              "Color": [
+                0.33725490196078434,
+                0.35294117647058826,
+                0.3843137254901961
+              ],
+              "Size": [
+                2,
+                8,
+                2
+              ],
+              "Position": [
+                493,
+                4,
+                68
+              ]
+            }
+          },
+          "Exit_Forest_Post_R": {
+            "$className": "Part",
+            "$properties": {
+              "Anchored": true,
+              "CanCollide": false,
+              "CanTouch": false,
+              "TopSurface": "Smooth",
+              "BottomSurface": "Smooth",
+              "Material": "Slate",
+              "Color": [
+                0.33725490196078434,
+                0.35294117647058826,
+                0.3843137254901961
+              ],
+              "Size": [
+                2,
+                8,
+                2
+              ],
+              "Position": [
+                507,
+                4,
+                68
+              ]
+            }
+          },
+          "Exit_Forest_Lintel": {
+            "$className": "Part",
+            "$properties": {
+              "Anchored": true,
+              "CanCollide": false,
+              "CanTouch": false,
+              "TopSurface": "Smooth",
+              "BottomSurface": "Smooth",
+              "Material": "Slate",
+              "Color": [
+                0.47843137254901963,
+                0.49411764705882355,
+                0.5176470588235295
+              ],
+              "Size": [
+                18,
+                1.6,
+                2.4
+              ],
+              "Position": [
+                500,
+                8.4,
+                68
+              ]
+            }
+          },
+          "Exit_Forest_Sign": {
+            "$className": "Part",
+            "$properties": {
+              "Anchored": true,
+              "CanCollide": false,
+              "CanTouch": false,
+              "TopSurface": "Smooth",
+              "BottomSurface": "Smooth",
+              "Material": "Neon",
+              "Color": [
+                0.6588235294117647,
+                0.9647058823529412,
+                1
+              ],
+              "Size": [
+                4.4,
+                4.4,
+                0.4
+              ],
+              "Position": [
+                500,
+                10.6,
+                68
+              ],
+              "Transparency": 0.15,
+              "Shape": "Ball"
+            }
+          },
+          "Exit_Forest_SignGlow": {
+            "$className": "Part",
+            "$properties": {
+              "Anchored": true,
+              "CanCollide": false,
+              "CanTouch": false,
+              "TopSurface": "Smooth",
+              "BottomSurface": "Smooth",
+              "Material": "Neon",
+              "Color": [
+                0.33725490196078434,
+                0.8392156862745098,
+                0.8862745098039215
+              ],
+              "Size": [
+                7,
+                7,
+                0.3
+              ],
+              "Position": [
+                500,
+                10.6,
+                65.5
+              ],
+              "Transparency": 0.6
             }
           }
         },
