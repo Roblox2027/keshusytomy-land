@@ -39,6 +39,9 @@ local REQUIRED_MODULES = {
 }
 
 local Logger = require(UTILS:WaitForChild("Logger"))
+-- Se necesita para el limite de distancia de las bombas: el valor vive en
+-- la configuracion y no debe repetirse como numero magico en el handler.
+local GameConfig = require(CONFIG:WaitForChild("GameConfig"))
 local GameConstants = require(SHARED:WaitForChild("Constants"):WaitForChild("GameConstants"))
 local ServiceRegistry = require(SERVER:WaitForChild("Systems"):WaitForChild("ServiceRegistry"))
 local RemoteGateway = require(SERVER:WaitForChild("Systems"):WaitForChild("RemoteGateway"))
@@ -118,6 +121,62 @@ local progressionService = nil
 local shopService = nil
 local codeService = nil
 local questService = nil
+
+-- AntiExploitService. Es el UNICO modulo de este archivo que se consulta
+-- DENTRO de un handler de remoto, asi que necesita una referencia de
+-- modulo (los locales de `wireDependencies` moririan).
+local antiExploitService = nil
+
+--- Mide la distancia entre el personaje de un jugador y un punto.
+---
+--- Devuelve `nil` cuando NO se puede medir, y `nil` es precisamente lo que
+--- hace que la capa de anti-exploit RECHACE la peticion: un filtro que
+--- aceptara "no lo pude medir" trataria como valido lo que no ha comprobado,
+--- y eso es un canal abierto, no una comprobacion laxa.
+---
+--- No se toma jamas la distancia del payload: seria el propio atacante
+--- dictandole al servidor cuanta comprobacion hacer.
+--- @param player Player
+--- @param position any
+--- @return number?
+local function measureDistance(player: Player, position: any): number?
+	if typeof(position) ~= "Vector3" then
+		return nil
+	end
+
+	local character = player.Character
+
+	if not character then
+		return nil
+	end
+
+	local rootPart = character:FindFirstChild("HumanoidRootPart")
+
+	if not rootPart or not rootPart:IsA("BasePart") then
+		return nil
+	end
+
+	return (rootPart.Position - position).Magnitude
+end
+
+--- Comprueba una peticion contra la capa de contexto.
+---
+--- Si el anti-exploit no esta disponible, se PERMITE: el juego debe seguir
+--- siendo jugable sin el, igual que sin las misiones. Devolver `false`
+--- dejaria a los jugadores sin bombas por un fallo de arranque.
+--- @param player Player
+--- @param channel string
+--- @param action string
+--- @param context any?
+--- @return boolean allowed
+--- @return string? reason
+local function Service_CheckRequest(player: Player, channel: string, action: string, context: any?): (boolean, string?)
+	if not antiExploitService then
+		return true, nil
+	end
+
+	return antiExploitService.Check(player.UserId, channel, action, context)
+end
 
 -- Registro de servicios. Cada entrada declara sus dependencias para
 -- que el orden de arranque sea determinista.
@@ -212,6 +271,14 @@ local SERVICES = {
 	-- servicios ya estan cableados cuando arranca, y su difusion usa
 	-- el mismo registro.
 	{ name = "CoreService", module = SERVER.Services.CoreService, dependencies = {} },
+
+	-- AntiExploitService NO depende de nadie: es una capa que compara y
+	-- cuenta, no un sistema de juego. Se declara aqui para que el registro
+	-- le haga su ciclo de vida y para que aparezca en el informe de arranque.
+	--
+	-- Los servicios de juego NO lo declaran como dependencia porque eso
+	-- crearia un ciclo: el anti-exploit los OBSERVA, no los usa.
+	{ name = "AntiExploitService", module = SERVER.Services.AntiExploitService, dependencies = {} },
 	-- MonsterService (PvE) va DESPUES de RoundService, CombatService y
 	-- PlayerService: necesita saber si hay ronda para moverse, el unico
 	-- camino de dano para golpear y el servicio que paga las recompensas.
@@ -591,11 +658,37 @@ local REMOTE_CHANNELS = {
 				return
 			end
 
-			local placed, reason = bombService.TryPlaceBomb(player, payload)
+			-- La capa de CONTEXTO va antes que el servicio de juego, y es
+			-- distinta de la gateway: la gateway ya valido la forma (es un
+			-- Vector3 finito). Aqui se valida el CONTEXTO, que es lo que la
+			-- forma no puede saber:
+			--
+			--   - que haya ronda (el lobby es zona segura)
+			--   - que la distancia la mida el SERVIDOR
+			--   - el cooldown por accion
+			--
+			-- La distancia se mide aqui, en el servidor, y NUNCA se toma del
+			-- payload: si el cliente mandara la distancia, el filtro
+			-- comprobaria un dato que el atacante controla.
+			local allowed, reason = Service_CheckRequest(player, "BombAction", "Place", {
+				serverState = roundService and roundService.GetState() or nil,
+				distance = measureDistance(player, payload),
+				maxDistance = GameConfig.BombPlacementRange,
+			})
+
+			if not allowed then
+				Logger.Debug(("bomba rechazada por anti-exploit para %s: %s"):format(
+					player.Name,
+					tostring(reason)
+				))
+				return
+			end
+
+			local placed, bombReason = bombService.TryPlaceBomb(player, payload)
 			if not placed then
 				-- El motivo se registra SIEMPRE: un rechazo sin registro
 				-- es imposible de depurar desde fuera.
-				Logger.Debug(("bomba rechazada para %s: %s"):format(player.Name, tostring(reason)))
+				Logger.Debug(("bomba rechazada para %s: %s"):format(player.Name, tostring(bombReason)))
 			end
 		end,
 	},
@@ -908,6 +1001,7 @@ function ServerMain.Start(): boolean
 	-- quedo documentado para los seis de la columna economica.
 	codeService = registry:Get("CodeService")
 	questService = registry:Get("QuestService")
+	antiExploitService = registry:Get("AntiExploitService")
 
 	for _, name in ipairs({
 		"DataService",

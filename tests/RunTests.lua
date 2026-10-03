@@ -28,6 +28,7 @@ local SUITES = {
 	{ name = "QuestRules", path = "./shared/QuestRules.spec" },
 	{ name = "QuestDaily", path = "./shared/QuestDaily.spec" },
 	{ name = "QuestCatalog", path = "./shared/QuestCatalog.spec" },
+	{ name = "AntiExploit", path = "./shared/AntiExploit.spec" },
 	{ name = "GameConfig", path = "./shared/GameConfig.spec" },
 	{ name = "AudioPool", path = "./shared/AudioPool.spec" },
 	{ name = "CombatMath", path = "./shared/CombatMath.spec" },
