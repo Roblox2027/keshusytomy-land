@@ -32,6 +32,7 @@
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local UserInputService = game:GetService("UserInputService")
+local Workspace = game:GetService("Workspace")
 
 local SHARED = ReplicatedStorage:WaitForChild("Shared")
 local CONSTANTS = SHARED:WaitForChild("Constants")
@@ -39,6 +40,7 @@ local UTILS = SHARED:WaitForChild("Utils")
 local CONTROLLERS = script.Parent
 
 local GameConstants = require(CONSTANTS:WaitForChild("GameConstants"))
+local BombButtonRules = require(SHARED:WaitForChild("Libraries"):WaitForChild("BombButtonRules"))
 local Logger = require(UTILS:WaitForChild("Logger"))
 local BombController = require(CONTROLLERS:WaitForChild("BombController"))
 
@@ -58,7 +60,26 @@ local _maid = nil
 
 -- Boton tactil de bomba. Solo se crea en dispositivos con toque, y es
 -- la UNICA zona de la pantalla que coloca una bomba.
+--
+-- No es un `TextButton`: es un `Frame` compuesto por las piezas de una
+-- bomba dibujada (cuerpo, franja, tapa, mecha y chispa). La razon esta en
+-- `BombButtonRules`: un rectangulo rojo con la palabra "BOMBA" describe
+-- una ACCION, no un OBJETO, y el jugador tiene que traducirlo antes de
+-- poder usarlo.
 local bombButton = nil
+
+-- Piezas del boton, resueltas una vez y refrescadas por estado. Se guardan
+-- en una tabla en vez de en variables sueltas porque el refresco las
+-- recorre todas juntas: si una se olvidara, la bomba se quedaria a medio
+-- pintar.
+local bombParts = {}
+
+-- Estado de los avisos momentaneos (pulsado / colocado). Son apuntadores
+-- a `os.clock` y no banderas: asi el bucle de refresco decide por su cuenta
+-- cuando se han pasado los `Timing`, sin depender de que nadie tenga que
+-- cancelar un temporizador.
+local _pressedUntil = 0
+local _placedUntil = 0
 
 --- Peticion de colocar bomba. Delega en `BombController`.
 ---
@@ -88,6 +109,108 @@ function Controller.GetBombCooldownRemaining(): number
 	end
 
 	return remaining or 0
+end
+
+--- Convierte un color de `BombButtonRules.Palette` en `Color3`.
+--- @param color table { R, G, B }
+--- @return Color3
+local function toColor3(color: any): Color3
+    return Color3.fromRGB(color.R, color.G, color.B)
+end
+
+--- Crea una pieza dibujada de la bomba dentro del marco del boton.
+---
+--- @param parent Instance marco del boton
+--- @param name string
+--- @param spec table pieza descrita por `BombButtonRules.Geometry`
+--- @param color Color3
+--- @return Frame
+local function makePiece(parent: Instance, name: string, spec: any, color: Color3): Frame
+    local frame = Instance.new("Frame")
+    frame.Name = name
+    frame.AnchorPoint = Vector2.new(0.5, 0.5)
+    frame.Position = UDim2.fromOffset(spec.Position.X, spec.Position.Y)
+    frame.BackgroundColor3 = color
+    frame.BorderSizePixel = 0
+    frame.Rotation = spec.Rotation
+    frame.ZIndex = 2
+
+    -- `Size` es un numero en cuerpo y chispa, y una tabla en el resto.
+    if type(spec.Size) == "number" then
+        frame.Size = UDim2.fromOffset(spec.Size, spec.Size)
+    else
+        frame.Size = UDim2.fromOffset(spec.Size.X, spec.Size.Y)
+    end
+
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(0, spec.CornerRadius)
+    corner.Parent = frame
+
+    frame.Parent = parent
+
+    return frame
+end
+
+--- Dibuja la BOMBA dentro del marco del boton.
+---
+--- El orden de creacion es el de DIBUJO (de atras hacia delante): cuerpo,
+--- franja, tapa, mecha y chispa. En Roblox el ultimo hijo anadido se pinta
+--- encima, asi que este orden es el unico que produce una bomba y no un
+--- amasijo de rectangulos.
+---
+--- @param parent Instance marco del boton
+--- @return table parts piezas creadas, indexadas por nombre
+local function buildBombDrawing(parent: Instance): { [string]: any }
+    local geometry = BombButtonRules.Geometry()
+    local palette = BombButtonRules.Palette
+
+    local parts = {}
+
+    parts.Body = makePiece(parent, "BombBody", geometry.Body, toColor3(palette.Body))
+    parts.Band = makePiece(parent, "BombBand", geometry.Band, toColor3(palette.Band))
+
+    -- ZIndex mayor para las piezas que van ENCIMA. Sin esto, el orden de
+    -- creacion no basta: el marco transparente tiene ZIndex 1 y las
+    -- piezas con ZIndex 2 quedan por encima, que es lo que se quiere.
+    parts.Top = makePiece(parent, "BombTop", geometry.Top, toColor3(palette.Top))
+    parts.Fuse = makePiece(parent, "Fuse", geometry.Fuse, toColor3(palette.Fuse))
+    parts.Spark = makePiece(parent, "FuseGlow", geometry.Spark, toColor3(palette.Spark))
+    parts.Spark.ZIndex = 3
+
+    -- HALO de la chispa: un disco translucido detras del punto calido.
+    --
+    -- Sin el, la chispa es un punto de 10 px que en movil no se ve. Con el,
+    -- se lee como "algo ardiendo" incluso a un metro de la pantalla.
+    local glow = makePiece(parent, "SparkGlow", geometry.Spark, toColor3(palette.Spark))
+    glow.BackgroundTransparency = 0.55
+    glow.ZIndex = 2
+    glow.Size = UDim2.fromOffset(geometry.Spark.Size * 2.4, geometry.Spark.Size * 2.4)
+    parts.Glow = glow
+
+    -- ETIQUETA SECUNDARIA: la tecla, o la cuenta atras.
+    --
+    -- Va ABAJO de la bomba y es pequena. El texto es un detalle de apoyo,
+    -- no el elemento principal: el jugador debe entender el boton sin
+    -- leerlo, y esta etiqueta solo confirma el atajo en PC.
+    local label = Instance.new("TextLabel")
+    label.Name = "Hint"
+    label.AnchorPoint = Vector2.new(0.5, 1)
+    label.Position = UDim2.fromOffset(0, -2)
+    label.Size = UDim2.fromOffset(BombButtonRules.Size, 22)
+    label.BackgroundTransparency = 1
+    label.BorderSizePixel = 0
+    label.Font = Enum.Font.GothamBold
+    label.Text = "F"
+    label.TextColor3 = toColor3(palette.Hint)
+    label.TextSize = 15
+    label.TextXAlignment = Enum.TextXAlignment.Center
+    label.ZIndex = 4
+    label.Parent = parent
+    parts.Hint = label
+
+    bombParts = parts
+
+    return parts
 end
 
 --- Crea el boton tactil de bomba si el dispositivo tiene pantalla tactil.
@@ -128,27 +251,53 @@ local function ensureBombButton(): boolean
     gui.IgnoreGuiInset = false
     gui.Parent = playerGui
 
+    -- MARCO TRANSPARENTE que recibe los toques.
+    --
+    -- Es un `TextButton` por una razon tecnica, no de diseno: es el
+    -- unico `GuiButton` que acepta `MouseButton1Click` conservando
+    -- `AutoButtonColor = false`, y sin su texto visible. Lo que el jugador
+    -- VE son las piezas dibujadas que cuelgan de el.
+    --
+    -- El nombre se mantiene como `BombButton` porque el resto del codigo
+    -- (y las herramientas de verificacion) lo buscan por el.
     local button = Instance.new("TextButton")
     button.Name = "BombButton"
     button.AnchorPoint = Vector2.new(1, 1)
     button.Position = UDim2.new(1, -32, 1, -32)
-    button.Size = UDim2.fromOffset(96, 96)
-    button.BackgroundColor3 = Color3.fromRGB(220, 60, 60)
-    button.BackgroundTransparency = 0.25
+    button.Size = UDim2.fromOffset(BombButtonRules.Size, BombButtonRules.Size)
+    button.BackgroundTransparency = 1
     button.BorderSizePixel = 0
-    button.Text = "BOMBA"
-    button.TextColor3 = Color3.fromRGB(255, 255, 255)
-    button.TextSize = 18
-    button.Font = Enum.Font.GothamBold
-    button.AutoButtonColor = true
+    -- El texto del marco esta VACIO a proposito: el texto del boton es
+    -- un detalle pequeno (la tecla), y lo pone la etiqueta secundaria.
+    button.Text = ""
+    button.AutoButtonColor = false
     button.Parent = gui
+
+    buildBombDrawing(button)
 
     -- `MouseButton1Click` cubre PC y el toque emulado en movil, y es la
     -- senal del PROPIO boton, no global. Por eso no puede colocar una
     -- bomba al abrir un menu o al mover la camara, que fue exactamente
     -- el bug que corrigio el `TouchTap` global.
     button.MouseButton1Click:Connect(function()
-        Controller.RequestBombPlacement()
+        -- La marca de "pulsado" se pone ANTES de la peticion: el jugador
+        -- tiene que ver que el boton responde en el mismo frame del toque,
+        -- no un instante despues. Si la peticion falla, la marca caduca
+        -- sola y el boton vuelve a su estado.
+        _pressedUntil = os.clock() + BombButtonRules.Timing.PressDuration
+
+        local sent = Controller.RequestBombPlacement()
+
+        if sent then
+            -- `BombController` ya sabe si el servidor acepto. Todavia no:
+            -- la ida y vuelta por la red no ha ocurrido. La confirmacion
+            -- real llega cuando el servidor publica la bomba en el mundo.
+            return
+        end
+
+        -- No se envio nada: se retira la marca inmediatamente para que el
+        -- boton no se quede "pulsado" sin que haya pasado nada.
+        _pressedUntil = 0
     end)
 
     -- El Maid destruye el ScreenGui completo, que incluye el boton.
@@ -157,33 +306,122 @@ local function ensureBombButton(): boolean
     end
 
     bombButton = button
-    Logger.Info("InputController: boton de bomba creado.")
+    Logger.Info("InputController: boton de bomba dibujado (bomba, no texto).")
     return true
 end
 
---- Refresca el boton: lo atenua y muestra el cooldown restante.
+--- Pinta el estado del boton.
 ---
---- Convierte el cooldown en algo VISIBLE. Sin esto el boton acepta el
---- toque, el controller lo frena en silencio y el jugador no entiende
---- por que no ocurre nada, que es indistinguible de un boton roto.
+--- Convierte el estado en algo VISIBLE. Sin esto el boton acepta el
+--- toque, el controller lo frena en silencio y el jugador no entiende por
+--- que no ocurre nada, que es indistinguible de un boton roto.
+---
+--- La DECISION de que estado toca la toma `BombButtonRules.Resolve`; aqui
+--- solo se aplican sus numeros. Si el estado se decidiera aqui, el
+--- "bloqueado" y el "enfriado" volverian a ser el mismo boton apagado,
+--- que es el bug que tenia el boton rojo.
+---
+--- @return boolean updated
 local function refreshBombButton(): boolean
     if not bombButton or not bombButton.Parent then
         return false
     end
 
+    local now = os.clock()
     local remaining = Controller.GetBombCooldownRemaining()
 
-    if remaining > 0 then
-        bombButton.BackgroundTransparency = 0.6
-        bombButton.Text = ("%.1fs"):format(remaining)
-        bombButton.AutoButtonColor = false
-    else
-        bombButton.BackgroundTransparency = 0.25
-        bombButton.Text = "BOMBA"
-        bombButton.AutoButtonColor = true
+    -- `CanRequest` es la opinion del CLIENTE sobre si puede. No concede
+    -- nada: el servidor sigue validando. Solo decide si el boton se ve
+    -- disponible o apagado.
+    local canPlace = BombController.CanRequest()
+
+    local state = BombButtonRules.Resolve(
+        canPlace,
+        remaining,
+        now < _pressedUntil,
+        now < _placedUntil
+    )
+    local look = BombButtonRules.Appearance(state, remaining)
+
+    -- COLOR: cada pieza se mezcla hacia gris segun `Dim`. Se usa el mismo
+    -- valor para todas, de modo que el boton entero se apaga como uno.
+    local muted = BombButtonRules.Palette.Muted
+
+    --- @param color any
+    --- @return Color3
+    local function dimmed(color: any): Color3
+        local t = look.Dim
+        return Color3.fromRGB(
+            color.R + (muted.R - color.R) * t,
+            color.G + (muted.G - color.G) * t,
+            color.B + (muted.B - color.B) * t
+        )
     end
 
+    if bombParts.Body then bombParts.Body.BackgroundColor3 = dimmed(look.Body) end
+    if bombParts.Band then bombParts.Band.BackgroundColor3 = dimmed(look.Band) end
+    if bombParts.Top then bombParts.Top.BackgroundColor3 = dimmed(look.Top) end
+    if bombParts.Fuse then bombParts.Fuse.BackgroundColor3 = dimmed(look.Fuse) end
+
+    -- CHISPA: es lo unico que ANDA, asi que lleva su propio pulso.
+    --
+    -- En `Placed` el factor lo fija `Appearance` (mas grande, para que se
+    -- lea como fogonazo). En cualquier otro estado visible late con el
+    -- tiempo. Cuando no debe verse, no se latea: llamar a `SparkPulse` en
+    -- un estado apagado seria trabajo por nada.
+    if bombParts.Spark and bombParts.Glow then
+        local visible = look.SparkVisible
+        bombParts.Spark.Visible = visible
+        bombParts.Glow.Visible = visible
+
+        local scale = look.SparkScale
+
+        if visible and state ~= BombButtonRules.State.Placed then
+            scale = BombButtonRules.SparkPulse(
+                now,
+                BombButtonRules.Timing.SparkPulsePeriod,
+                BombButtonRules.Timing.SparkPulseAmount
+            ) * look.SparkScale
+        end
+
+        local sparkBase = BombButtonRules.Geometry().Spark.Size
+        local sparkSize = sparkBase * scale
+
+        bombParts.Spark.Size = UDim2.fromOffset(sparkSize, sparkSize)
+        bombParts.Spark.BackgroundColor3 = dimmed(look.Spark)
+        bombParts.Glow.Size = UDim2.fromOffset(sparkSize * 2.4, sparkSize * 2.4)
+        bombParts.Glow.BackgroundColor3 = dimmed(look.Spark)
+    end
+
+    -- TEXTO SECUNDARIO: la tecla, la cuenta atras o la confirmacion.
+    if bombParts.Hint then
+        bombParts.Hint.Text = look.Label
+
+        -- El color del texto tambien se apaga: un texto blanco sobre un
+        -- boton gris es lo mas parecido a "boton roto" que hay.
+        bombParts.Hint.TextColor3 = dimmed(BombButtonRules.Palette.Hint)
+
+        -- La cuenta atras necesita ser mas grande que la tecla: si no, el
+        -- jugador no ve el numero y el enfriamiento parece no avanzar.
+        bombParts.Hint.TextSize = if look.ShowCountdown then 20 else 15
+    end
+
+    -- El MARCO nunca se pinta: es invisible y solo recibe los toques.
+    bombButton.BackgroundTransparency = 1
+
     return true
+end
+
+--- Marca el boton como "bomba colocada" durante el tiempo de confirmacion.
+---
+--- La llama el observador de bombas del `Workspace`, no el handler del
+--- clic: la confirmacion REAL es que el servidor publico una bomba en el
+--- mundo. Si se marcara al enviar la peticion, una peticion rechazada (por
+--- enfriamiento, sin ronda o fuera de la arena) se sentiria como si la
+--- bomba se hubiera puesto.
+--- @param duration number?
+function Controller.NotifyBombPlaced(duration: number?)
+    _placedUntil = os.clock() + (duration or BombButtonRules.Timing.PlacedDuration)
 end
 
 --- Activa el controller. Debe ser idempotente y reversible con Destroy.
@@ -207,6 +445,34 @@ function Controller.Start(maid: any?): boolean
     -- El boton se crea ANTES de conectar los eventos: el handler
     -- tactil lo consulta y debe existir cuando llegue el primer toque.
     ensureBombButton()
+
+    -- CONFIRMACION REAL DE LA BOMBA.
+    --
+    -- Se observa la carpeta `Bombs` del Workspace en vez de confiar en la
+    -- peticion que acabamos de enviar. La bomba la crea y la publica el
+    -- SERVIDOR, asi que su aparicion es la unica prueba de que la
+    -- peticion fue aceptada: si el servidor la rechazo (por enfriamiento,
+    -- sin ronda o fuera de la arena), no aparecera nada y el boton no
+    -- mostrara la confirmacion.
+    --
+    -- Se cuentan las bombas VISTAS, no las peticiones. Asi el boton
+    -- confirma tanto una bomba colocada con el dedo como una puesta con el
+    -- teclado, sin duplicar el camino.
+    local bombFolder = Workspace:WaitForChild("Bombs", 10)
+    local seenBombs = 0
+
+    if bombFolder then
+        seenBombs = #bombFolder:GetChildren()
+
+        connectIfActive(bombFolder.ChildAdded, function(_instance: any)
+            seenBombs += 1
+            Controller.NotifyBombPlaced()
+        end)
+
+        connectIfActive(bombFolder.ChildRemoved, function(_instance: any)
+            seenBombs -= 1
+        end)
+    end
 
     local function connectIfActive(signal: any, handler: (...any) -> ())
         if _maid then
@@ -304,6 +570,14 @@ function Controller.Destroy(): boolean
     Controller.IsActive = false
     bombRemote = nil
     bombButton = nil
+    -- La tabla de piezas se vacia junto con el boton: si se guardara, y
+    -- `Destroy` se llamara dos veces, el segundo paso encontraria piezas
+    -- ya destruidas y `refreshBombButton` escribiria sobre ellas.
+    bombParts = {}
+    -- Las marcas temporales se limpian para que un `Start` posterior no
+    -- herede un "colocado" de hace diez segundos y avise sin motivo.
+    _pressedUntil = 0
+    _placedUntil = 0
     _maid = nil
     return true
 end

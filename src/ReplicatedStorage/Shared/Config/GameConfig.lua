@@ -83,6 +83,29 @@ return {
 	-- Fraccion del dano de la explosion que recibe cada bloque. Por
 	-- debajo de 1, una bomba no borra la estructura entera de un golpe.
 	BlockDamageScale = 0.5,
+
+	-- ---------------------------------------------------------------
+	-- Reaparicion de bloques
+	-- ---------------------------------------------------------------
+	-- RANGO, no un numero fijo. Un bloque que reaparece siempre a los 8 s
+	-- hace que la arena tenga un ritmo artificial y el jugador memorice un
+	-- reloj en vez de jugar. Con un rango, cada destruccion es distinta.
+	--
+	-- El SERVIDOR SORTEA el valor con su propia semilla y lo guarda en el
+	-- bloque. El cliente no propone ningun instante: si lo hiciera, podria
+	-- pedir que un bloque reapareciera ya, antes de tiempo.
+	BlockRespawnMin = 8,
+	BlockRespawnMax = 25,
+
+	-- Cuanto se REINTENTA un respawn rechazado por un motivo externo (por
+	-- ejemplo un bloque apoyado encima). Sin este margen, el bloque se
+	-- queda destruido para siempre hasta el fin de ronda.
+	BlockRespawnRetryDelay = 3,
+
+	-- Margen alrededor de un bloque dentro del cual una entidad cuenta
+	-- como "ocupando la posicion". Es un poco MAS que el tope de tamano de
+	-- un monstruo para que un Guardian grande tambien bloquee el sitio.
+	BlockSpawnClearance = 6,
 	-- Altura por debajo de la cual se considera caida al vacio. El
 	-- servidor reubica al jugador en vez de dejar que muera sin control.
 	VoidKillY = -50,

@@ -40,6 +40,8 @@ local SUITES = {
 	{ name = "Progression", path = "./shared/Progression.spec" },
 	{ name = "Economy", path = "./shared/Economy.spec" },
 	{ name = "Destruction", path = "./shared/Destruction.spec" },
+	{ name = "BombButton", path = "./shared/BombButton.spec" },
+	{ name = "BlockRespawn", path = "./shared/BlockRespawn.spec" },
 	{ name = "Gameplay", path = "./shared/Gameplay.spec" },
 	{ name = "RoundLifecycle", path = "./shared/RoundLifecycle.spec" },
 	{ name = "ServiceStructure", path = "./shared/ServiceStructure.spec" },
