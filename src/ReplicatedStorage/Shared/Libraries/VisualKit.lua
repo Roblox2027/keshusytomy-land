@@ -40,6 +40,7 @@ local SHARED = ReplicatedStorage:WaitForChild("Shared")
 local CONFIG = SHARED:WaitForChild("Config")
 
 local GameConfig = require(CONFIG:WaitForChild("GameConfig"))
+local MonsterScaleRules = require(SHARED:WaitForChild("Libraries"):WaitForChild("MonsterScaleRules"))
 
 local VisualKit = {}
 
@@ -411,14 +412,41 @@ VisualKit.MonsterShape = monsterShape
 --- @return Model?
 function VisualKit.BuildMonster(def: any): Model?
 	local shape = monsterShape(def)
-	local size = shape.size
+
+	-- ESCALA VISUAL.
+	--
+	-- El modelo se dibuja MULTIPLICADO por la escala del bicho y por la del
+	-- mundo. Es la razon por la que un Guardian se ve claramente mas alto
+	-- que el jugador y por la que un Cyber Stalker se ve mas imposing que
+	-- un Slime del Forest.
+	--
+	-- El mundo se aplica aqui y NO en la hitbox: un enemigo puede verse mas
+	-- grande en un mundo que en otro sin que sus colisiones cambien, y asi
+	-- la dificultad se comunica sin volver los pasillos intransitables.
+	local visualScale: number = (def.VisualScale or 1) * (def.WorldScale or 1)
+	local size: Vector3 = shape.size * visualScale
 
 	local model = Instance.new("Model")
 	model.Name = ("Monster_%s"):format(tostring(def.Id))
 
-	local root = makePart("Root", Vector3.new(size.X, size.Y, size.Z), CFrame.new(), Color3.new(1, 1, 1), {
+	-- HITBOX: raiz invisible, proporcional al modelo y acotada por
+	-- `MonsterScaleRules`.
+	--
+	-- Antes la raiz era del mismo tamano que el cuerpo, y con el cuerpo
+	-- agrandado eso hacia que un Guardian bloqueara el pasillo entero. La
+	-- proporcion sale de la definicion, que ya la tiene acotada, y se
+	-- vuelve a acotar aqui porque este es el ULTIMO sitio donde un valor
+	-- desatendido se convierte en una pared invisible.
+	local hitboxRatio: number = def.HitboxScale or MonsterScaleRules.DefaultHitboxRatio
+	local rootSize: Vector3 = size * math.clamp(hitboxRatio, MonsterScaleRules.MinHitboxRatio, MonsterScaleRules.MaxHitboxRatio)
+
+	local root = makePart("Root", rootSize, CFrame.new(), Color3.new(1, 1, 1), {
 		transparency = 1,
+		collide = true,
 	})
+	root:SetAttribute("IsHitbox", true)
+	root:SetAttribute("VisualScale", visualScale)
+	root:SetAttribute("HitboxRatio", rootSize.Magnitude / math.max(size.Magnitude, 0.001))
 	model.PrimaryPart = root
 	root.Parent = model
 
@@ -438,7 +466,12 @@ function VisualKit.BuildMonster(def: any): Model?
 
 	-- Ojos: la diferencia entre "una criatura" y "una caja con vida". Cuelgan
 	-- del root, asi que miran hacia donde mire el modelo sin codigo extra.
-	local eyeSize = Vector3.new(0.5, 0.6, 0.3)
+	--
+	-- El tamano de los ojos TAMBIEN escala. Con un ojo de tamano fijo, el
+	-- Guardian de 2.1 tendria unos ojos diminutos y deja de tener cara: la
+	-- expresion es justo lo que hace que un bicho grande se lea como una
+	-- criatura y no como un mueble.
+	local eyeSize = Vector3.new(0.5, 0.6, 0.3) * visualScale
 	local eyeHeight = size.Y * 0.18
 	local eyeSpread = size.X * 0.22
 	local eyeDepth = -(size.Z / 2) - 0.08
@@ -666,6 +699,18 @@ function VisualKit.BuildMonster(def: any): Model?
 	model:SetAttribute("AccentR", shape.accent.R)
 	model:SetAttribute("AccentG", shape.accent.G)
 	model:SetAttribute("AccentB", shape.accent.B)
+
+	-- ESCALA PUBLICADA en el modelo.
+	--
+	-- Se publica como atributo y no solo como tamano porque es lo que
+	-- permite comprobar desde fuera, sin abrir el modelo, que un bicho
+	-- sale con la escala correcta. Es lo que usan las pruebas de
+	-- verificacion en runtime y lo que haria falta para detectar en un
+	-- playtest que un mundo se quedo sin aplicar su multiplicador.
+	model:SetAttribute("VisualScale", visualScale)
+	model:SetAttribute("HitboxScale", def.HitboxScale or MonsterScaleRules.DefaultHitboxRatio)
+	model:SetAttribute("VisualHeight", size.Y)
+	model:SetAttribute("HitboxHeight", rootSize.Y)
 
 	return model
 end

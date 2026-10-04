@@ -510,7 +510,11 @@ function Service.SpawnMonstersForRound(worldId: string?): number
 	local spawned = 0
 
 	for _, entry in ipairs(Service.BuildMonsterSpawns(worldId)) do
-		if Service._monsterService.Spawn(entry.Id, entry.Position) then
+		-- El `worldId` se pasa al spawn para que el bicho salga con la escala
+		-- de SU mundo. Sin esto, entrar por el portal del Cyber poblaba la
+		-- arena con enemigos del tamano del Forest y la dificultad por
+		-- mundo no se comunicaba mas alla del color del suelo.
+		if Service._monsterService.Spawn(entry.Id, entry.Position, worldId) then
 			spawned += 1
 		end
 	end

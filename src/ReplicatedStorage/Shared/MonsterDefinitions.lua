@@ -25,6 +25,25 @@
 
 export type MonsterDefinition = {
 	Id: string,
+
+	-- ------------------------------------------------------- TAMANO
+	--
+	-- `VisualScale` multiplica el MODELO y `HitboxScale` es la
+	-- PROPORCION de la hitbox respecto al modelo (0..1). Se separan porque
+	-- un enemigo grande que colisiona como el jugador se atraviesa de
+	-- forma visible, mientras que uno que colisiona como su modelo visual
+	-- se atasca en los pasos y deja de poder rodearse.
+	--
+	-- Los valores salen de `MonsterScaleRules`, donde vive el contrato de
+	-- diseno y los topes. La REGLA es que `VisualScale > 1`: un monstruo
+	-- del mismo tamano que el jugador no se lee como amenaza.
+	VisualScale: number,
+	HitboxScale: number,
+
+	-- Escala que aplica el MUNDO por encima de la del monstruo. Permite
+	-- que un bicho sea mayor en un mundo que en otro sin duplicar su
+	-- definicion.
+	WorldScale: number,
 	Name: string,
 	Health: number,
 	Speed: number,
@@ -123,6 +142,19 @@ local Enum = (Enum :: any) or {
 	Material = { SmoothPlastic = "SmoothPlastic" },
 }
 
+-- `MonsterScaleRules` es logica pura (no toca el motor), asi que se importa
+-- con una ruta RELATIVA. Es la unica forma de que funcione en los dos sitios
+-- donde se carga este modulo:
+--
+--   - en Roblox, donde el modulo vive en `ReplicatedStorage/Shared/`;
+--   - en el interprete standalone de `luau.exe` que ejecuta las pruebas,
+--     donde `script` NO existe y `script.Parent` daria nil.
+--
+-- Antes se intentaba un `pcall` con `script.Parent`, y por eso la tabla de
+-- escalas se quedaba vacia fuera de Roblox: las pruebas veian a todos los
+-- bichos con el valor por defecto. `MonsterScale.spec` lo detecta.
+local MonsterScaleRules = require("./Libraries/MonsterScaleRules")
+
 -- Definiciones por mundo. El indice es el `Id` que usa el resto del juego.
 local DEFINITIONS: { [string]: MonsterDefinition } = {}
 
@@ -149,6 +181,22 @@ local function define(def: { [string]: any })
 		-- Contrato historico (lo leen CombatMath, pruebas y servicios).
 		Id = def.Id,
 		Name = def.Name or def.Id,
+
+		-- TAMANO.
+		--
+		-- `MonsterScaleRules` es la fuente de verdad de estos valores, pero
+		-- aqui NO se importa: este modulo esta pensado para cargarse sin
+		-- Roblox (las pruebas lo hacen con los stubs de `Color3` de arriba)
+		-- y un `require` a `Libraries` anadiria otra dependencia que resolver.
+		--
+		-- La duplicacion esta vigilada por `MonsterScale.spec`, que
+		-- comprueba que ambas tablas COINCIDEN. Si un dia se decide unir
+		-- los dos modulos, esa prueba avisa de lo que haya que borrar.
+		VisualScale = def.VisualScale or MonsterScaleRules.GetVisualScale(def.Id),
+		-- La hitbox es SIEMPRE proporcional al modelo. No se declara a mano
+		-- en cada bicho porque es el valor que mas caro sale equivocarse.
+		HitboxScale = MonsterScaleRules.GetHitboxRatio(def.Id),
+		WorldScale = def.WorldScale or 1,
 		Health = def.Health or 30,
 		Speed = speed,
 		Damage = def.Damage or 8,

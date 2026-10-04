@@ -38,6 +38,8 @@ local SHARED = ReplicatedStorage:WaitForChild("Shared")
 local UTILS = SHARED:WaitForChild("Utils")
 
 local Logger = require(UTILS:WaitForChild("Logger"))
+local CONTROLLERS = script.Parent
+local AudioController = require(CONTROLLERS:WaitForChild("AudioController"))
 
 local Controller = {}
 
@@ -235,6 +237,14 @@ local function watchHumanoid(humanoid: Humanoid, isLocalPlayer: boolean)
 
 			if isLocalPlayer then
 				Controller.FlashDamage()
+				-- El dano al JUGADOR suena sin posicion: es el sonido del
+				-- cuerpo de uno, no del mundo.
+				AudioController.PlayEvent("PlayerHurt")
+			else
+				-- El dano a un ENEMIGO suena DONDE esta. `MonsterHurt` es el
+				-- mismo para todos: lo que identifica a la criatura es su
+				-- modelo y su voz, no un grunido distinto por bicho.
+				AudioController.PlayEvent("MonsterHurt", position)
 			end
 		elseif isLocalPlayer then
 			spawnNumber(("+%d"):format(math.floor(delta)), position, Color3.fromRGB(120, 255, 160))
@@ -245,6 +255,16 @@ local function watchHumanoid(humanoid: Humanoid, isLocalPlayer: boolean)
 	if _maid then
 		_maid:Connect(humanoid.HealthChanged, onHealthChanged)
 		_maid:Connect(humanoid.Died, function()
+			-- La MUERTE tiene sonido propio: es el dato que dice al jugador
+			-- si ha ganado o perdido el intercambio.
+			local deathPosition = anchorPosition(humanoid) or Vector3.zero
+
+			if isLocalPlayer then
+				AudioController.PlayEvent("PlayerDeath")
+			else
+				AudioController.PlayEvent("MonsterDeath", deathPosition)
+			end
+
 			_lastHealth[key] = nil
 		end)
 	end
@@ -302,6 +322,15 @@ local function watchBombs()
 		return
 	end
 
+	-- Ultima posicion conocida de cada bomba viva.
+	--
+	-- Existe por una razon tecnica: cuando la bomba desaparece, su instancia
+	-- ya no esta en el Workspace y `PrimaryPart` es nil. Sin guardar la
+	-- posicion ANTES, el BOOM no tendria sitio donde sonar y habria que
+	-- emitirlo en el oido del jugador, que es justo lo que no dice nada
+	-- sobre si la bomba le ha alcanzado o ha pegado al lado.
+	local lastPosition: { [Instance]: Vector3 } = {}
+
 	--- @param instance Instance
 	local function onBombAdded(instance: Instance)
 		if not instance:IsA("Model") then
@@ -315,7 +344,65 @@ local function watchBombs()
 		end
 
 		spawnNumber("BOMBA", root.Position + Vector3.new(0, 4.5, 0), Color3.fromRGB(255, 200, 90), 0.8)
+
+		lastPosition[instance] = root.Position
+
+		-- `CLICK / DEPLOY`. Suena en el sitio donde se ha puesto la bomba, no
+		-- en el oido: el jugador oye DONDE la ha dejado, que es informacion
+		-- de juego y no un adorno.
+		AudioController.PlayEvent("BombPlace", root.Position)
+
+		-- EL TICK DE LA MECHA.
+		--
+		-- La bomba publica su atributo `FuseRemaining`, asi que este cliente
+		-- sigue la cuenta REAL sin preguntar al servidor. El intervalo se
+		-- acorta en el ultimo segundo: ahi es cuando el sonido tiene que
+		-- volverse agresivo, porque de eso depende que el jugador salga.
+		--
+		-- No se reproduce por frame: hay un intervalo explicito entre
+		-- tictacs, porque un `Sound` por frame abriria cientos por bomba.
+		task.spawn(function()
+			local elapsed = 0
+			local lastTick = 0
+
+			while instance.Parent and elapsed < 6 do
+				task.wait(0.1)
+				elapsed += 0.1
+
+				local remaining = instance:GetAttribute("FuseRemaining")
+
+				if type(remaining) ~= "number" then
+					break
+				end
+
+				-- Ultimo segundo: tic cada 0.1. Antes: cada 0.4.
+				local interval = if remaining <= 1 then 0.1 else 0.4
+
+				if elapsed - lastTick >= interval then
+					lastTick = elapsed
+					AudioController.PlayEvent("BombFuse", root.Position)
+				end
+
+				if remaining <= 0 then
+					break
+				end
+			end
+		end)
 	end
+
+	-- EL BOOM.
+	--
+	-- Cuando la bomba sale del Workspace, el servidor ya ha detonado la
+	-- explosion. Se usa la ultima posicion conocida porque en el instante
+	-- del `ChildRemoved` la instancia ya no esta alli.
+	_maid:Connect(folder.ChildRemoved, function(instance: Instance)
+		local position = lastPosition[instance]
+		lastPosition[instance] = nil
+
+		if position ~= nil then
+			AudioController.PlayEvent("Explosion", position)
+		end
+	end)
 
 	_maid:Connect(folder.ChildAdded, onBombAdded)
 
@@ -326,7 +413,61 @@ local function watchBombs()
 	end
 end
 
---- Observa los monstruos visibles para mostrar su dano.
+--- Conecta el ciclo de VOZ de un monstruo.
+---
+--- Se apoya en el atributo `AIState` que `MonsterService` publica: es el
+--- dato REAL del servidor, no una estimacion del cliente. Cada cambio de
+--- estado tiene su sonido:
+---
+---   Warning -> TELEGRAPH, el aviso previo al ataque
+---   Charge  -> el ataque en si
+---   Chase   -> ALERTA, ha visto al jugador
+---
+--- El telegraph es el mas importante de los tres: es lo que convierte un
+--- golpe en algo a lo que el jugador puede reaccionar en vez de a algo que
+--- le pasa.
+---
+--- Se declara ANTES de `watchMonsters` porque `onMonsterAdded` la llama, y
+--- en Lua un `local function` usada antes de definirse vale `nil`.
+---
+--- @param monster Instance
+local function watchMonsterVoice(monster: Instance)
+	local lastState = monster:GetAttribute("AIState")
+
+	if type(lastState) ~= "string" or _maid == nil then
+		return
+	end
+
+	_maid:Connect(monster:GetAttributeChangedSignal("AIState"), function()
+		local state = monster:GetAttribute("AIState")
+
+		if type(state) ~= "string" or state == lastState then
+			return
+		end
+
+		-- `previous` se guarda ANTES de actualizar `lastState`. Si se
+		-- actualizara primero, la comprobacion de "ha entrado en Chase"
+		-- compararia consigo misma y la alerta no sonaria nunca.
+		local previous = lastState
+		lastState = state
+
+		local root = monster.PrimaryPart
+
+		if root == nil then
+			return
+		end
+
+		if state == "Warning" then
+			AudioController.PlayEvent("MonsterTelegraph", root.Position)
+		elseif state == "Charge" then
+			AudioController.PlayEvent("MonsterAttack", root.Position)
+		elseif state == "Chase" and previous ~= "Chase" then
+			AudioController.PlayEvent("MonsterAlert", root.Position)
+		end
+	end)
+end
+
+--- Observa los monstruos visibles para mostrar su dano y su voz.
 local function watchMonsters()
 	local folder = Workspace:WaitForChild("Monsters", 10)
 
@@ -345,6 +486,16 @@ local function watchMonsters()
 		if humanoid then
 			watchHumanoid(humanoid, false)
 		end
+
+		watchMonsterVoice(instance)
+
+		-- SONIDO DE APARICION.
+		--
+		-- Un monstruo que aparece sin hacer ruido es una sorpresa injusta:
+		-- el jugador no ha tenido tiempo de decidir nada. El sonido de
+		-- aparicion convierte "hay un bicho" en "ha entrado UN bicho aqui".
+		local root = instance.PrimaryPart
+		AudioController.PlayEvent("MonsterSpawn", if root ~= nil then root.Position else nil)
 	end
 
 	_maid:Connect(folder.ChildAdded, onMonsterAdded)
@@ -352,6 +503,112 @@ local function watchMonsters()
 	for _, child in ipairs(folder:GetChildren()) do
 		onMonsterAdded(child)
 	end
+end
+
+--- Observa los bloques del mapa para el sonido de ROTURA.
+---
+--- `DestructionService` marca cada bloque con `IsDestroyed`, asi que el
+--- cliente no necesita ningun remoto: el cambio de atributo ES el evento.
+--- Es el mismo criterio que con las bombas.
+local function watchBlocks()
+	local worlds = Workspace:FindFirstChild("Worlds")
+
+	if worlds == nil or _maid == nil then
+		return
+	end
+
+	--- @param instance Instance
+	local function attach(instance: Instance)
+		if not instance:IsA("BasePart") then
+			return
+		end
+
+		-- Se repite el CONTRATO de prefijo de `DestructionService`. No se
+		-- importa la constante porque ese servicio es de servidor y este
+		-- es un cliente: la unica forma de compartirla seria un modulo mas.
+		if string.sub(instance.Name, 1, #"Block_") ~= "Block_" then
+			return
+		end
+
+		local block = instance :: BasePart
+
+		_maid:Connect(block:GetAttributeChangedSignal("IsDestroyed"), function()
+			if block:GetAttribute("IsDestroyed") == true then
+				-- `CRACK / BREAK`, en la posicion del bloque: que es donde
+				-- el jugador ha visto desaparecer la estructura.
+				AudioController.PlayEvent("BlockBreak", block.Position)
+			end
+		end)
+	end
+
+	-- Los bloques que ya existen al arrancar se conectan aqui. Se recorre
+	-- una sola vez por vida del controller: hacerlo en cada aparicion
+	-- seria trabajo de mas para el mismo resultado.
+	for _, world in ipairs(worlds:GetChildren()) do
+		for _, instance in ipairs(world:GetDescendants()) do
+			attach(instance)
+		end
+	end
+
+	_maid:Connect(worlds.DescendantAdded, attach)
+end
+
+--- PASOS del jugador.
+---
+--- El sonido cambia con la SUPERFICIE (tierra, arena, hielo, roca, metal)
+--- y se dispara por MOVIMIENTO, medido en studs recorridos y no en tiempo.
+---
+--- Medir distancia y no tiempo es lo que hace que el paso suene distinto
+--- al correr y al andar: el jugador recorre mas studs por segundo y hace
+--- mas pasos, sin necesitar dos eventos distintos.
+---
+--- El cooldown de `AudioRules` es la segunda red: aun si la cuenta se
+--- descoloca, el motor no abre mas de un sonido cada 0.08 s.
+local _lastStepDistance = 0
+
+--- @param humanoid Humanoid
+--- @param rootPart BasePart
+local function watchFootsteps(humanoid: Humanoid, rootPart: BasePart)
+	if _maid == nil then
+		return
+	end
+
+	local lastPosition = rootPart.Position
+
+	_maid:Connect(humanoid:GetPropertyChangedSignal("MoveDirection"), function()
+		local direction = humanoid.MoveDirection
+
+		-- Quieto: no hay paso. Se resetea la cuenta para que al volver a
+		-- caminar el primer paso suene de inmediato.
+		if direction.Magnitude < 0.1 then
+			_lastStepDistance = 0
+			lastPosition = rootPart.Position
+			return
+		end
+
+		local moved = (rootPart.Position - lastPosition).Magnitude
+		lastPosition = rootPart.Position
+		_lastStepDistance += moved
+
+		-- Un paso cada 9 studs recorridos. Es una distancia, no un tiempo:
+		-- asi correr da mas pasos por segundo que andar, que es lo que
+		-- hace el sonido reconocible como "esta corriendo".
+		if _lastStepDistance < 9 then
+			return
+		end
+
+		_lastStepDistance = 0
+
+		local player = Players.LocalPlayer
+		local worldId = player and player:GetAttribute("World")
+		local stepEvent = AudioController.GetStepEvent(if type(worldId) == "string" then worldId else nil)
+
+		-- Volumen segun la velocidad: correr suena mas fuerte que andar.
+		local speed = humanoid.WalkSpeed
+		local volume = math.clamp(0.6 + (speed / 32) * 0.4, 0.4, 1)
+
+		AudioController.PlayEvent(stepEvent, nil, volume)
+	end)
 end
 
 --- @param maid any? Maid del registro de controllers.
@@ -384,9 +641,17 @@ function Controller.Start(maid: any?): boolean
 
 	if character then
 		local humanoid = character:WaitForChild("Humanoid", 10)
+		local rootPart = character:WaitForChild("HumanoidRootPart", 10)
 
 		if humanoid then
 			watchHumanoid(humanoid, true)
+		end
+
+		-- Los pasos necesitan el `HumanoidRootPart` para medir cuanto se ha
+		-- movido el jugador. Sin el, los pasos no suenan: es preferible a
+		-- sonar uno por frame.
+		if humanoid and rootPart and rootPart:IsA("BasePart") then
+			watchFootsteps(humanoid, rootPart :: BasePart)
 		end
 	end
 
@@ -395,15 +660,21 @@ function Controller.Start(maid: any?): boolean
 	if _maid then
 		_maid:Connect(player.CharacterAdded, function(newCharacter: Model)
 			local newHumanoid = newCharacter:WaitForChild("Humanoid", 10)
+			local newRoot = newCharacter:WaitForChild("HumanoidRootPart", 10)
 
 			if newHumanoid then
 				watchHumanoid(newHumanoid, true)
+			end
+
+			if newHumanoid and newRoot and newRoot:IsA("BasePart") then
+				watchFootsteps(newHumanoid, newRoot :: BasePart)
 			end
 		end)
 	end
 
 	watchMonsters()
 	watchBombs()
+	watchBlocks()
 	watchRewards()
 
 	Controller.IsActive = true

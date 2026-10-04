@@ -21,6 +21,7 @@ local FeatureConfig = require(CONFIG:WaitForChild("FeatureConfig"))
 local GameConfig = require(CONFIG:WaitForChild("GameConfig"))
 local PerformanceConfig = require(CONFIG:WaitForChild("PerformanceConfig"))
 local AIService = require(SHARED:WaitForChild("Libraries"):WaitForChild("AIService"))
+local MonsterScaleRules = require(SHARED:WaitForChild("Libraries"):WaitForChild("MonsterScaleRules"))
 local VisualKit = require(SHARED:WaitForChild("Libraries"):WaitForChild("VisualKit"))
 local MonsterDefinitions = require(SHARED:WaitForChild("MonsterDefinitions"))
 local Logger = require(UTILS:WaitForChild("Logger"))
@@ -320,7 +321,18 @@ end
 --- @param definitionId string
 --- @param position Vector3
 --- @return number? monsterId nil si no se pudo crear
-function Service.Spawn(definitionId: string, position: Vector3): number?
+--- Genera un monstruo.
+---
+--- El `worldId` es OPCIONAL y no es decorativo: decide la escala. El
+--- multiplicador de mundo vive en `MonsterScaleRules` y se aplica al
+--- modelo, nunca a la hitbox, para que un enemigo mas grande en el Cyber
+--- no convierta los pasillos en muros.
+---
+--- @param definitionId string
+--- @param position Vector3
+--- @param worldId string? mundo al que pertenece la arena
+--- @return number? monsterId
+function Service.Spawn(definitionId: string, position: Vector3, worldId: string?): number?
 	if not FeatureConfig.ENABLE_MONSTER_HUNT then
 		Logger.Debug(("monstruo '%s' no creado: PvE deshabilitado"):format(definitionId))
 		return nil
@@ -344,7 +356,26 @@ function Service.Spawn(definitionId: string, position: Vector3): number?
 		return nil
 	end
 
-	local model = buildMonsterModel(def)
+	-- Se aplica el multiplicador de MUNDO sobre una COPIA de la definicion.
+	--
+	-- Se copia y no se modifica la original porque `MonsterDefinitions` es
+	-- una tabla COMPARTIDA: si `Spawn` escribiera `def.WorldScale` ahi, el
+	-- primer monstruo del Cyber dejaria al Slime del Forest con escala de
+	-- Cyber para siempre, y el orden de aparicion decidiria el tamano de
+	-- los bichos.
+	local worldMultiplier = MonsterScaleRules.GetWorldScale(worldId)
+	local spawnDef = def
+
+	if worldMultiplier ~= 1 then
+		spawnDef = {}
+		for key, value in pairs(def) do
+			spawnDef[key] = value
+		end
+
+		spawnDef.WorldScale = worldMultiplier
+	end
+
+	local model = buildMonsterModel(spawnDef)
 
 	if not model then
 		Logger.Error("MonsterService: no se pudo construir el modelo del monstruo.")

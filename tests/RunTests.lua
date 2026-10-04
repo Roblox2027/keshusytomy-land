@@ -32,6 +32,7 @@ local SUITES = {
 	{ name = "PartyRules", path = "./shared/PartyRules.spec" },
 	{ name = "GameConfig", path = "./shared/GameConfig.spec" },
 	{ name = "AudioPool", path = "./shared/AudioPool.spec" },
+	{ name = "AudioRules", path = "./shared/AudioRules.spec" },
 	{ name = "CombatMath", path = "./shared/CombatMath.spec" },
 	{ name = "Profile", path = "./shared/Profile.spec" },
 	{ name = "ProfileCodes", path = "./shared/ProfileCodes.spec" },
@@ -47,6 +48,7 @@ local SUITES = {
 	{ name = "ServiceStructure", path = "./shared/ServiceStructure.spec" },
 	{ name = "BootWiring", path = "./shared/BootWiring.spec" },
 	{ name = "AIService", path = "./shared/AIService.spec" },
+	{ name = "MonsterScale", path = "./shared/MonsterScale.spec" },
 	{ name = "MonsterBalance", path = "./shared/MonsterBalance.spec" },
 	{ name = "TestDriverLogic", path = "./shared/TestDriverLogic.spec" },
 }
