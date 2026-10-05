@@ -151,10 +151,14 @@ function Rules.Appearance(state: string, cooldownRemaining: number): { [string]:
 	local sparkScale = 1
 
 	if state == Rules.State.Ready then
-		-- Sin cambios: la bomba se ve tal cual. La etiqueta secundaria
-		-- muestra la TECLA, porque en PC el boton es un atajo y el jugador
-		-- quiere saber cual es sin abrir ningun menu.
-		label = "F"
+		-- Sin cambios: la bomba se ve tal cual. La etiqueta dice el ESTADO
+		-- ("LISTO"), no la tecla.
+		--
+		-- MEDIDO EN PLAY (antes de esto): aqui ponia "F", y `KeyHint` tambien
+		-- ponia "F". Los dos textos de apoyo de la bomba eran el MISMO, asi
+		-- que el estado no se leia nunca: "listo" y "recargando" se veian
+		-- igual en el boton. El atajo lo dice `KeyHint`; aqui va el estado.
+		label = "LISTO"
 
 	elseif state == Rules.State.Cooldown then
 		dim = 0.45
@@ -175,7 +179,10 @@ function Rules.Appearance(state: string, cooldownRemaining: number): { [string]:
 		-- El feedback del dedo: la bomba se aviva. NO se atenua, porque el
 		-- jugador acaba de hacer algo y el boton debe responder.
 		sparkScale = 1.45
-		label = "F"
+		-- Misma regla que en `Ready`: aqui va el ESTADO, no la tecla. Poner
+		-- "F" hacia que `State` y `KeyHint` se leyeran igual en reposo y
+		-- pulsado, que es justo cuando mas informacion hace falta.
+		label = "..."
 
 	elseif state == Rules.State.Placed then
 		-- Confirmacion del servidor. La chispa crece: el jugador tiene que
@@ -271,6 +278,13 @@ Rules.Timing = {
 	SparkPulsePeriod = 1.1,
 	-- Cuanto crece y encoge la chispa en cada latido.
 	SparkPulseAmount = 0.18,
+	-- Cuanto se lee el motivo de rechazo del servidor antes de retirarse solo.
+	--
+	-- El atributo que lo alimenta es un ESTADO, no un evento: sigue puesto
+	-- hasta que la bomba se coloca. Sin caducidad, un "FUERA DE LA ARENA"
+	-- antigo se quedaria escrito encima de un boton que ya funciona, y el
+	-- jugador leeria un motivo viejo como si fuera el actual.
+	RejectionDuration = 3,
 }
 
 --- Devuelve la escala de la chispa en un instante, para el latido.

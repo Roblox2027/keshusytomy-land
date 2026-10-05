@@ -24,6 +24,7 @@ local UTILS = SHARED:WaitForChild("Utils")
 
 local GameConfig = require(CONFIG:WaitForChild("GameConfig"))
 local GameConstants = require(CONSTANTS:WaitForChild("GameConstants"))
+local MonsterScaleRules = require(SHARED:WaitForChild("Libraries"):WaitForChild("MonsterScaleRules"))
 local Logger = require(UTILS:WaitForChild("Logger"))
 
 local RoundState = GameConstants.RoundState
@@ -55,6 +56,8 @@ Service._powerupService = nil
 function Service.SetPowerupService(powerupService: any?)
 	Service._powerupService = powerupService
 end
+
+Service._bossWatchRunning = false
 
 -- Destinos por nombre: "Lobby" y "Arena_<WorldId>".
 --
@@ -143,7 +146,63 @@ function Service.CollectDestinations(): number
 	-- por una lista constante: anadir un mundo al generador lo hace
 	-- jugable sin tocar este archivo.
 	local worlds = Workspace:FindFirstChild("Worlds")
-	local defaultWorld = Service._worldService and Service._worldService.GetDefaultWorldId()
+
+	-- BUG CORREGIDO (medido en PLAY): el alias `Arena` se creaba solo si
+	-- `Service._worldService` estaba ya inyectado, y NO lo esta.
+	--
+	-- MEDIDO: el ciclo de ronda escribia en cada ronda
+	--     WARN: destino 'Arena' no encontrado en el mapa
+	--     INFO: 0 jugador(es) movidos a Arena
+	-- y aun asi la ronda arrancaba y terminaba sola. En el juego eso es lo
+	-- mas peligroso que hay: el sistema "funciona", el log esta limpio, y
+	-- el jugador NUNCA entra en la arena. Las bombas, los monstruos y el
+	-- combate se ejecutan contra un jugador que sigue en el lobby.
+	--
+	-- CAUSA RAIZ, no sintoma: `Service.Init` llama a `CollectDestinations`, y
+	-- `SetDependencies` (que inyecta `_worldService`) se ejecuta DESPUES, en
+	-- la fase de cableado de `ServerMain`. El orden correcto es
+	-- Init de todo -> cablear -> Start de todo, asi que en `Init` el servicio
+	-- todavia no puede conocer a `WorldService`.
+	--
+	-- LA CORRECCION NO ES MORDERSE LA COLA, ES NO DEPENDER DEL ORDEN: el
+	-- alias se decide con los nombres de las carpetas del mapa, que ya estan
+	-- disponibles en `Init`. El mundo por defecto pasa a ser el PRIMERO en
+	-- orden alfabetico con arena construida. Es determinista y no exige que
+	-- ningun otro servicio haya arrancado antes que este.
+	--
+	-- Por que no se usa `_worldService` aqui: reintroduce el mismo bug con
+	-- otra forma. Si alguna vez hace falta la definicion de mundo, se consulta
+	-- DESPUES, en el punto de uso (`GetWorldArena`, `BuildMonsterSpawns`), que
+	-- ya corre con el cableado completo.
+	-- Por que el mundo por defecto NO se decide aqui: en `Init` todavia no hay
+	-- `WorldService` inyectado (el cableado de `ServerMain` va despues), asi que
+	-- `GetDefaultWorldId()` responderia `nil` y el alias `Arena` no se crearia.
+	-- MEDIDO: por eso el ciclo de ronda escribia en cada ronda
+	--     WARN: destino 'Arena' no encontrado en el mapa
+	--     INFO: 0 jugador(es) movidos a Arena
+	-- y el jugador nunca entraba en la arena.
+	--
+	-- Aqui solo se necesita que EXISTA un alias coherente. Se toma el primer
+	-- nombre en orden alfabetico: determinista y sin dependencias. El mundo
+	-- por defecto de verdad se consulta en `MoveAllPlayersToOwnArena`, que ya
+	-- corre con el cableado completo.
+	local defaultWorldName = nil
+
+	if worlds then
+		local candidatos = {}
+
+		for _, worldFolder in ipairs(worlds:GetChildren()) do
+			if worldFolder:FindFirstChild("ArenaCenter") then
+				table.insert(candidatos, worldFolder.Name)
+			end
+		end
+
+		table.sort(candidatos)
+
+		if #candidatos > 0 then
+			defaultWorldName = candidatos[1]
+		end
+	end
 
 	if worlds then
 		for _, worldFolder in ipairs(worlds:GetChildren()) do
@@ -153,13 +212,29 @@ function Service.CollectDestinations(): number
 				local key = "Arena_" .. worldFolder.Name
 				Service._destinations[key] = arenaCenter :: BasePart
 
-				if defaultWorld and worldFolder.Name == defaultWorld then
+				if worldFolder.Name == defaultWorldName then
 					-- Alias para el codigo que aun pide "Arena" a secas
 					-- (el ciclo de ronda). Apunta al MISMO Part, asi que
 					-- no hay dos destinos que puedan divergir.
 					Service._destinations.Arena = arenaCenter :: BasePart
 					Service._defaultArenaKey = key
 				end
+			end
+		end
+	end
+
+	-- Ultima red: si ningun mundo resulto "por defecto" (por ejemplo, porque
+	-- un solo mundo tiene la arena construida y el orden alfabetico lo
+	-- excluyo por un motivo raro), se toma la primera arena que exista. Un
+	-- alias ausente hace que la ronda no mueva a NADIE, y eso no puede
+	-- depender de una conjetura sobre nombres de carpetas.
+	if not Service._destinations.Arena then
+		for key, part in pairs(Service._destinations) do
+			if string.match(key, "^Arena_") then
+				Service._destinations.Arena = part
+				Service._defaultArenaKey = key
+				Logger.Warn(("MatchService: no se pudo elegir el mundo por defecto; se usa '%s'"):format(key))
+				break
 			end
 		end
 	end
@@ -198,6 +273,22 @@ function Service.GetWorldArena(worldId: string?): BasePart?
 		local arena = Service._destinations[Service.GetArenaKey(worldId)]
 		if arena then
 			return arena
+		end
+	end
+
+	-- Mismo criterio que `MoveAllPlayersToOwnArena`: el mundo por defecto se
+	-- consulta en el punto de uso, donde `WorldService` ya esta cableado.
+	-- `Service._destinations.Arena` es un alias de conveniencia (el ciclo de
+	-- ronda lo pedia "a secas"), no la fuente de verdad del mundo por defecto.
+	local worldService = Service._worldService
+
+	if worldService and worldService.GetDefaultWorldId then
+		local defaultWorld = worldService.GetDefaultWorldId()
+		if defaultWorld then
+			local arena = Service._destinations[Service.GetArenaKey(defaultWorld)]
+			if arena then
+				return arena
+			end
 		end
 	end
 
@@ -316,6 +407,57 @@ function Service.MoveAllPlayers(key: string): number
 	end
 
 	Logger.Info(("%d jugador(es) movidos a %s"):format(moved, key))
+	return moved
+end
+
+--- Lleva a cada jugador a la arena de SU PROPIO mundo.
+---
+--- POR QUE EXISTE (medido en PLAY, no deducido)
+--- -------------------------------------------
+--- El ciclo de ronda hacia `MoveAllPlayers("Arena")`, y `Arena` es un unico
+--- alias. Con los cinco mundos construidos, eso significa que un jugador que
+--- entro por el portal de Desert amanecia en la arena de FOREST al empezar la
+--- ronda. Peor: `MovePlayer` publica `World` a partir de la clave de destino,
+--- asi que el teleport no solo lo movia de sitio, ademas decia que estaba en
+--- Forest. A partir de ahi, `World` y la posicion real estan en contradiccion,
+--- que es exactamente el estado que el diseno prohibe.
+---
+--- LO QUE HACE: cada jugador va a `Arena_<su mundo>`. Un jugador que esta en
+--- el lobby no tiene mundo de juego, asi que va a la arena por defecto: entrar
+--- a la ronda es parte de su funcion.
+---
+--- NO es un parche del ciclo de ronda: es la correccion de a donde debe ir
+--- cada jugador. El ciclo sigue moviendo a la gente; deja de moverla al sitio
+--- equivocado.
+--- @return number moved
+function Service.MoveAllPlayersToOwnArena(): number
+	local moved = 0
+
+	for _, player in ipairs(Players:GetPlayers()) do
+		local worldId = player:GetAttribute("World")
+
+		-- "Lobby" y `nil` significan lo mismo aqui: el jugador no ha elegido
+		-- mundo, asi que entra por la arena del mundo por defecto.
+		--
+		-- El mundo por defecto SE CONSULTA AQUI, no en `Init`: aqui el
+		-- cableado ya esta hecho y `WorldService` responde. `CollectDestinations`
+		-- corre antes, y su unico dato fiable es el nombre de las carpetas.
+		if worldId == "Lobby" or type(worldId) ~= "string" then
+			worldId = nil
+		end
+
+		if not worldId and Service._worldService and Service._worldService.GetDefaultWorldId then
+			worldId = Service._worldService.GetDefaultWorldId()
+		end
+
+		local key = worldId and Service.GetArenaKey(worldId) or Service._defaultArenaKey
+
+		if Service.MovePlayer(player, key) then
+			moved += 1
+		end
+	end
+
+	Logger.Info(("%d jugador(es) llevados a la arena de su mundo"):format(moved))
 	return moved
 end
 
@@ -492,6 +634,170 @@ function Service.CollectMonsterSpawnPoints(worldId: string): { BasePart }
 	return points
 end
 
+--- Genera el boss del mundo indicado en SU plataforma.
+---
+--- MEDIDO EN AUDITORIA: el mapa construia `BossSpawn_<Id>` en los cinco
+--- mundos y `WorldDefinitions` declaraba `BossDefinitionId`, pero NADIE leia
+--- ninguna de las dos cosas. Los bosses no existian: no habia definicion, ni
+--- spawn, ni barra de vida. El HUD tenia el panel, el mapa tenia la
+--- plataforma y el mundo no tenia jefe.
+---
+--- POR QUE SE GENERA AL LLEGAR Y NO EN `RoundStarting`
+--- -----------------------------------------------------
+--- Un boss delante del jugador al entrar en la arena es un obstaculo, no un
+--- cierre: obliga a pelear un duelo largo sin haber explorado, y el jugador
+--- que acaba de desbloquear el mundo no tiene por que hacerlo. Ademas el
+--- jugador recien llegado no conoce el mapa, y un Grooty de 900 de vida con
+--- la arena detras no es un desafio, es una pantalla de carga.
+---
+--- Se dispara cuando el jugador se acerca a la plataforma, que es el punto
+--- del recorrido donde el duelo tiene SENTIDO: has llegado, has visto el
+--- sitio, y ahora decides si lo peleas.
+--- @param worldId string
+--- @return number? monsterId
+function Service.SpawnBossForWorld(worldId: string): number?
+	local monsters = Service._monsterService
+
+	if not monsters or type(worldId) ~= "string" or worldId == "" then
+		return nil
+	end
+
+	-- Un boss por mundo y VIVO. Reentrar en la zona no genera un segundo
+	-- Grooty encima del primero: `MaxAlive = 1` lo impide de todos modos,
+	-- pero se comprueba aqui para no llenar el log de avisos.
+	if monsters.GetBossId(worldId) then
+		return nil
+	end
+
+	local definition = Service._worldService and Service._worldService.GetWorld(worldId)
+	local bossId = definition and definition.BossDefinitionId or MonsterScaleRules.GetBossId(worldId)
+
+	if type(bossId) ~= "string" or bossId == "" then
+		return nil
+	end
+
+	local platform = Service.CollectBossSpawnPoint(worldId)
+
+	if not platform then
+		Logger.Warn(("MatchService: el mundo '%s' no tiene BossSpawn; no habra boss"):format(worldId))
+		return nil
+	end
+
+	local monsterId = monsters.Spawn(bossId, platform.Position + Vector3.new(0, 4, 0), worldId)
+
+	if monsterId then
+		Logger.Info(("boss de %s generado (%s)"):format(worldId, bossId))
+	end
+
+	return monsterId
+end
+
+--- Plataforma de boss declarada en el mapa de un mundo.
+---
+--- La escribe `tools/worlds.js` como `BossSpawn_<Id>`, en la raiz de la
+--- carpeta del mundo y NO dentro de `Zones/`, porque las herramientas de QA
+--- la localizan con `world:FindFirstChild("BossSpawn_" .. id)`.
+--- @param worldId string
+--- @return BasePart?
+function Service.CollectBossSpawnPoint(worldId: string): BasePart?
+	local worlds = Workspace:FindFirstChild("Worlds")
+	local worldFolder = worlds and worlds:FindFirstChild(worldId)
+
+	if not worldFolder then
+		return nil
+	end
+
+	local part = worldFolder:FindFirstChild("BossSpawn_" .. worldId)
+
+	if part and part:IsA("BasePart") then
+		return part :: BasePart
+	end
+
+	return nil
+end
+
+--- Distancia a la que el boss aparece al acercarse a su plataforma.
+---
+--- 70 studs es "lo cerca que se nota que hay algo ahi" sin ser "ya te ha
+--- visto": con 40 el jefe aparecia mientras el jugador aun estaba dejando
+--- la arena, y con 120 habia un tramo entero de carrera sin jefe.
+Service.BOSS_TRIGGER_DISTANCE = 70
+
+--- Jugadores cuyo mundo actual es el indicado.
+---
+--- Se usa para decidir si un mundo "tiene a alguien" antes de generar nada:
+--- generar el boss de un mundo vacio es trabajo de servidor por nada.
+--- @param worldId string
+--- @return { Player }
+local function playersInWorld(worldId: string): { Player }
+	local list: { Player } = {}
+
+	for _, player in ipairs(Players:GetPlayers()) do
+		if player:GetAttribute("World") == worldId then
+			table.insert(list, player)
+		end
+	end
+
+	return list
+end
+
+--- Vigila el mundo de cada jugador y genera el boss cuando se acerca.
+---
+--- Se llama desde el ciclo de ronda, no desde un `Heartbeat` propio: el
+--- servicio ya tiene uno (`MonsterService.StepAI`) y un segundo pulso por
+--- servicio es trabajo de servidor cobrando por nada.
+function Service.UpdateBossSpawns()
+	local monsters = Service._monsterService
+
+	if not monsters then
+		return
+	end
+
+	-- Los mundos se recorren desde los JUGADORES, no desde `WorldService`:
+	-- generar el boss de los cinco mundos en cada ronda haria que cuatro de
+	-- ellos estuvieran vacios y nadie lo notase, y haria que el log dijera
+	-- "boss generado" cinco veces por ronda.
+	local seen: { [string]: boolean } = {}
+
+	for _, player in ipairs(Players:GetPlayers()) do
+		local worldId = player:GetAttribute("World")
+
+		if
+			type(worldId) == "string"
+			and worldId ~= ""
+			and worldId ~= "Lobby"
+			and not seen[worldId]
+		then
+			seen[worldId] = true
+
+			if #playersInWorld(worldId) <= 0 then
+				continue
+			end
+
+			if monsters.GetBossId(worldId) then
+				continue
+			end
+
+			local platform = Service.CollectBossSpawnPoint(worldId)
+
+			if not platform then
+				continue
+			end
+
+			local character = player.Character
+			local root = character and character:FindFirstChild("HumanoidRootPart")
+
+			if not root then
+				continue
+			end
+
+			if (root.Position - platform.Position).Magnitude <= Service.BOSS_TRIGGER_DISTANCE then
+				Service.SpawnBossForWorld(worldId)
+			end
+		end
+	end
+end
+
 --- Crea los monstruos de la ronda.
 ---
 --- Es idempotente en la practica: `MonsterService.Spawn` aplica el tope por
@@ -541,6 +847,33 @@ function Service.SpawnPowerupsForRound(worldId: string?): number
 	return Service._powerupService.SpawnForRound(worldId)
 end
 
+--- Vigilante del boss: comprueba el mundo del jugador cada medio segundo
+--- mientras la ronda corre.
+---
+--- Va aparte de `UpdateBossSpawns` porque esa funcion es un PASO UNICO y
+--- consultable (las sondas la llaman para forzar un spawn sin esperar), y el
+--- bucle no se puede probar de otra forma. La bandeira `_bossWatchRunning`
+--- es la que corta el bucle al terminar la ronda.
+function Service._watchBossSpawns()
+	task.spawn(function()
+		-- 0.5 s: el boss no debe aparecer medio segundo DESPUES de que el
+		-- jugador llega, ni hace falta precision de 60 Hz.
+		while Service._bossWatchRunning do
+			local ok, err = pcall(Service.UpdateBossSpawns)
+
+			if not ok then
+				-- Un vigilante que muere en el primer error deja de generar
+				-- bosses el resto de la ronda, y nada en el log dice por que.
+				Logger.Error(("MatchService: el vigilante de boss fallo: %s"):format(tostring(err)))
+				Service._bossWatchRunning = false
+				break
+			end
+
+			task.wait(0.5)
+		end
+	end)
+end
+
 --- Reacciona a los cambios de ronda.
 --- @param from string
 --- @param to string
@@ -555,13 +888,22 @@ function Service.OnRoundStateChanged(from: string, to: string)
 			end
 		end
 
-		Service.MoveAllPlayers("Arena")
+		-- Cada jugador va a la arena de SU mundo, no a una unica arena para
+		-- todos. Ver `MoveAllPlayersToOwnArena`: con un solo alias, entrar por
+		-- el portal de Desert y teleportarse luego a Forest.
+		Service.MoveAllPlayersToOwnArena()
 
 		-- Orden de la arena: primero los monstruos y despues los powerups. Un
 		-- powerup ya flotando cuando aparece el enemigo dice "hay cosas que
 		-- recoger aqui" en vez de "han soltado un cubo".
 		Service.SpawnMonstersForRound()
 		Service.SpawnPowerupsForRound()
+
+		-- El boss NO se genera aqui: se genera cuando el jugador llega a su
+		-- plataforma (`UpdateBossSpawns`), que es donde el duelo tiene
+		-- sentido. Ver la nota larga en `SpawnBossForWorld`.
+		Service._bossWatchRunning = true
+		Service._watchBossSpawns()
 
 	elseif to == RoundState.RoundEnding then
 		-- Las bombas que quedaran explotando danarian a los jugadores
@@ -587,6 +929,13 @@ function Service.OnRoundStateChanged(from: string, to: string)
 				Logger.Info(("%d powerup(s) limpiados al terminar la ronda"):format(removedPowerups))
 			end
 		end
+
+	-- El jefe se retira con el resto de la fauna, y su barra se apaga en
+		-- `MonsterService.ClearAll`. Aqui solo se corta el vigilante: seguir
+		-- consultando la plataforma del boss con la ronda terminada hacia
+		-- que el jugador, al volver al lobby, regenerara el boss que acaba de
+		-- ser limpiado.
+		Service._bossWatchRunning = false
 
 	elseif to == RoundState.Rewards then
 		Service.GrantRoundRewards()

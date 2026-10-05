@@ -1,6 +1,6 @@
 # KESHUSYTOMY-LAN-D - CONTEXTO IA
 
-Generado: 2026-10-03T23:09:49.114Z
+Generado: 2026-10-05T14:02:15.455Z
 
 > Este archivo es un INDICE generado, no una fuente de verdad.
 > La fuente de verdad del estado del desarrollo es `docs/phases.md`.
@@ -9,7 +9,7 @@ Generado: 2026-10-03T23:09:49.114Z
 ## Git
 
 - Rama: `main`
-- Commit: `4f58b7d` - feat(monstruos): maquina de estados con telegraph y velocidad por estado
+- Commit: `5ae788e` - feat(monstruos,audio): escala separada de hitbox y arquitectura de audio integral
 - Arbol: CON CAMBIOS SIN COMMITear
 
 ## FUENTES DE VERDAD (leer antes de decidir)
@@ -48,10 +48,10 @@ Generado: 2026-10-03T23:09:49.114Z
 
 ## Inventario de fuente
 
-- Luau total: 155
+- Luau total: 240
 - Servicios de servidor: 34
 - Controllers de cliente: 12
-- Suites de prueba: 30
+- Suites de prueba: 40
 
 ## REGLA INNEGOCIABLE
 

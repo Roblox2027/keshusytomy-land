@@ -49,6 +49,10 @@ Service.IsInitialized = false
 Service._profileService = nil
 Service._economyService = nil
 
+-- `PlayerService`: solo para volcar el nivel del perfil en la sesion en
+-- memoria, que es lo que leen los portales. Ver `SetDependencies` y `AddXP`.
+Service._playerService = nil
+
 -- Reglas puras. La curva se inyecta desde `GameConfig`, igual que en el
 -- servicio real, para que las pruebas y el juego usen los mismos numeros.
 local Rules = ProgressionRules.new({
@@ -77,11 +81,19 @@ Service._stats = { xpGranted = 0, levelsGained = 0, rejected = 0, duplicates = 0
 local MaidRef = nil
 
 --- Inyecta las dependencias del servicio.
+---
+--- `playerService` es OPCIONAL y existe por una sola razon: la sesion en
+--- memoria de `PlayerService` es lo que leen `PortalService.GetPlayerLevel` y
+--- las recompensas de ronda. Sin esta sincronizacion, ganar XP por el perfil
+--- sube el atributo `Level` pero la sesion se queda en 1, y los mundos con
+--- requisito de nivel no se desbloquean nunca. Ver `SyncLevelFromProfile`.
 --- @param profileService any
 --- @param economyService any
-function Service.SetDependencies(profileService: any, economyService: any)
+--- @param playerService any?
+function Service.SetDependencies(profileService: any, economyService: any, playerService: any?)
 	Service._profileService = profileService
 	Service._economyService = economyService
+	Service._playerService = playerService
 end
 
 --- Inicializacion del servicio. Idempotente.
@@ -316,6 +328,17 @@ function Service.AddXP(
 
 	player:SetAttribute("Level", result.levelAfter)
 	player:SetAttribute("XP", result.totalXp)
+
+	-- MEDIDO EN PLAY: sin esta linea, el atributo `Level` subia a 630 pero la
+	-- SESION se quedaba en 1, y `PortalService.GetPlayerLevel` lee la sesion.
+	-- El resultado era que los cuatro mundos con nivel NO se desbloqueaban
+	-- nunca, aunque el HUD mostrara el nivel alto.
+	--
+	-- Se sincroniza DESPUES de publicar los atributos: `SyncLevelFromProfile`
+	-- lee `Level` de ahi, asi que el orden es parte del contrato.
+	if Service._playerService and Service._playerService.SyncLevelFromProfile then
+		Service._playerService.SyncLevelFromProfile(player)
+	end
 
 	return true, result, nil
 end

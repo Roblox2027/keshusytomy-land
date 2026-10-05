@@ -36,7 +36,9 @@ local Workspace = game:GetService("Workspace")
 
 local SHARED = ReplicatedStorage:WaitForChild("Shared")
 local UTILS = SHARED:WaitForChild("Utils")
+local CONFIG = SHARED:WaitForChild("Config")
 
+local GameConfig = require(CONFIG:WaitForChild("GameConfig"))
 local VisualKit = require(SHARED:WaitForChild("Libraries"):WaitForChild("VisualKit"))
 local Logger = require(UTILS:WaitForChild("Logger"))
 
@@ -48,6 +50,16 @@ Service._folder = nil
 Service._maid = nil
 Service._worldService = nil
 Service._playerService = nil
+-- `BombService` es OPCIONAL a proposito: sin el, el powerup "+BOMBA" sigue
+-- concediendo capacidad por el atributo, pero sin bonificacion persistente
+-- en el servicio. Depender de el en la inicializacion haria que un fallo de
+-- arranque de bombas dejara sin powerups a todo el mundo.
+Service._bombService = nil
+-- `MonsterService` es lo que permite que CONGELAR haga algo: sin el, el
+-- powerup Freeze se recoge, se publica el atributo y no congela a nadie. Es
+-- OPCIONAL por el mismo motivo que `BombService`: que falte un servicio no
+-- puede romper la recogida de los demas powerups.
+Service._monsterService = nil
 Service._spawned = 0
 Service._collected = 0
 
@@ -56,6 +68,33 @@ Service.EffectDuration = 12
 Service.HealAmount = 35
 Service.SpeedMultiplier = 1.6
 Service.ShieldReduction = 0.5
+
+-- =========================================================================
+-- AJUSTES DE LOS POWERUPS NUEVOS
+--
+-- Cada uno tiene su propia duracion y SU PROPIA magnitud. Compartir el
+-- `EffectDuration` de 12 s hacia que "impulso", "congelar" y "+poder" fueran
+-- lo mismo con distinto color: tres objetos con el mismo reloj y el jugador
+-- no puede decidir cual recoger.
+-- =========================================================================
+
+-- DASH: corto y fuerte. Es una huida, no un estado.
+Service.DashDuration = 2.5
+Service.DashMultiplier = 2.4
+
+-- GHOST: presentacional. 0.85 deja ver la silueta (si no, el jugador cree
+-- que le han borrado el personaje) pero no se puede apuntar bien.
+Service.GhostTransparency = 0.85
+
+-- MAGNET: radio amplio y arrastre suave. 46 studs es "cruzando esta zona me
+-- llega todo", no "tengo que recogerlos uno a uno".
+Service.MagnetRadius = 46
+Service.MagnetPullSpeed = 18
+
+-- FREEZE: 5 s. Suficiente para cruzar una emboscada, insuficiente para
+-- vaciar un mundo de enemigos.
+Service.FreezeDuration = 5
+Service.FreezeRadius = 55
 
 --- Carpeta unica donde viven los powerups.
 --- @return Folder?
@@ -75,13 +114,43 @@ end
 
 --- @param worldService any
 --- @param playerService any?
-function Service.SetDependencies(worldService: any, playerService: any?)
+--- @param bombService any? `BombService`, para el powerup "+BOMBA"
+function Service.SetDependencies(worldService: any, playerService: any?, bombService: any?)
 	Service._worldService = worldService
 	Service._playerService = playerService
+	Service._bombService = bombService
 end
 
---- Tipos de powerup, en el orden en que se reparten los puntos de spawn.
-local KINDS = { "Bomb", "Speed", "Shield", "Heal" }
+--- Conecta `MonsterService` (para el powerup CONGELAR).
+---
+--- Es un setter aparte y no un cuarto argumento de `SetDependencies` porque se
+--- cablea en un momento distinto: `MonsterService` se registra antes que
+--- `PowerupService` en el orden de arranque, pero el cableado de dependencias
+--- lo hace `ServerMain`, y ahi ya estan todos.
+--- @param monsterService any?
+function Service.SetMonsterService(monsterService: any?)
+	Service._monsterService = monsterService
+end
+
+-- =========================================================================
+-- Tipos de powerup, en el orden en que se reparten los puntos de spawn.
+--
+-- MEDIDO EN AUDITORIA (ARREGLO): la lista era `{ Bomb, Speed, Shield, Heal }`
+-- y eso era TODO lo que el mundo generaba. Pero `VisualKit.POWERUPS` tenia
+-- cinco entradas y `ApplyEffect` tenia un caso `Fire` completo: es decir,
+-- "+PODER" estaba implementado, pintado y anunciado, y nunca aparecia. El
+-- jugador veia el cartel de la capacidad de bomba extra, que si existia, y
+-- jamas el poder de dano.
+--
+-- Ahora la lista es la de la especificacion (ocho) y `KINDS` es la UNICA
+-- fuente: `VisualKit` se limita a PINTAR lo que esta tabla declara. Anadir un
+-- powerup es una linea en `KINDS` y una en `VisualKit.POWERUPS`, y
+-- `Gameplay.spec` falla si las dos se desincronizan.
+-- =========================================================================
+local KINDS = {
+	"Bomb", "Speed", "Shield", "Heal",
+	"Fire", "Dash", "Ghost", "Magnet", "Freeze",
+}
 
 --- Puntos de spawn de powerup declarados en el mapa de un mundo.
 --- @param worldId string
@@ -156,11 +225,23 @@ function Service.ApplyEffect(player: Player, kind: string)
 	end
 
 	if kind == "Bomb" then
-		-- Bomba extra: el contador del HUD sube y el jugador puede colocar
-		-- otra vez de inmediato. Sin esto el powerup seria un adorno.
-		local current = player:GetAttribute("Bombs")
-		local base = if type(current) == "number" then current else 0
-		player:SetAttribute("Bombs", base + 1)
+		-- BOMBA EXTRA = MAS ESPACIO, no mas existencias.
+		--
+		-- MEDIDO: antes este powerup hacia `Bombs + 1` sobre el atributo del
+		-- HUD. Ese atributo lo escribe `BombService.publishBombCount` con las
+		-- bombas VIVAS, asi que el incremento se pisaba en cuanto el jugador
+		-- colocaba o detonaba una bomba: el powerup no concedia nada
+		-- permanente y solo se notaba durante un instante.
+		--
+		-- Ahora concede capacidad real y la escribe en `BombCapacity`, que el
+		-- servidor aplica al validar. Si `BombService` no esta inyectado se
+		-- recurre al atributo: el powerup nunca debe romper el juego por
+		-- depender de otro servicio.
+		local nueva = if Service._bombService and Service._bombService.AddCapacityBonus
+			then Service._bombService.AddCapacityBonus(player.UserId, 1)
+			else (player:GetAttribute("BombCapacity") or GameConfig.BombCapacity) + 1
+
+		player:SetAttribute("BombCapacity", nueva)
 		return
 	end
 
@@ -172,6 +253,175 @@ function Service.ApplyEffect(player: Player, kind: string)
 				player:SetAttribute("PowerupFireUntil", nil)
 			end
 		end)
+		return
+	end
+
+	-- DASH: un impulso de velocidad CORTO y potente.
+	--
+	-- No es "+velocidad" (ese es `Speed`): `Speed` dura 12 s a 1.6 y sirve
+	-- para recorrer el mapa; `Dash` dura 2 s a 2.4 y sirve para SALIR de un
+	-- golpe. Mezclarlos hacia que un jugador con `Speed` no notase la
+	-- diferencia, y el efecto se leeria como decorativo.
+	if kind == "Dash" then
+		local base = if humanoid then humanoid.WalkSpeed else GameConfig.DefaultPlayerSpeed
+
+		if humanoid then
+			humanoid.WalkSpeed = base * Service.DashMultiplier
+		end
+
+		player:SetAttribute("PowerupDashUntil", untilTime)
+
+		task.wait(Service.DashDuration)
+
+		if player.Parent and humanoid and humanoid.Parent and humanoid.Health > 0 then
+			humanoid.WalkSpeed = base
+			player:SetAttribute("PowerupDashUntil", nil)
+		end
+
+		return
+	end
+
+	-- GHOST: transparencia y, sobre todo, invisibilidad PRACTICA.
+	--
+	-- El efecto es de PRESENTACION y no de colision: el jugador sigue
+	-- teniendo su hitbox y sus bombas siguen impactando. Es una decision
+	-- deliberada: un powerup que hace al jugador intangible permitiria
+	-- atravesar el mapa sin castigo y romperia las colisiones que el juego
+	-- usa para el combate.
+	if kind == "Ghost" then
+		local character = player.Character
+
+		if character then
+			for _, descendant in ipairs(character:GetDescendants()) do
+				if descendant:IsA("BasePart") then
+					descendant.Transparency = math.max(descendant.Transparency, Service.GhostTransparency)
+					descendant:SetAttribute("Ghosted", true)
+				end
+			end
+		end
+
+		player:SetAttribute("PowerupGhostUntil", untilTime)
+
+		task.delay(Service.EffectDuration, function()
+			if not player.Parent then
+				return
+			end
+
+			player:SetAttribute("PowerupGhostUntil", nil)
+
+			local current = player.Character
+
+			if not current then
+				return
+			end
+
+			-- Se RESTAURA la transparencia, no se pone a 0: un personaje con
+			-- una parte ya transparente por otro motivo (un escudo, un
+			-- fantasma previo) volveria opaco.
+			for _, descendant in ipairs(current:GetDescendants()) do
+				if descendant:IsA("BasePart") and descendant:GetAttribute("Ghosted") then
+					descendant.Transparency = 0
+					descendant:SetAttribute("Ghosted", nil)
+				end
+			end
+		end)
+
+		return
+	end
+
+	-- MAGNET: atrae los powerups cercanos.
+	--
+	-- No atrae monedas ni XP porque no existen como objetos recogibles: lo
+	-- que SI hay en el suelo son powerups, y exigir al jugador que los
+	-- esquive uno a uno mientras le persiguen no es una decision, es ruido.
+	-- El radio es generoso a proposito: el valor esta en "caminando hacia el
+	-- loot, todo llega a mi".
+	if kind == "Magnet" then
+		player:SetAttribute("PowerupMagnetUntil", untilTime)
+
+		task.spawn(function()
+			local character = player.Character
+			local root = character and character:FindFirstChild("HumanoidRootPart")
+
+			if not root then
+				return
+			end
+
+			while player.Parent and player:GetAttribute("PowerupMagnetUntil") do
+				for _, powerup in ipairs(Service._folder:GetChildren()) do
+					local core = powerup:FindFirstChild("Core")
+
+					if core and core:IsA("BasePart") and powerup:IsA("Model") then
+						local delta = root.Position - core.Position
+
+						if delta.Magnitude <= Service.MagnetRadius then
+							-- Se atrae, no se teletransporta: el recorrido
+							-- visible es lo que comunica que el iman funciona.
+							core.CFrame = core.CFrame + delta.Unit * math.min(delta.Magnitude, Service.MagnetPullSpeed * 0.1)
+						end
+					end
+				end
+
+				task.wait(0.1)
+			end
+		end)
+
+		return
+	end
+
+	-- FREEZE: congela a los enemigos cercanos durante un instante.
+	--
+	-- No los mata ni los borra: los paraliza lo justo para que el jugador
+	-- cruce una zona con cuatro Guardian encima. Es el powerup de
+	-- POSICION, y por eso dura poco: un congelado de 12 s seria un segundo
+	-- `Speed` disfrazado.
+	if kind == "Freeze" then
+		player:SetAttribute("PowerupFreezeUntil", untilTime)
+
+		local frozen: { Model } = {}
+		local character = player.Character
+		local root = character and character:FindFirstChild("HumanoidRootPart")
+
+		if root and Service._monsterService and Service._monsterService.GetFolder then
+			local folder = Service._monsterService.GetFolder()
+
+			if folder then
+				for _, monster in ipairs(folder:GetChildren()) do
+					local monsterRoot = monster.PrimaryPart
+
+					if monsterRoot and (monsterRoot.Position - root.Position).Magnitude <= Service.FreezeRadius then
+						local monsterHumanoid = monster:FindFirstChildOfClass("Humanoid")
+
+						if monsterHumanoid then
+							-- Se guarda la velocidad ORIGINAL: poner a 0 y
+							-- restaurar a la de `PatrolSpeed` dejaba bichos
+							-- con el valor de la definicion, que no es el
+							-- que tenian, y se notaba al descongelar.
+							monsterHumanoid:SetAttribute("FrozenSpeed", monsterHumanoid.WalkSpeed)
+							monsterHumanoid.WalkSpeed = 0
+							monsterHumanoid:SetAttribute("IsFrozen", true)
+							table.insert(frozen, monster)
+						end
+					end
+				end
+			end
+		end
+
+		task.delay(Service.FreezeDuration, function()
+			for _, monster in ipairs(frozen) do
+				if monster.Parent then
+					local monsterHumanoid = monster:FindFirstChildOfClass("Humanoid")
+
+					if monsterHumanoid then
+						monsterHumanoid.WalkSpeed = monsterHumanoid:GetAttribute("FrozenSpeed") or GameConfig.DefaultPlayerSpeed
+						monsterHumanoid:SetAttribute("IsFrozen", nil)
+						monsterHumanoid:SetAttribute("FrozenSpeed", nil)
+					end
+				end
+			end
+		end)
+
+		return
 	end
 end
 

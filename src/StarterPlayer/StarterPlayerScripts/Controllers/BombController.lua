@@ -27,6 +27,7 @@
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Workspace = game:GetService("Workspace")
 
 local SHARED = ReplicatedStorage:WaitForChild("Shared")
 local CONSTANTS = SHARED:WaitForChild("Constants")
@@ -57,12 +58,94 @@ Controller._requestsSent = 0
 --- Numero de peticiones NO enviadas por cooldown local.
 Controller._requestsSuppressed = 0
 
---- Minutos entre intento y resultado del servidor.
-Controller._pendingSince = nil
+--- Instante (os.clock) del ultimo intento. Solo lo usa el HUD para medir.
+local _pendingSince = nil
+
+--- Indica que hay una peticion EN VOLO esperando veredicto del servidor.
+---
+--- Es distinto de `_pendingSince` a proposito: `_pendingSince` dice CUANDO se
+--- pidio, y `_awaitingServer` dice que el cerrojo esta ARMADO a la espera de
+--- una respuesta que puede no llegar. Sin esa distincion no se puede poner un
+--- plazo de seguridad sin perder la marca de tiempo.
+local _awaitingServer = false
+
+--- Instante en que se armo el cerrojo, para el plazo de seguridad.
+local _armedAt = 0
+
+--- Cuanto se espera la respuesta del servidor antes de soltar el cerrojo.
+---
+--- MEDIDO: en PLAY el servidor SI responde, y responde de las dos maneras:
+--- publica la bomba en la carpeta o escribe el motivo de rechazo. Este plazo
+--- es solo la red de seguridad para cuando la respuesta se pierde. Sin el, un
+--- fallo de red dejaria al jugador sin bombas hasta que recargase, que es
+--- peor que una peticion de mas.
+---
+--- Es mayor que el enfriamiento (1.5 s) para no soltar el cerrojo antes de
+--- que un servidor lento haya podido responder.
+local VERDICT_TIMEOUT = 5
 
 --- Marca si hay una peticion en vuelo.
 function Controller.HasPendingRequest(): boolean
-	return Controller._pendingSince ~= nil
+	return _pendingSince ~= nil
+end
+
+--- Suelta el cerrojo de "peticion en vuelo". Es idempotente.
+local function releasePending()
+	_pendingSince = nil
+	_awaitingServer = false
+	_armedAt = 0
+end
+
+--- Espera el veredicto del servidor y suelta el cerrojo.
+---
+--- Las DOS senales se escuchan a la vez y la que llegue primero gana:
+---
+---   `ChildAdded` en `Workspace.Bombs` -> ACEPTADA. Es la confirmacion real:
+---                                       la bomba existe en el mundo.
+---   `BombRejection` del jugador      -> RECHAZADA. El servidor explica por
+---                                       que, y el jugador lo ve.
+---
+--- Si no llegara ninguna, el plazo de seguridad libera igualmente: ningun
+--- silencio puede dejar al jugador sin poder jugar.
+local function waitForServerVerdict()
+	local player = Players.LocalPlayer
+
+	if not player then
+		releasePending()
+		return
+	end
+
+	local folder = Workspace:WaitForChild("Bombs", 5)
+	local espera = math.max(VERDICT_TIMEOUT - (os.clock() - _armedAt), 0.2)
+
+	local conexionBomb = nil
+	local conexionRechazo = nil
+
+	local function cerrar()
+		if conexionBomb and conexionBomb.Connected then
+			conexionBomb:Disconnect()
+		end
+
+		if conexionRechazo and conexionRechazo.Connected then
+			conexionRechazo:Disconnect()
+		end
+	end
+
+	if folder then
+		conexionBomb = folder.ChildAdded:Connect(function()
+			releasePending()
+			cerrar()
+		end)
+
+		conexionRechazo = player:GetAttributeChangedSignal("BombRejection"):Connect(function()
+			releasePending()
+			cerrar()
+		end)
+	end
+
+	task.wait(espera)
+	cerrar()
+	releasePending()
 end
 
 --- Segundos que quedan de espera local antes de poder volver a pedir.
@@ -124,8 +207,37 @@ function Controller.RequestPlace(): boolean
 	end
 
 	_lastRequestAt = os.clock()
-	Controller._pendingSince = _lastRequestAt
+	_pendingSince = _lastRequestAt
 	Controller._requestsSent += 1
+
+	-- P0 MEDIDO EN PLAY (medido, no deducido): antes de esto, `_pendingSince`
+	-- se ponia al pedir y NO se limpiaba nunca. `CanRequest` exigia
+	-- `not HasPendingRequest()`, asi que desde la PRIMERA peticion de la
+	-- sesion `CanRequest` era false PARA SIEMPRE:
+	--
+	--     BombController ANTES: enviado=1 suprimido=0 enVolo=true puedePedir=false
+	--     BombController DESPUES: enviado=1 suprimido=1 enVolo=true puedePedir=false
+	--     >>> FALLO P0 CONFIRMADO: peticion en vuelo sin resolver.
+	--
+	-- El sintoma que ve el jugador es exactamente "solo puedo colocar una
+	-- bomba": la primera sale y todas las siguientes se suprimen en el
+	-- cliente sin llegar al servidor. El servidor nunca las ve, asi que su
+	-- log no muestra nada, y el limite parece del juego cuando en realidad
+	-- es un cerrojo local.
+	--
+	-- El cerrojo se arma AL ENVIAR, no antes: si se armara antes y la
+	-- peticion no saliera, quedaria esperando una respuesta que nunca
+	-- llegaria. Se levanta cuando el SERVIDOR responde, y se escuchan las
+	-- dos senales de esa respuesta:
+	--
+	--   `ChildAdded` en `Workspace.Bombs` -> ACEPTADA (la bomba existe).
+	--   `BombRejection` del jugador      -> RECHAZADA (con su motivo).
+	--
+	if not _awaitingServer then
+		_awaitingServer = true
+		_armedAt = os.clock()
+		task.spawn(waitForServerVerdict)
+	end
 
 	-- Se envia la posicion del personaje, no la del raton: el servidor
 	-- la vuelve a validar (distancia, arena, ronda), asi que manipular
@@ -166,7 +278,7 @@ function Controller.Start(_maid: any?): boolean
 	_lastRequestAt = 0
 	Controller._requestsSent = 0
 	Controller._requestsSuppressed = 0
-	Controller._pendingSince = nil
+	releasePending()
 	Controller.IsActive = true
 
 	Logger.Info(("BombController listo (cooldown %.1fs, rango %d studs)."):format(
@@ -182,7 +294,7 @@ end
 function Controller.Destroy(): boolean
 	Controller.IsActive = false
 	bombRemote = nil
-	Controller._pendingSince = nil
+	releasePending()
 	return true
 end
 

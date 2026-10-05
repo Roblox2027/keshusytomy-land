@@ -34,6 +34,7 @@ local UTILS = SHARED:WaitForChild("Utils")
 local GameConfig = require(CONFIG:WaitForChild("GameConfig"))
 local PerformanceConfig = require(CONFIG:WaitForChild("PerformanceConfig"))
 local CombatMath = require(SHARED:WaitForChild("Libraries"):WaitForChild("CombatMath"))
+local BombPlacementRules = require(SHARED:WaitForChild("Libraries"):WaitForChild("BombPlacementRules"))
 local VisualKit = require(SHARED:WaitForChild("Libraries"):WaitForChild("VisualKit"))
 local Logger = require(UTILS:WaitForChild("Logger"))
 
@@ -55,6 +56,13 @@ Service._questService = nil
 
 -- UserId -> momento (os.clock) en que puede volver a colocar.
 Service._cooldowns = {}
+-- UserId -> Bombas EXTRA de capacidad concedidas (powerups "+BOMBA").
+--
+-- Es una BONIFICACION, no la capacidad: la capacidad es
+-- `GameConfig.BombCapacity + esta tabla`, recortada contra el tope de
+-- rendimiento. Vive separada de la capacidad porque cambian por motivos
+-- distintos: el balance es del juego, la bonificacion es del jugador.
+Service._capacityBonus = {}
 -- BombId -> { Part: Part, OwnerUserId: number?, Position: Vector3, Depth: number }
 Service._activeBombs = {}
 Service._nextBombId = 0
@@ -211,22 +219,147 @@ function Service.IsInsideArena(position: Vector3, worldId: string?): boolean
 		return true
 	end
 
-	return position.X >= bounds.MinX
-		and position.X <= bounds.MaxX
-		and position.Z >= bounds.MinZ
-		and position.Z <= bounds.MaxZ
+	return BombPlacementRules.IsInside({
+		minX = bounds.MinX,
+		maxX = bounds.MaxX,
+		minZ = bounds.MinZ,
+		maxZ = bounds.MaxZ,
+	}, position.X, position.Z)
 end
 
---- Valida que las componentes del payload sean utilizables.
---- @param position any
---- @return boolean valid
---- @return string? reason
-local function isValidPosition(position: any): (boolean, string?)
-	if typeof(position) ~= "Vector3" then
-		return false, "no es Vector3"
+--- Distancia minima entre la bomba y el jugador, en studs.
+---
+--- El cliente envia la posicion de SU PROPIO `HumanoidRootPart`. Si la bomba
+--- nace exactamente ahi, aparece DENTRO del personaje: con el cuerpo de la
+--- bomba de 3 studs y el personaje en el centro, medio cuerpo queda tapado y
+--- la bomba se lee como "algo gris en el suelo" en vez de como una bomba.
+---
+--- No es un ajuste estetico: ademas evita que el jugador se coloque su propia
+--- bomba encima sin querer.
+local MIN_BOMB_PLAYER_DISTANCE = 6
+
+--- Cuanto se asienta la bomba por encima del suelo, en studs.
+---
+--- El suelo de la arena esta a `position.Y` y el cuerpo de la bomba mide
+--- `BOMB.BodySize` (3), o sea 1.5 de radio. Sin este margen la mitad inferior
+--- queda ENTERRADA.
+local BOMB_GROUND_CLEARANCE = 1.6
+
+--- Altura desde la que se busca el suelo bajo la bomba, en studs.
+---
+-- Antes eran 6. Con 6, una bomba pedida sobre una repisa un metro mas
+-- alta que el suelo no encontraba nada y se quedaba a la altura pedida.
+-- El margen tiene que ser GENEROSO porque no limita nada: solo decide
+-- desde donde se empieza a mirar.
+local GROUND_SEARCH_UP = 40
+
+--- Profundidad de la busqueda de suelo, en studs.
+---
+-- Cubre el desnivel entre el spawn (que en Forest esta a ~70) y el suelo
+-- de una zona baja, sin tener que inventar una tabla de alturas por
+-- mundo. Si no hay suelo en esa ventana, la bomba se queda donde la
+-- pidio el jugador, que es mejor que rechazar la colocacion.
+local GROUND_SEARCH_DOWN = 80
+
+--- Coloca la bomba en un punto VISIBLE y ESTABLE.
+---
+--- Hace dos cosas, y las dos son la diferencia entre "una bomba" y "una bomba
+--- que se ve":
+---
+---  1. La separa del jugador hasta `MIN_BOMB_PLAYER_DISTANCE`, en el plano XZ.
+---     No la aleja "un poco": si no llega al minimo, no se coloca donde el
+---     cliente pidio sino en el borde del circulo. Es determinista y no
+---     depende de como el cliente moviera la camara.
+---  2. La asienta sobre el suelo con `BOMB_GROUND_CLEARANCE`.
+---
+--- El radio de explosion NO se recalcula: la bomba sigue contando para el
+--- mismo sitio, y el jugador ve la bomba donde la ha dejado caer, no donde el
+--- servidor ha querido.
+---
+--- @param position Vector3 posicion pedida
+--- @param rootPart BasePart? personaje del jugador
+--- @return Vector3 punto de colocacion
+local function resolvePlacement(position: Vector3, rootPart: BasePart?): Vector3
+	local final = position
+
+	if rootPart then
+		local origin = rootPart.Position
+
+		-- La separacion la decide `BombPlacementRules`, que es donde vive la
+		-- regla y donde se puede probar sin motor. No cambia el resultado: la
+		-- bomba no nace dentro del personaje, y el jugador que apunta al suelo
+		-- ve la bomba delante, no encima.
+		local separatedX, separatedZ = BombPlacementRules.SeparateFromPlayer(
+			origin.X,
+			origin.Z,
+			final.X,
+			final.Z,
+			MIN_BOMB_PLAYER_DISTANCE,
+			rootPart.CFrame.LookVector.X,
+			rootPart.CFrame.LookVector.Z
+		)
+
+		final = Vector3.new(separatedX, final.Y, separatedZ)
 	end
 
-	return CombatMath.ValidatePosition(position.X, position.Y, position.Z)
+	-- ASENTAMIENTO: se busca la SUPERFICIE REAL bajo el punto.
+	--
+	-- BUG CORREGIDO (auditoria global de gameplay). Antes el rayo:
+	--
+	--   * arrancaba 6 studs sobre el punto y bajaba solo 20: en una
+	--     plataforma alta, en un descenso o en un puente no encontraba nada
+	--     y la bomba se colocaba a la altura pedida, a menudo enterrada;
+	--   * usaba `RespectCanCollide = false`, asi que el RAYO ATRAVESABA el
+	--     suelo y podia parar en una decoracion o en un trigger con
+	--     `CanQuery` inesperado (punto 49 de la auditoria);
+	--   * no excluia la carpeta de bombas ni la de monstruos, asi que una
+	--     bomba podia apoyarse encima de otra bomba ya puesta.
+	--
+	-- Ahora el rayo arranca alto, `CanCollide = true` (solo geometria
+	-- SOLIDA) y excluye al personaje, las bombas y los monstruos. Si no
+	-- encuentra suelo se usa la altura pedida: es preferible una bomba
+	-- flotando un instante a RECHAZAR una colocacion valida.
+	local rayParams = RaycastParams.new()
+	rayParams.FilterType = Enum.RaycastFilterType.Exclude
+	rayParams.RespectCanCollide = true
+
+	local excluded = {}
+
+	if rootPart and rootPart.Parent then
+		table.insert(excluded, rootPart.Parent)
+	end
+
+	if Service._bombFolder then
+		table.insert(excluded, Service._bombFolder)
+	end
+
+	-- Los monstruos tienen hitbox COLLIDABLE (`MonsterScaleRules` acota su
+	-- ratio para que no sean un muro, pero siguen siendo solidos). Sin
+	-- excluirlos, el rayo puede parar ENCIMA de un enemigo y la bomba
+	-- aparece flotando sobre su cabeza. Se localizan por el atributo
+	-- `IsMonsterFolder` que escribe `MonsterService`, que es un CONTRATO,
+	-- y no por un nombre literal.
+	for _, child in ipairs(Workspace:GetChildren()) do
+		if child:GetAttribute("IsMonsterFolder") == true then
+			table.insert(excluded, child)
+		end
+	end
+
+	rayParams.FilterDescendantsInstances = excluded
+
+	local ground = Workspace:Raycast(
+		Vector3.new(final.X, final.Y + GROUND_SEARCH_UP, final.Z),
+		Vector3.new(0, -(GROUND_SEARCH_UP + GROUND_SEARCH_DOWN), 0),
+		rayParams
+	)
+
+	local floorY = if ground then ground.Position.Y else final.Y
+
+	return Vector3.new(
+		final.X,
+		BombPlacementRules.SettleHeight(floorY, BOMB_GROUND_CLEARANCE),
+		final.Z
+	)
 end
 
 
@@ -261,6 +394,10 @@ local function publishBombCount(userId: number?)
 	end
 
 	player:SetAttribute("Bombs", Service.GetPlayerBombCount(userId))
+	-- La CAPACIDAD se publica junto a la cuenta. Sin ella el HUD solo puede
+	-- decir cuantas bombas hay, nunca cuantas caben, y el jugador no puede
+	-- leer la diferencia entre "no tienes" y "ya no cabe mas".
+	player:SetAttribute("BombCapacity", Service.GetPlayerCapacity(userId))
 end
 
 --- Publica la cuenta de bombas de todos los jugadores conectados.
@@ -270,6 +407,92 @@ local function publishAllBombCounts()
 	end
 end
 
+--- Motivos de rechazo, con el texto que ve el JUGADOR.
+---
+--- Son CADENAS, no numeros, porque aparecen en el boton y en los logs. Un
+--- codigo numerico obliga a mirar una tabla para saber que paso; "FUERA DE
+--- LA ARENA" se entiende solo.
+---
+--- El texto importa tanto como el motivo: el enunciado exige que el jugador
+--- sepa POR QUE no puede usar la bomba. Un boton apagado sin explicacion se
+--- lee como un fallo del juego.
+local REJECTION_REASONS = {
+	OUTSIDE_ARENA = "FUERA DE LA ARENA",
+	NO_BOMBS = "SIN BOMBAS",
+	-- MEDIDO EN PLAY: la capacidad se rechazaba con `NO_BOMBS` ("SIN BOMBAS"),
+	-- que describe un estado y no el motivo. Con `MAX_BOMBS` el jugador lee
+	-- "NO CABEN MAS" y entiende que lo que se agota es el espacio, no las
+	-- existencias. Son cosas distintas y el jugador las vive distinto.
+	MAX_BOMBS = "NO CABEN MAS",
+	COOLDOWN = "ENFRIAMIENTO",
+	INVALID_POSITION = "POSICION NO VALIDA",
+	INVALID_STATE = "NO HAY RONDA",
+	PLAYER_DEAD = "ESTAS MUERTO",
+	NO_WORLD = "MUNDO DESCONOCIDO",
+}
+
+--- Publica el motivo del ULTIMO rechazo en el atributo `BombRejection`.
+---
+--- MEDIDO EN PLAY (antes de esto): el servidor rechazaba con
+--- `state_violation` y el log lo decia, pero el cliente no se enteraba. El
+--- boton pulsaba, no aparecia nada en el mundo y no habia ninguna pista de
+--- por que. Medido con `tools/probes/p0-bomb-click.lua`.
+---
+--- Se publica como ATRIBUTO y no por un remoto nuevo a proposito: el patron
+--- de este juego es que el servidor publica datos y la UI los lee. Anadir un
+--- remoto de una sola via seria una segunda puerta para lo mismo.
+---
+--- Se escribe tambien `nil` cuando la bomba SI se coloca: si no, el motivo
+--- viejo se quedaria pegado y el boton mostraria "FUERA DE LA ARENA" sobre
+--- una bomba que se acaba de poner.
+--- @param player Player? jugador al que se le publica
+--- @param reasonKey string? clave de `REJECTION_REASONS`
+local function publishRejection(player: Player?, reasonKey: string?)
+	if not player then
+		return
+	end
+
+	local text: string? = nil
+
+	if reasonKey then
+		text = REJECTION_REASONS[reasonKey]
+	end
+
+	player:SetAttribute("BombRejection", text)
+	player:SetAttribute("BombRejectionKey", reasonKey)
+end
+
+--- Destruye la bomba VISUAL de un registro, si sigue viva.
+---
+--- ORDEN EN EL ARCHIVO: esta funcion esta ANTES de `detonateBomb` a proposito.
+--- En la version anterior estaba declarada mas abajo, y `detonateBomb` la
+--- llamaba desde la linea 311: Lua resuelve los locales en el orden en que se
+--- escriben, asi que dentro de `detonateBomb` ese nombre era un GLOBAL y salia
+--- `nil`. El error medido en PLAY era:
+---
+---     BombService:311: attempt to call a nil value
+---     Script 'ServerScriptService.Services.BombService', Line 311 - function detonateBomb
+---
+--- y el efecto era invisible: la bomba se quitaba de `_activeBombs` (por eso la
+--- sonda veia el registro desaparecer a los 3 s), pero la llamada reventaba
+--- ANTES de `ExplosionService.Detonate`. El jugador dejaba de ver bombas y
+--- estaba quieto en el mapa sin recibir dano. Ninguna prueba de unidad lo
+--- detectaba porque el fallo es de ALCANCE LEXICO, no de logica.
+--- @param record table?
+local function destroyBombVisual(record: { [string]: any }?)
+	if not record then
+		return
+	end
+
+	-- Antes solo se destruia `Part`. Con un `Model` eso dejaba vivos la tapa,
+	-- el fusible, el aro de peligro y el cartel: la bomba "explotaba" pero
+	-- seguia en pantalla.
+	if record.Model and record.Model.Parent then
+		record.Model:Destroy()
+	elseif record.Part and record.Part.Parent then
+		record.Part:Destroy()
+	end
+end
 --- Detona una bomba concreta y programa la cadena de reaccion.
 ---
 --- @param bombId number
@@ -395,22 +618,6 @@ local function setBombScale(model: Model, factor: number)
 	end
 end
 
---- Destruye la bomba VISUAL de un registro, si sigue viva.
---- @param record table?
-local function destroyBombVisual(record: { [string]: any }?)
-	if not record then
-		return
-	end
-
-	-- Antes solo se destruia `Part`. Con un `Model` eso dejaba vivos la tapa,
-	-- el fusible, el aro de peligro y el cartel: la bomba "explotaba" pero
-	-- seguia en pantalla.
-	if record.Model and record.Model.Parent then
-		record.Model:Destroy()
-	elseif record.Part and record.Part.Parent then
-		record.Part:Destroy()
-	end
-end
 
 --- Crea la bomba fisica y programa su cuenta regresiva en el servidor.
 --- @param ownerId number?
@@ -585,6 +792,47 @@ function Service.GetPlayerBombCount(userId: number): number
 	return count
 end
 
+--- Capacidad de bombas VIVAS de un jugador.
+---
+--- Es la CAPACIDAD DE JUEGO, no el tope de rendimiento. Sale de
+--- `GameConfig.BombCapacity` (2 de base) mas lo que el jugador haya
+--- desbloqueado, y se recorta contra `PerformanceConfig.Limits.MaxBombsPerPlayer`
+--- para que ningun camino (powerups incluidos) pueda superar el tope duro.
+---
+--- El recorte es `min`, no una comprobacion previa: asi el balance y la
+--- seguridad viven en el mismo numero y no pueden divergir si alguien anade
+--- un powerup nuevo.
+--- @param userId number
+--- @return number capacity
+function Service.GetPlayerCapacity(userId: number): number
+	local extra = Service._capacityBonus[userId] or 0
+	local base = GameConfig.BombCapacity + extra
+	local tope = PerformanceConfig.Limits.MaxBombsPerPlayer
+
+	if base > tope then
+		return tope
+	end
+
+	return base
+end
+
+--- Concede capacidad de bomba extra a un jugador (powerup "+BOMBA").
+---
+--- No concede el objeto ni la bomba: concede ESPACIO. Se separa de
+--- `spawnBomb` a proposito, porque subir la capacidad no debe poder crear
+--- una bomba por la puerta de atras.
+--- @param userId number
+--- @param amount number? cuanto se anade (1 por defecto)
+function Service.AddCapacityBonus(userId: number, amount: number?): number
+	if type(userId) ~= "number" then
+		return Service.GetPlayerCapacity(0)
+	end
+
+	Service._capacityBonus[userId] = (Service._capacityBonus[userId] or 0) + (amount or 1)
+
+	return Service.GetPlayerCapacity(userId)
+end
+
 --- Valida y coloca una bomba solicitada por un jugador.
 ---
 --- @param player Player
@@ -605,6 +853,7 @@ function Service.TryPlaceBomb(player: Player, position: any): (boolean, string?)
 	-- 1. La ronda debe estar en curso. En el lobby no se coloca nada.
 	if not Service._roundService then
 		Logger.Debug("[BOMB] validation fallo: sin RoundService")
+		publishRejection(player, "INVALID_STATE")
 		return false, "servicio de ronda no disponible"
 	end
 
@@ -612,6 +861,7 @@ function Service.TryPlaceBomb(player: Player, position: any): (boolean, string?)
 		Logger.Debug(("[BOMB] validation fallo: no hay ronda en curso (estado=%s)"):format(
 			Service._roundService.GetState()
 		))
+		publishRejection(player, "INVALID_STATE")
 		return false, "no hay ronda en curso"
 	end
 
@@ -622,71 +872,134 @@ function Service.TryPlaceBomb(player: Player, position: any): (boolean, string?)
 
 	if not humanoid or humanoid.Health <= 0 or not rootPart then
 		Logger.Debug("[BOMB] validation fallo: personaje no jugable")
+		publishRejection(player, "PLAYER_DEAD")
 		return false, "personaje no jugable"
 	end
 
-	-- 3. Posicion finita. El gateway ya valida el tipo, pero el servicio
-	--    no confia en una sola comprobacion.
-	local validPosition, positionReason = isValidPosition(position)
-
-	if not validPosition then
-		Logger.Debug(("[BOMB] validation fallo: %s"):format(positionReason or "posicion invalida"))
-		return false, positionReason or "posicion invalida"
-	end
-
-	-- 4. Limites del mapa. Sin esto se puede explotar fuera del mapa.
+	-- 3, 4 y 5. Posicion finita, area jugable y distancia al personaje.
 	--
-	-- Se mide contra la arena del MUNDO en el que esta el jugador. Antes solo
-	-- se comparaba contra el rectangulo de Forest, de modo que en Desert, Ice,
-	-- Volcano y Cyber toda bomba se rechazaba con "fuera de la arena".
+	-- Las tres decisiones viven en `BombPlacementRules.Evaluate`, que es
+	-- logica PURA y se prueba sin motor. Aqui solo se le pasa lo que el
+	-- servidor ya sabe (la posicion del personaje y los limites del mundo
+	-- en el que esta el jugador) y se traduce el motivo a texto.
 	--
-	-- El mundo se lee del atributo que escribe el SERVIDOR. Si no hay ninguno
-	-- conocido se usa `nil`, y `IsInsideArena` cae al rectangulo por defecto.
+	-- El mundo se lee del atributo que escribe el SERVIDOR. Si no hay
+	-- ninguno conocido se usa `nil`, y `GetArenaBounds` cae al rectangulo
+	-- del mundo por defecto.
+	--
+	-- La posicion se NORMALIZA antes de decidir. El cliente manda un
+	-- `Vector3`, pero el servicio no lo da por hecho: si el payload llega
+	-- manipulado, `BombPlacementRules` recibe numeros y decide, en vez de
+	-- reventar al indexar un tipo que no es un Vector3.
+	local requested = if typeof(position) == "Vector3" then {
+		x = position.X,
+		y = position.Y,
+		z = position.Z,
+	} else position
+
 	local worldAttr = player:GetAttribute("World")
 	local worldId = if type(worldAttr) == "string" then worldAttr else nil
+	local playerPosition = (rootPart :: BasePart).Position
 
-	if not Service.IsInsideArena(position, worldId) then
-		local bounds = Service.GetArenaBounds(worldId)
+	-- Los limites se NORMALIZAN a los nombres de `BombPlacementRules` una
+	-- sola vez. El tipo se declara aqui porque `GetArenaBounds` devuelve
+	-- `any?`, y el analizador no estrecha `any` a traves de un `if`: sin
+	-- esta firma, leer `arenaBounds.MinX` debajo da `Type 'nil' does not
+	-- have key 'MinX'`, que es un aviso real sobre un valor que si existe.
+	local rawBounds = Service.GetArenaBounds(worldId)
+	local arenaBounds =
+		rawBounds :: { MinX: number, MaxX: number, MinZ: number, MaxZ: number }?
 
-		if bounds then
-			Logger.Debug(("[BOMB] validation fallo: fuera de la arena %s X[%.0f, %.0f] Z[%.0f, %.0f]"):format(
-				tostring(worldId),
-				bounds.MinX,
-				bounds.MaxX,
-				bounds.MinZ,
-				bounds.MaxZ
-			))
-		else
-			Logger.Debug("[BOMB] validation fallo: sin limites de arena conocidos")
+	local placementBounds = if arenaBounds then {
+		minX = arenaBounds.MinX,
+		maxX = arenaBounds.MaxX,
+		minZ = arenaBounds.MinZ,
+		maxZ = arenaBounds.MaxZ,
+	} else nil
+
+	local accepted, rejectReason = BombPlacementRules.Evaluate({
+		position = requested,
+		playerX = playerPosition.X,
+		playerY = playerPosition.Y,
+		playerZ = playerPosition.Z,
+		bounds = placementBounds,
+		maxRange = GameConfig.BombPlacementRange,
+	})
+
+	if not accepted then
+		if rejectReason == BombPlacementRules.Reject.OUTSIDE_ARENA then
+			if arenaBounds then
+				Logger.Debug(("[BOMB] validation fallo: fuera del area jugable %s "
+					.. "X[%.0f, %.0f] Z[%.0f, %.0f]"):format(
+					tostring(worldId),
+					arenaBounds.MinX,
+					arenaBounds.MaxX,
+					arenaBounds.MinZ,
+					arenaBounds.MaxZ
+				))
+			else
+				Logger.Debug("[BOMB] validation fallo: sin limites de arena conocidos")
+			end
+
+			publishRejection(player, "OUTSIDE_ARENA")
+			return false, "fuera de la arena"
 		end
 
-		return false, "fuera de la arena"
+		if rejectReason == BombPlacementRules.Reject.OUT_OF_RANGE then
+			local distance = BombPlacementRules.FlatDistance(
+				playerPosition.X,
+				playerPosition.Z,
+				requested.x,
+				requested.z
+			)
+
+			Logger.Debug(("[BOMB] validation fallo: fuera de rango (%.0f studs, max %.0f)")
+				:format(distance, GameConfig.BombPlacementRange))
+			publishRejection(player, "INVALID_POSITION")
+			return false, ("fuera de rango (%.0f studs)"):format(distance)
+		end
+
+		Logger.Debug(("[BOMB] validation fallo: %s"):format(tostring(rejectReason)))
+		publishRejection(player, "INVALID_POSITION")
+		return false, "posicion invalida"
 	end
 
-	-- 5. Distancia al personaje. Sin esto, un cliente colocaria bombas
-	--    a distancia sin moverse.
-	local distance = (rootPart.Position - position).Magnitude
+	-- 6. CAPACIDAD DEL JUGADOR.
+	--
+	--    MEDIDO EN PLAY: este bloque publicaba `NO_BOMBS` ("SIN BOMBAS"), que
+	--    es un motivo que describe el ESTADO y no el motivo del rechazo. El
+	--    jugador que ya tiene dos bombas leia "SIN BOMBAS" y no entendia que
+	--    lo que se agota es el ESPACIO, no las existencias. El enunciado del
+	--    P0 pide que el rechazo sea explicito (`MAX_BOMBS`), asi que ahora hay
+	--    una clave propia para "no caben mas" y otra para "no tienes".
+	--
+	--    La capacidad sale de `GameConfig.BombCapacity` (2 de base) y NO de
+	--    `PerformanceConfig.Limits.MaxBombsPerPlayer`, que es un tope de
+	--    rendimiento (5) muy por encima del balance de juego. Confundir los
+	--    dos era lo que hacia ilegible el limite: 5 no es lo que el jugador
+	--    deberia colocar a la vez.
+	--
+	--    Los powerups pueden subir la capacidad de un jugador concreto; el
+	--    tope de rendimiento sigue estando por encima como red de seguridad.
+	local capacity = Service.GetPlayerCapacity(player.UserId)
 
-	if distance > GameConfig.BombPlacementRange then
-		Logger.Debug(("[BOMB] validation fallo: fuera de rango (%.0f studs, max %.0f)"):format(
-			distance,
-			GameConfig.BombPlacementRange
+	if Service.GetPlayerBombCount(player.UserId) >= capacity then
+		Logger.Debug(("[BOMB] validation fallo: MAX_BOMBS (vivas=%d, capacidad=%d)"):format(
+			Service.GetPlayerBombCount(player.UserId),
+			capacity
 		))
-		return false, ("fuera de rango (%.0f studs)"):format(distance)
+		publishRejection(player, "MAX_BOMBS")
+		return false, ("limite de bombas alcanzado (%d/%d)"):format(
+			Service.GetPlayerBombCount(player.UserId),
+			capacity
+		)
 	end
 
-	-- 6. Tope de bombas por jugador. El cooldown (1.5 s) con.mecha
-	--    (3 s) permitiria 2 bombas, pero un jugador que entre y salga
-	--    de ronda acumularia mas. El limite es explicito.
 	local limits = PerformanceConfig.Limits
-
-	if Service.GetPlayerBombCount(player.UserId) >= limits.MaxBombsPerPlayer then
-		Logger.Debug("[BOMB] validation fallo: limite de bombas del jugador")
-		return false, "limite de bombas alcanzado"
-	end
 
 	if Service.GetActiveBombCount() >= limits.MaxBombsPerWorld then
 		Logger.Debug("[BOMB] validation fallo: limite de bombas del mundo")
+		publishRejection(player, "NO_BOMBS")
 		return false, "limite de bombas del mundo alcanzado"
 	end
 
@@ -696,21 +1009,25 @@ function Service.TryPlaceBomb(player: Player, position: any): (boolean, string?)
 
 	if now < (Service._cooldowns[player.UserId] or 0) then
 		Logger.Debug("[BOMB] validation fallo: en cooldown")
+		publishRejection(player, "COOLDOWN")
 		return false, "en cooldown"
 	end
 	Service._cooldowns[player.UserId] = now + GameConfig.BombCooldown
 
 	if not Service._explosionService then
 		Logger.Error("BombService: ExplosionService no inyectado")
+		publishRejection(player, "NO_WORLD")
 		return false, "sin servicio de explosiones"
 	end
 
-	local bombId = spawnBomb(player.UserId, position, worldId)
+	local placement = resolvePlacement(position, rootPart :: BasePart?)
+	local bombId = spawnBomb(player.UserId, placement, worldId)
 
 	if bombId == 0 then
 		-- El modelo no se pudo construir: se devuelve el cooldown para que el
 		-- jugador no espere 1.5 s a un fallo que ya se ha registrado.
 		Service._cooldowns[player.UserId] = now
+		publishRejection(player, "NO_WORLD")
 		return false, "no se pudo crear la bomba"
 	end
 
@@ -727,6 +1044,11 @@ function Service.TryPlaceBomb(player: Player, position: any): (boolean, string?)
 	if Service._questService ~= nil then
 		Service._questService.RecordMetric(player, "BombPlaced", 1)
 	end
+
+	-- El rechazo se borra al COLOCAR, no al intentar. Si se dejara, el boton
+	-- seguiria mostrando "FUERA DE LA ARENA" sobre una bomba que ya esta en
+	-- el mundo, y el jugador leeria un motivo viejo como si fuera actual.
+	publishRejection(player, nil)
 
 	return true, nil
 end
@@ -762,6 +1084,114 @@ function Service.GetActiveBombCount(): number
 	return count
 end
 
+--- Carpetas cuyo contenido es SUELO JUGABLE de un mundo.
+---
+-- Se declaran aqui, y no se recorren "todas las piezas del mundo", por
+-- una razon concreta: `Decoration`, `Keshusy`, `Hazards`, `Border` y
+-- `CentralStructure` contienen adornos, monolitos y piezas de escenario.
+-- Incluirlas aqui permitiria que una pieza decorativa con `CanQuery`
+-- inesperado EXPANDIERA el area jugable de la bomba, que es exactamente
+-- el fallo de "geometria que no deberia decidir las reglas" (punto 49 de
+-- la auditoria). El limite de bomba lo declara el suelo, no el atrezo.
+local WORLD_FLOOR_FOLDERS = { "Zones", "Routes", "Blocks" }
+
+--- Holgura que se anade a cada losa antes de unirla.
+--
+-- Cubre los bordes de las zonas (que son ensembles de losas separadas,
+-- no una losa unica) y el hecho de que el suelo de cada zona esta
+-- GIRADO: una caja sin holgura recorta las esquinas y vuelve a crear el
+-- bug exactamente en las zonas inclinadas.
+local WORLD_FLOOR_PAD = 6
+
+--- Recoge el suelo REAL de un mundo: la union de sus zonas y rutas.
+---
+--- BUG CORREGIDO (auditoria global de gameplay): antes se leia UNA sola
+--- pieza, `ArenaFloor`. Desde que los cinco mundos son mundos con zonas
+--- y rutas, `ArenaFloor` es el suelo de la ZONA DE ARENA y nada mas: un
+--- rectangulo pequeno en el centro del mundo. Todo lo demas (spawn,
+--- entrada, senderos y zona del jefe) caia fuera y se
+--- rechazaba con `OUTSIDE_ARENA`. El sintoma era "la bomba se coloca en
+--- algunas posiciones y en otras no", y era IDENTICO en los cinco mundos.
+---
+--- Que se cuenta y que NO:
+---
+---  - `Zones/` y `Routes/`: las losas y pasarelas por las que se camina.
+---  - `ArenaFloor`: el suelo de combate, siempre jugable.
+---  - NO `Decoration`, `Keshusy`, `Hazards`, `Border` ni
+---    `CentralStructure`: son adorno y escenario.
+---
+--- Se excluye ademas cualquier pieza con el atributo `IsHitbox`: un
+--- hitbox gigante es justo el tipo de pieza que ensancha un limite sin
+--- aportar suelo.
+---
+--- @param world Instance carpeta del mundo
+--- @return { { minX: number, maxX: number, minZ: number, maxZ: number } }?
+--
+-- El tipo de la caja va escrito aqui y no como `BombPlacementRules.Box` a
+-- proposito: el analizador de este repo no resuelve la ruta del `require`
+-- entre modulos de `Shared`, asi que nombrar el tipo imported produce
+-- "Unknown type" sin decir nada del codigo.
+local function collectWorldFloorBoxes(world: Instance): { { minX: number, maxX: number, minZ: number, maxZ: number } }?
+	local boxes: { { minX: number, maxX: number, minZ: number, maxZ: number } } = {}
+
+	local function consider(instance: Instance)
+		if not instance:IsA("BasePart") then
+			return
+		end
+
+		local part = instance :: BasePart
+
+		if part:GetAttribute("IsHitbox") == true then
+			return
+		end
+
+		-- La caja se construye con la regla compartida y no con una tabla
+		-- literal: la regla de la caja enclavada (mitad + holgura) tiene que
+		-- ser la MISMA que aplica la rejilla de QA, y duplicarla aqui es la
+		-- forma de que las dos se separen sin que ninguna falle.
+		--
+		-- El `cast` es por el analizador: sin el, `BoxFromXZ` aparece como
+		-- una sobrecarga ambigua y el aviso no describe ningun fallo real.
+		local box = (BombPlacementRules.BoxFromXZ :: (
+			number,
+			number,
+			number,
+			number,
+			number?
+		) -> { minX: number, maxX: number, minZ: number, maxZ: number })(
+			part.Position.X,
+			part.Position.Z,
+			part.Size.X,
+			part.Size.Z,
+			WORLD_FLOOR_PAD
+		)
+
+		table.insert(boxes, box)
+	end
+
+	local arenaFloor = world:FindFirstChild("ArenaFloor")
+
+	if arenaFloor and arenaFloor:IsA("BasePart") then
+		consider(arenaFloor)
+	end
+
+	for _, folderName in ipairs(WORLD_FLOOR_FOLDERS) do
+		local folder = world:FindFirstChild(folderName)
+
+		if folder then
+			for _, descendant in ipairs(folder:GetDescendants()) do
+				consider(descendant)
+			end
+		end
+	end
+
+	if #boxes == 0 then
+		return nil
+	end
+
+	return boxes
+end
+
 --- Detecta los limites de TODAS las arenas a partir de sus suelos.
 ---
 --- Se lee del mapa, no del generador: asi el servicio funciona con
@@ -784,18 +1214,25 @@ local function detectArenaBounds()
 	local byWorld: { [string]: any } = {}
 
 	for _, world in ipairs(worlds:GetChildren()) do
-		local floor = world:FindFirstChild("ArenaFloor")
+		local boxes = collectWorldFloorBoxes(world)
 
-		if floor and floor:IsA("BasePart") then
-			local part = floor :: BasePart
-			local half = part.Size / 2
+		if boxes then
+			local union = BombPlacementRules.Union(boxes)
 
-			byWorld[world.Name] = {
-				MinX = part.Position.X - half.X,
-				MaxX = part.Position.X + half.X,
-				MinZ = part.Position.Z - half.Z,
-				MaxZ = part.Position.Z + half.Z,
-			}
+			if union then
+				-- El margen se aplica UNA vez, aqui. Todo lo que se measure
+				-- despues (validacion, HUD, sondas) lee el rectangulo ya
+				-- expandido, de modo que no hay dos limites distintos que
+				-- puedan discrepar.
+				local bounds = BombPlacementRules.Expand(union)
+
+				byWorld[world.Name] = {
+					MinX = bounds.minX,
+					MaxX = bounds.maxX,
+					MinZ = bounds.minZ,
+					MaxZ = bounds.maxZ,
+				}
+			end
 		end
 	end
 
@@ -818,6 +1255,7 @@ function Service.Init(maid: any?): boolean
 	end
 
 	Service._cooldowns = {}
+	Service._capacityBonus = {}
 	Service._activeBombs = {}
 	Service._nextBombId = 0
 
@@ -901,11 +1339,13 @@ function Service.Start(): boolean
 	if Service._maid then
 		Service._maid:Connect(Players.PlayerAdded, function(player: Player)
 			player:SetAttribute("Bombs", 0)
+			player:SetAttribute("BombCapacity", Service.GetPlayerCapacity(player.UserId))
 		end)
 	end
 
 	for _, player in ipairs(Players:GetPlayers()) do
 		player:SetAttribute("Bombs", 0)
+		player:SetAttribute("BombCapacity", Service.GetPlayerCapacity(player.UserId))
 	end
 
 	Logger.Info(("BombService listo (%d arena(s) con limite, por defecto %s)."):format(
@@ -927,6 +1367,7 @@ function Service.Destroy(): boolean
 	end
 
 	Service._cooldowns = {}
+	Service._capacityBonus = {}
 	Service._arenaBounds = nil
 	Service._arenaBoundsByWorld = {}
 	Service._defaultArenaWorld = nil

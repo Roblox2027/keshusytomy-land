@@ -53,6 +53,25 @@ return {
 	-- Tiempo entre bombas del mismo jugador. El servidor lo aplica:
 	-- sin esto, un cliente que spamea el remoto coloca bombas sin limite.
 	BombCooldown = 1.5,
+	-- Bombas que un jugador puede tener VIVAS a la vez.
+	--
+	-- MEDIDO EN PLAY (no deducido): el sintoma reportado era "solo puedo
+	-- colocar una bomba". La causa NO era este limite (que valia 5), sino un
+	-- cerrojo en el cliente que se cerraba con la primera peticion y no se
+	-- abria jamas. El limite de aqui es el de DISENO, y es 2 a proposito:
+	--
+	--   Bomba A -> t=0
+	--   Bomba B -> t=1.5   (el enfriamiento ya ha pasado)
+	--   A explota -> t=3
+	--
+	-- Dos bombas es lo que convierte la bomba en una herramienta tactica: se
+	-- coloca una para demarcar la huida y otra para cerrar la retirada. Con
+	-- una sola no hay decision que tomar; con cinco el jugador llena la arena
+	-- y pierde el sentido de la explosion.
+	--
+	-- Es la CAPACIDAD BASE. Los powerups pueden subirla (ver `PowerupService`),
+	-- y el servidor sigue siendo quien la aplica: el cliente nunca concede.
+	BombCapacity = 2,
 	-- Distancia maxima entre el personaje y la bomba. Evita colocar
 	-- bombas a distancia desde cualquier punto del mapa.
 	BombPlacementRange = 18,
@@ -106,9 +125,53 @@ return {
 	-- como "ocupando la posicion". Es un poco MAS que el tope de tamano de
 	-- un monstruo para que un Guardian grande tambien bloquee el sitio.
 	BlockSpawnClearance = 6,
-	-- Altura por debajo de la cual se considera caida al vacio. El
-	-- servidor reubica al jugador en vez de dejar que muera sin control.
-	VoidKillY = -50,
+
+	-- ---------------------------------------------------------------
+	-- Caida al vacio y limite del mundo
+	--
+	-- P0 DEFINITIVO. El borde del mundo es el FINAL DEL TERRENO: se corre,
+	-- se acaba el suelo, se cae, se muere y se reaparece. Lo que se elimina
+	-- es el "rescate": antes, `SpawnService` teletransportaba al jugador de
+	-- vuelta al spawn al bajar de `VoidKillY`, y con eso la caida no era una
+	-- caida sino un teletransporte punitive que ademas saltava el ciclo de
+	-- muerte y la reaparicion.
+	--
+	-- La consecuencia de este cambio es deliberada y es la regla del juego:
+	-- MORIR NO BLOQUEA EL JUEGO. Caer mata, y al morir el jugador reaparece
+	-- con normalidad, puede usar el portal y puede volver a entrar al mundo.
+
+	-- Altura por debajo de la cual se considera CAIDA. El servidor la valida
+	-- y pone `Humanoid.Health = 0`: la muerte la decide el motor, no una
+	-- comprobacion del cliente.
+	--
+	-- Antes este valor se llamaba `VoidKillY` pero NO mataba a nadie: solo
+	-- teletransportaba. El nombre nuevo dice lo que hace.
+	FallDeathY = -50,
+
+	-- Cada cuanto se comprueba la caida. El vacio no genera eventos, asi que
+	-- la vigilancia es por sondeo; un segundo es suficiente porque el jugador
+	-- cae a 196 studs por segundo y desde la cota mas alta del mundo (~30)
+	-- hasta -50 hay mas de medio segundo de margen.
+	FallCheckInterval = 1,
+
+	-- Tiempo que un jugador puede seguir FUERA del area jugable sin que se le
+	-- considere perdido. Es una red de seguridad, no un muro: si el suelo
+	-- faltara bajo sus pies (por ejemplo un fallo de fisica), el jugador
+	-- quedaria flotando fuera del mapa para siempre sin poder volver. Pasado
+	-- este tiempo sin haber vuelto a entrar, cae y muere por la regla normal.
+	--
+	-- No hay teletransporte de vuelta en ningun caso: la salida de esta
+	-- situacion es siempre la caida y la muerte.
+	OutOfBoundsGraceSeconds = 8,
+
+	-- Altura por debajo de la cual se considera que el jugador esta en el
+	-- VACIO y no simplemente en el lobby.
+	--
+	-- La distincion importa porque el lobby esta en el origen, que no esta
+	-- dentro de ninguna caja de mundo: un jugador del lobby esta "fuera de todo
+	-- mundo" y, sin este umbral, la red de seguridad lo mataria. Por debajo de
+	-- esta cota no hay ningun suelo de juego, y ahi la unica salida es caer.
+	OutOfBoundsY = -20,
 
 	-- ---------------------------------------------------------------
 	-- Rondas

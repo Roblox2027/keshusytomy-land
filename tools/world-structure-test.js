@@ -126,6 +126,13 @@ function analyzeWorld(id, flat) {
 	// Cada zona debe tener geometria REAL: suelo, borde y piezas solidas. Una
 	// carpeta llamada `Zone1` con tres decoraciones dentro es exactamente el
 	// caso que hay que rechazar, y por eso se cuentan PIEZAS y no nombres.
+	//
+	// El minimo de BORDE baja de 3 a 1 porque el muro de una zona ya no es un
+	// anillo cerrado (ver `zoneRim` en `tools/worlds.js`): se construye solo en
+	// el arco que mira a una zona vecina, porque un muro que mira al vacio es
+	// contencion, que es justo lo que este P0 elimina. Una zona-hoja (una
+	// salida, un claro sin continuacion) tiene una sola particion y sigue siendo
+	// un lugar jugable con suelo, borde y solidas.
 	let zonesWithFloor = 0;
 	for (const zn of zoneNames) {
 		const zprefix = prefix + "Zones." + zn + ".";
@@ -135,7 +142,7 @@ function analyzeWorld(id, flat) {
 		const solid = kids.filter(
 			(e) => e.className === "Part" && e.node.$properties && e.node.$properties.CanCollide === true
 		);
-		if (floor.length >= 2 && rim.length >= 3 && solid.length >= 5) {
+		if (floor.length >= 2 && rim.length >= 1 && solid.length >= 5) {
 			zonesWithFloor++;
 		} else {
 			problems.push(
@@ -240,33 +247,77 @@ function analyzeWorld(id, flat) {
 		if (c) centerByZone[zn] = posOf(c);
 	}
 
+	// EL HUECO SE MIDE IGUAL QUE EN EL GENERADOR
+	// --------------------------------------------
+	// Esta comprobacion tiene que replicar el criterio de `zoneRim`, no uno mas
+	// estricto. Medido: al abrir el hueco en STUDIOS (y no solo en angulo) el
+	// generador dejo pasar rutas que esta prueba daba por cerradas, y el suite
+	// entero se puso en rojo sin que el mapa hubiera cambiado.
+	//
+	// El generador abre `halfStuds / rr + (segW / 2) / rr`, donde `halfStuds` es
+	// el ancho minimo de la ruta y el segundo termino es el angulo que invade
+	// cada segmento tangente del borde.
+	const layoutZones = {};
+	for (const z of Worlds.LAYOUTS[id].zones) layoutZones[z.id] = z;
+
 	for (const r of routes) {
 		for (const side of ["from", "to"]) {
 			const zoneShort = r[side];
-			const otherShort = side === "from" ? r.to : r.from;
 			const ownFolder = "Zone_" + id + "_" + zoneShort;
-			const otherFolder = "Zone_" + id + "_" + otherShort;
 			const ownCenter = centerByZone[ownFolder];
-			const otherCenter = centerByZone[otherFolder];
+			const otherCenter = centerByZone[side === "from" ? "Zone_" + id + "_" + r.to : "Zone_" + id + "_" + r.from];
 			if (!ownCenter || !otherCenter) continue;
 
-			const ang = Math.atan2(otherCenter[2] - ownCenter[2], otherCenter[0] - ownCenter[0]);
-			const rims = rimByZone[ownFolder] || [];
+			const zone = layoutZones[zoneShort];
+			if (!zone) continue;
 
-			// El hueco tiene que caber la ruta mas un margen, o el jugador roza
-			// los bordes al pasar. `zoneRim` usa `width * 0.75`, aqui se exige lo
-			// mismo: si el test perdona mas que el generador, el test miente.
-			const need = Math.atan2(14 * 0.75, Math.max(1, dist(ownCenter, otherCenter))) + 0.22;
+			const ang = Math.atan2(otherCenter[2] - ownCenter[2], otherCenter[0] - ownCenter[0]);
+
+			// EL HUECO SE EVALUA SEGUNDO A SEGMENTO
+			// --------------------------------------
+			// El radio de la elipse cambia con la direccion, asi que el semiancho
+			// angular que hay que abrir TAMBIEN. Calcularlo una sola vez, con el
+			// radio en la direccion de la ruta, daba un valor MAYOR que el real
+			// en los lados largos de la zona: el test declaraba cerrado un borde
+			// que el generador abre. Medido en Forest: 64 rutas marcadas como
+			// cerradas con el mapa ya corregido.
+			//
+			// Por eso `need` se calcula DENTRO del filtro, con el radio propio de
+			// cada pieza, y por eso la funcion compartida recibe `rr` y no el
+			// angulo.
+			const halfStuds = Math.max(14 * 0.75, 16);
+			const segs = Worlds.rimSegments(zone);
+
+			const rims = rimByZone[ownFolder] || [];
 
 			const blocking = rims.filter((e) => {
 				const p = posOf(e);
 				if (!p) return false;
 				const a = Math.atan2(p[2] - ownCenter[2], p[0] - ownCenter[0]);
+				const rrSeg = 1 / Math.sqrt(
+					(Math.cos(a) / zone.rx) ** 2 + (Math.sin(a) / zone.rz) ** 2
+				);
+				const need = Worlds.rimOpeningHalfAngle(halfStuds, rrSeg, segs);
 				const d = Math.abs(((a - ang + Math.PI * 3) % (Math.PI * 2)) - Math.PI);
 				return d < need;
 			});
 
 			if (blocking.length > 0) {
+				if (process.argv.includes("--why")) {
+					const rims2 = rimByZone[ownFolder] || [];
+					const list = rims2.map((e) => {
+						const p = posOf(e);
+						const a = Math.atan2(p[2] - ownCenter[2], p[0] - ownCenter[0]);
+						const d = Math.abs(((a - ang + Math.PI * 3) % (Math.PI * 2)) - Math.PI);
+						return { name: e.path.split(".").pop(), d: d.toFixed(4) };
+					}).sort((x, y2) => Number(x.d) - Number(y2.d));
+					console.log(
+						`  WHY ${id} ${zoneShort}->${side === "from" ? r.to : r.from}: ang=${ang.toFixed(4)}` +
+						` need=${need.toFixed(4)} rr=${rr.toFixed(1)} segs=${Worlds.rimSegments(zone)}` +
+						` medioAngulo=${(Math.PI / Worlds.rimSegments(zone)).toFixed(4)}`
+					);
+					console.log("    mas cercanos: " + list.slice(0, 4).map((x) => `${x.name}@${x.d}`).join(" "));
+				}
 				problems.push(
 					`${id}: el borde de '${zoneShort}' cierra la entrada a '${r.name}' ` +
 					`(${blocking.length} muro(s) en el angulo de la ruta)`

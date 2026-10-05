@@ -423,8 +423,16 @@ function VisualKit.BuildMonster(def: any): Model?
 	-- El mundo se aplica aqui y NO en la hitbox: un enemigo puede verse mas
 	-- grande en un mundo que en otro sin que sus colisiones cambien, y asi
 	-- la dificultad se comunica sin volver los pasillos intransitables.
-	local visualScale: number = (def.VisualScale or 1) * (def.WorldScale or 1)
-	local size: Vector3 = shape.size * visualScale
+	--
+	-- La ESCALA FINAL se mide contra el JUGADOR, no contra la forma de este
+	-- bicho. Multiplicar la forma base directamente hacia que un Slime
+	-- declarado 1.4 midiera 4.2 studs frente a un jugador de 5.5, es decir,
+	-- mas bajo que el jugador justo cuando el diseno dice que es un 40 % mas
+	-- alto. `Rules.BodySize` es quien aplica la escala; aqui solo se decide
+	-- CUANTAS veces.
+	local finalScale: number = (def.VisualScale or 1) * (def.WorldScale or 1)
+	local bodySize = MonsterScaleRules.BodySize(shape.size, finalScale)
+	local size: Vector3 = Vector3.new(bodySize.X, bodySize.Y, bodySize.Z)
 
 	local model = Instance.new("Model")
 	model.Name = ("Monster_%s"):format(tostring(def.Id))
@@ -445,7 +453,7 @@ function VisualKit.BuildMonster(def: any): Model?
 		collide = true,
 	})
 	root:SetAttribute("IsHitbox", true)
-	root:SetAttribute("VisualScale", visualScale)
+	root:SetAttribute("VisualScale", finalScale)
 	root:SetAttribute("HitboxRatio", rootSize.Magnitude / math.max(size.Magnitude, 0.001))
 	model.PrimaryPart = root
 	root.Parent = model
@@ -471,7 +479,7 @@ function VisualKit.BuildMonster(def: any): Model?
 	-- Guardian de 2.1 tendria unos ojos diminutos y deja de tener cara: la
 	-- expresion es justo lo que hace que un bicho grande se lea como una
 	-- criatura y no como un mueble.
-	local eyeSize = Vector3.new(0.5, 0.6, 0.3) * visualScale
+	local eyeSize = Vector3.new(size.X * 0.15, size.Y * 0.2, size.Z * 0.09)
 	local eyeHeight = size.Y * 0.18
 	local eyeSpread = size.X * 0.22
 	local eyeDepth = -(size.Z / 2) - 0.08
@@ -499,7 +507,7 @@ function VisualKit.BuildMonster(def: any): Model?
 		for _, side in ipairs({ -1, 1 }) do
 			local antenna = makePart(
 				"Antenna_" .. tostring(side),
-				Vector3.new(0.18, 1.1, 0.18),
+				Vector3.new(size.X * 0.06, size.Y * 0.36, size.Z * 0.06),
 				CFrame.new(side * (size.X * 0.3), size.Y * 0.5 + 0.4, 0)
 					* CFrame.Angles(math.rad(side * 12), 0, 0),
 				shape.accent,
@@ -509,7 +517,7 @@ function VisualKit.BuildMonster(def: any): Model?
 
 			local tipBall = makePart(
 				"AntennaTip_" .. tostring(side),
-				Vector3.new(0.5, 0.5, 0.5),
+				Vector3.new(size.X * 0.17, size.Y * 0.17, size.Z * 0.17),
 				CFrame.new(side * (size.X * 0.34), size.Y * 0.5 + 0.95, 0),
 				Color3.fromRGB(255, 120, 90),
 				{ shape = Enum.PartType.Ball, material = Enum.Material.Neon }
@@ -525,7 +533,7 @@ function VisualKit.BuildMonster(def: any): Model?
 			local angle = (index / count) * math.pi * 2
 			local spike = makePart(
 				"Spike_" .. index,
-				Vector3.new(0.6, 1.4, 0.6),
+				Vector3.new(size.X * 0.2, size.Y * 0.46, size.Z * 0.2),
 				CFrame.new(
 					math.cos(angle) * (size.X * 0.34),
 					size.Y * 0.5 + 0.5,
@@ -548,7 +556,7 @@ function VisualKit.BuildMonster(def: any): Model?
 
 		local aerial = makePart(
 			"Aerial",
-			Vector3.new(0.14, 1.6, 0.14),
+			Vector3.new(size.X * 0.045, size.Y * 0.53, size.Z * 0.045),
 			CFrame.new(0, size.Y * 0.5 + 0.8, 0),
 			Color3.fromRGB(200, 255, 255),
 			{ material = Enum.Material.Neon }
@@ -707,7 +715,7 @@ function VisualKit.BuildMonster(def: any): Model?
 	-- sale con la escala correcta. Es lo que usan las pruebas de
 	-- verificacion en runtime y lo que haria falta para detectar en un
 	-- playtest que un mundo se quedo sin aplicar su multiplicador.
-	model:SetAttribute("VisualScale", visualScale)
+	model:SetAttribute("VisualScale", finalScale)
 	model:SetAttribute("HitboxScale", def.HitboxScale or MonsterScaleRules.DefaultHitboxRatio)
 	model:SetAttribute("VisualHeight", size.Y)
 	model:SetAttribute("HitboxHeight", rootSize.Y)
@@ -798,18 +806,31 @@ function VisualKit.BuildExplosion(
 	return model
 end
 
--- ---------------------------------------------------------------------------
--- POWERUP
--- ---------------------------------------------------------------------------
+-- =========================================================================
+-- POWERUPS
+-- =========================================================================
 
 --- Powerups disponibles. Se reconocen POR COLOR y POR FORMA antes de tocarlos:
 --- un objeto sin icono es un objeto que el jugador ignora.
+---
+-- MEDIDO EN AUDITORIA: existian cinco (Bomb, Fire, Speed, Shield, Heal) y solo
+-- se generaban CUATRO: `KINDS` no incluia `Fire`, asi que su modelo, su
+-- efecto y su atributo existian sin que nada llegara nunca a generarlo. Es
+-- codigo muerto, y el jugador lo lee como "+PODER que no existe".
+--
+-- La lista de aqui y la de `PowerupService.KINDS` tienen que COINCIDIR, y lo
+-- comprueba `Gameplay.spec`: un powerup pintado que no se genera es un
+-- fantasma; uno que se genera y no esta pintado es un cubo sin nombre.
 VisualKit.POWERUPS = {
 	Bomb = { color = Color3.fromRGB(255, 176, 64), shape = Enum.PartType.Ball, label = "+BOMBA" },
 	Fire = { color = Color3.fromRGB(255, 96, 64), shape = Enum.PartType.Ball, label = "+PODER" },
 	Speed = { color = Color3.fromRGB(120, 255, 190), shape = Enum.PartType.Block, label = "+VELOCIDAD" },
 	Shield = { color = Color3.fromRGB(150, 200, 255), shape = Enum.PartType.Block, label = "ESCUDO" },
 	Heal = { color = Color3.fromRGB(120, 255, 130), shape = Enum.PartType.Ball, label = "+VIDA" },
+	Dash = { color = Color3.fromRGB(200, 140, 255), shape = Enum.PartType.Block, label = "IMPULSO" },
+	Ghost = { color = Color3.fromRGB(220, 220, 240), shape = Enum.PartType.Ball, label = "FANTASMA" },
+	Magnet = { color = Color3.fromRGB(255, 220, 120), shape = Enum.PartType.Ball, label = "IMAN" },
+	Freeze = { color = Color3.fromRGB(160, 240, 255), shape = Enum.PartType.Cylinder, label = "CONGELAR" },
 }
 
 --- Construye un powerup flotante con su cartel.

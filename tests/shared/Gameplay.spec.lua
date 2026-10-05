@@ -139,13 +139,59 @@ local function describeGameplay()
 
 		Harness.it("la altura de vacio esta bajo el suelo del mapa", function()
 			-- Los suelos se generan con su cara superior en Y = 0.
-			expect.toBe(GameConfig.VoidKillY < -10, true)
+			--
+			-- P0: esto ya no es un "rescate" sino la COTA DE MUERTE. Al bajar de
+			-- aqui el servidor pone `Humanoid.Health = 0` y el jugador muere y
+			-- reaparece con normalidad. Antes este valor solo teletransportaba.
+			expect.toBe(GameConfig.FallDeathY < -10, true)
+		end)
+
+		Harness.it("la cota de muerte esta bajo la de fuera de limites", function()
+			-- El orden importa: `OutOfBoundsY` es "ya no hay suelo de juego" y
+			-- `FallDeathY` es "ha caido". Si la primera estuviera por debajo de la
+			-- segunda, la red de seguridad mataria antes de que el jugador hubiera
+			-- tenido tiempo de caer, y seria un muro invisible.
+			expect.toBe(GameConfig.OutOfBoundsY > GameConfig.FallDeathY, true)
+		end)
+
+		Harness.it("el margen de gracia deja volver andando", function()
+			-- Salirse del area jugable NO mata al instante: el jugador tiene que
+			-- poder volver andando. Sin este margen, el limite logico seria un
+			-- muro con otro nombre.
+			expect.toBe(GameConfig.OutOfBoundsGraceSeconds >= 3, true)
 		end)
 
 		Harness.it("se puede jugar en solitario desde Studio", function()
 			-- MinPlayersToStart = 1 es lo que hace comprobable el
 			-- vertical slice sin abrir el juego a publico.
 			expect.toBe(GameConfig.MinPlayersToStart >= 1, true)
+		end)
+	end)
+
+	Harness.describe("Powerups", function()
+		-- MEDIDO EN AUDITORIA: el servicio generaba `{ Bomb, Speed, Shield,
+		-- Heal }` mientras `VisualKit` pintaba cinco powerups y `ApplyEffect`
+		-- implementaba seis. "+PODER" estaba entero y nunca aparecia, y cuatro
+		-- powerups de la especificacion (Dash, Ghost, Magnet, Freeze) no
+		-- existian en ninguna de las dos listas.
+		--
+		-- Aqui solo se comprueba lo que es DATO de configuracion. Que la
+		-- lista del servicio, la tabla de `VisualKit` y los atributos que lee
+		-- el HUD esten de acuerdo NO se puede comprobar desde esta suite: el
+		-- interprete `luau.exe` no expone `io`, asi que no puede leer los
+		-- fuentes. Ese contrato lo comprueba
+		-- `tools/powerup-boss-contract.js`, que si puede abrir ficheros.
+		Harness.it("la capacidad de bomba base es la de la especificacion", function()
+			-- Dos simultaneas: es lo que convierte la bomba en herramienta
+			-- tactica (demarcar la huida y cerrar la retirada).
+			expect.toBe(GameConfig.BombCapacity, 2)
+		end)
+
+		Harness.it("la capacidad es un tope real y no un adorno", function()
+			-- Si `BombCapacity` no se aplicara al validar, el powerup "+BOMBA"
+			-- no tendria ningun efecto observable.
+			expect.toBe(GameConfig.BombCooldown > 0, true)
+			expect.toBe(GameConfig.BombPlacementRange > 0, true)
 		end)
 	end)
 

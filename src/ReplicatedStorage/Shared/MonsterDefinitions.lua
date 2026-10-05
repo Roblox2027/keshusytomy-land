@@ -114,6 +114,19 @@ export type MonsterDefinition = {
 	AppliesBurn: boolean,     -- Fire Beast: dano continuos tras el golpe
 	BlocksDestroy: boolean,   -- Guardian: el jugador tiene que rodearlo
 	ReflectsDamage: boolean,  -- Cyber: castiga al que ataca de cerca
+
+	-- ------------------------------------------------------- BOSS
+	--
+	-- Un boss NO es "un monstruo con mas vida". Es el cierre de un mundo:
+	-- tiene su propia barra de vida en el HUD, sus fases y una recompensa
+	-- que no comparte con la fauna. Por eso lleva marca propia en lugar de
+	-- deducirse del tamano.
+	--
+	-- El mundo al que pertenece se declara aqui (`World`) para que el
+	-- servicio pueda resolver "el boss de Forest" sin preguntar a cada
+	-- definicion: es el UNICO dato que un jefe necesita del mundo.
+	IsBoss: boolean,
+	World: string?,
 }
 
 -- ============================================================ COMPATIBILIDAD
@@ -241,6 +254,9 @@ local function define(def: { [string]: any })
 		AppliesBurn = def.AppliesBurn or false,
 		BlocksDestroy = def.BlocksDestroy or false,
 		ReflectsDamage = def.ReflectsDamage or false,
+
+		IsBoss = def.IsBoss or false,
+		World = def.World,
 	}
 end
 
@@ -428,6 +444,98 @@ define({
 	DetectTime = 0.3, WarningTime = 0.7, ChargeDuration = 0.6,
 	Pressure = 0.85,
 	ReflectsDamage = true,
+})
+
+-- =========================================================================
+-- BOSSES
+--
+-- Un boss es el CIERRE de un mundo, no un bicho mas grande. Por eso no
+-- puede ser "un Guardian con 900 de vida":
+--
+--   - Se genero SOLO en su plataforma (`BossSpawn_<Id>`), no en el anillo
+--     de monstruos: entrar en la arena NO pone al boss delante.
+--   - Tiene barra de vida propia en el HUD (`BossName/BossHealth`), porque
+--     el cartel flotante de 150 px no sirve para un duelo de un minuto.
+--   - Tiene FASES: por debajo del 60 % y del 30 % de vida sube la
+--     presion. Un jefe con una sola fase es un monstruo grande.
+--   - Paga 100 XP: es el unico motivo por el que se entra a un mundo ya
+--     conocido.
+--
+-- REGLA DE DISENO QUE SE RESPETA (y que comprueba `MonsterBalance.spec`):
+-- el `ChaseSpeed` sigue siendo MENOR que el del jugador. Un jefe que corre
+-- mas rapido de lo que corres no es dificil, es una carrera perdida: la
+-- bomba deja de ser una decision. Lo que hace peligroso a un jefe es la
+-- vida, el golpe y las fases, no la velocidad.
+-- =========================================================================
+
+define({
+	Id = "ForestGrooty", Name = "Grooty", IsBoss = true, World = "Forest",
+	Health = 900, Speed = 9, Damage = 34,
+	XP = 100, Coins = 50, MaxAlive = 1,
+	Color = Color3.fromRGB(96, 176, 96),
+	-- Persecucion 11 contra un jugador de 16: se le puede rodear siempre.
+	-- La carga a 20 dura 0.6 s: se esquiva de lado.
+	PatrolSpeed = 6, ChaseSpeed = 11, ChargeSpeed = 20,
+	DetectionRange = 70, AggroRadius = 90, AttackRange = 13,
+	AttackCooldown = 4.0, RecoveryTime = 4.0,
+	DetectTime = 0.5, WarningTime = 1.3, ChargeDuration = 0.6,
+	Pressure = 0.9,
+	BlocksDestroy = true,
+})
+
+define({
+	Id = "DesertSandBeast", Name = "Sand Beast", IsBoss = true, World = "Desert",
+	Health = 1400, Speed = 10, Damage = 42,
+	XP = 100, Coins = 60, MaxAlive = 1,
+	Color = Color3.fromRGB(214, 176, 96),
+	PatrolSpeed = 7, ChaseSpeed = 12, ChargeSpeed = 22,
+	DetectionRange = 75, AggroRadius = 95, AttackRange = 14,
+	AttackCooldown = 4.5, RecoveryTime = 4.5,
+	DetectTime = 0.45, WarningTime = 1.2, ChargeDuration = 0.65,
+	Pressure = 0.92,
+	BlocksDestroy = true,
+})
+
+define({
+	Id = "IceFrostKing", Name = "Frost King", IsBoss = true, World = "Ice",
+	Health = 2000, Speed = 10, Damage = 50,
+	XP = 100, Coins = 70, MaxAlive = 1,
+	Color = Color3.fromRGB(140, 210, 255),
+	PatrolSpeed = 7, ChaseSpeed = 12, ChargeSpeed = 23,
+	DetectionRange = 78, AggroRadius = 100, AttackRange = 14,
+	AttackCooldown = 4.8, RecoveryTime = 4.8,
+	DetectTime = 0.4, WarningTime = 1.15, ChargeDuration = 0.6,
+	Pressure = 0.94,
+	AppliesSlow = true,
+	BlocksDestroy = true,
+})
+
+define({
+	Id = "VolcanoMagmaLord", Name = "Magma Lord", IsBoss = true, World = "Volcano",
+	Health = 2800, Speed = 11, Damage = 58,
+	XP = 100, Coins = 85, MaxAlive = 1,
+	Color = Color3.fromRGB(230, 96, 48),
+	PatrolSpeed = 8, ChaseSpeed = 13, ChargeSpeed = 24,
+	DetectionRange = 80, AggroRadius = 105, AttackRange = 15,
+	AttackCooldown = 5.0, RecoveryTime = 5.0,
+	DetectTime = 0.4, WarningTime = 1.1, ChargeDuration = 0.6,
+	Pressure = 0.96,
+	AppliesBurn = true,
+	BlocksDestroy = true,
+})
+
+define({
+	Id = "CyberCore", Name = "Cyber Core", IsBoss = true, World = "Cyber",
+	Health = 3800, Speed = 11, Damage = 64,
+	XP = 100, Coins = 100, MaxAlive = 1,
+	Color = Color3.fromRGB(90, 240, 240),
+	PatrolSpeed = 8, ChaseSpeed = 13, ChargeSpeed = 25,
+	DetectionRange = 85, AggroRadius = 110, AttackRange = 15,
+	AttackCooldown = 5.2, RecoveryTime = 5.2,
+	DetectTime = 0.35, WarningTime = 1.1, ChargeDuration = 0.6,
+	Pressure = 0.98,
+	ReflectsDamage = true,
+	BlocksDestroy = true,
 })
 
 -- =========================================================================

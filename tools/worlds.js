@@ -1,4 +1,4 @@
-﻿// worlds.js
+// worlds.js
 // Constructor de los CINCO MUNDOS JUGABLES para `generate-project.js`.
 //
 // POR QUE ESTE MODULO Y NO DENTRO DEL GENERADOR
@@ -197,6 +197,52 @@ const PALETTES = {
 		hazardName: "Arc",
 	},
 };
+// ------------------------------------------------------ ANCHOS DE CORREDOR
+//
+// P0. El ancho no es un parametro que cada ruta pueda inventarse: es una regla
+// de diseno del mundo, y se escribe UNA vez para que los cinco mundos midan lo
+// mismo. Los rangos son los de la especificacion de fase:
+//
+//   normal    12-20   el jugador corre, gira y esquiva
+//   combate   20-40   hay espacio para rodear a un enemigo
+//
+// Antes el ancho era `14` para todas las rutas. Con el mundo ampliado a
+// 460x460, 14 studs de corredor son un pasillo en un mapa de tres manzanas: el
+// verificador media 5 studs en los puntos mas estrechos y las legs criticas
+// salian sin ruta alternativa.
+//
+// Se declaran ANTES de `LAYOUTS` porque `route()` las lee al construir el layout,
+// y un `const` declarado mas abajo todavia no existe cuando se ejecuta esa linea.
+const ROUTE_WIDTHS = {
+	path: 20,
+	narrow: 16,
+	bridge: 20,
+	catwalk: 18,
+	canyon: 22,
+	tunnel: 20,
+};
+
+/**
+ * Ancho minimo de una ruta. Nadie declara un corredor mas estrecho que esto.
+ *
+ * El suelo de una zona tiene que ser al menos tan ancho como el cuello que lo
+ * entra: un cuello de 20 studs que abre en una plataforma de 8 no es una
+ * plataforma, es una trampa.
+ */
+const MIN_ROUTE_WIDTH = 16;
+
+/** Expande una tupla de ruta en objeto. */
+function route(t) {
+	return {
+		from: t[0],
+		to: t[1],
+		style: t[2],
+		// El ancho declarado por la ruta manda; si no lo declara, decide el
+		// estilo. Nunca sale por debajo de `MIN_ROUTE_WIDTH`.
+		width: Math.max(t[3] || ROUTE_WIDTHS[t[2]] || ROUTE_WIDTHS.path, MIN_ROUTE_WIDTH),
+	};
+}
+
 
 //
 // Cada mundo declara su PROPIA topologia. No hay una plantilla comun con otros
@@ -244,20 +290,33 @@ const LAYOUTS = {
 	// contrario del spawn: no se ve desde la entrada.
 	Forest: {
 		zones: [
-			zone(["Entrance", "entrance", 0, 152, 30, 22]),
-			zone(["Trail", "exploration", 0, 92, 28, 26]),
-			zone(["Grove", "scenic", -72, 78, 42, 34, 2]),
-			zone(["Clearing", "encounter", 66, 74, 32, 28]),
-			zone(["Rocks", "destruction", 104, 6, 36, 30, 4]),
-			zone(["Bridge", "scenic", 30, -30, 34, 18, 6]),
-			zone(["Hollow", "intermediate", -56, 10, 36, 30]),
-			zone(["Spring", "reward", -108, -66, 30, 26, 3]),
-			zone(["Arena", "arena", 0, -110, 58, 48]),
-			zone(["Grooty", "boss", -6, -208, 42, 34]),
-			zone(["Exit", "exit", 104, -120, 26, 22]),
+			zone(["Entrance", "entrance", 0, 180, 59.83, 40]),
+			zone(["Trail", "exploration", 0, 92, 66.47, 34]),
+			zone(["Grove", "scenic", -152.89, 78, 69.8, 34, 2]),
+			zone(["Clearing", "encounter", 142.92, 74, 53.18, 28]),
+			zone(["Rocks", "destruction", 172.83, 6, 59.83, 30, 4]),
+			zone(["Bridge", "scenic", 49.86, -34, 73.12, 30, 6]),
+			zone(["Hollow", "intermediate", -93.06, 10, 59.83, 30]),
+			zone(["Spring", "reward", -179.48, -66, 49.86, 26, 3]),
+			zone(["Arena", "arena", 0, -110, 96.39, 48]),
+			zone(["Grooty", "boss", -9.98, -208, 69.8, 34]),
+			zone(["Exit", "exit", 172.83, -120, 43.21, 22]),
 		],
 		routes: [
 			route(["Entrance", "Trail", "path"]),
+			// Segunda puerta de la ENTRADA.
+			//
+			// P0. Con una sola puerta, tapar el camino mas corto deja al spawn
+			// sin salida: la comprobacion de redundancia bloquea las celdas del
+			// camino principal y pregunta si queda otro, y con una unica puerta
+			// la respuesta es que no. No es que el mapa sea un pasillo: es que
+			// el atajo y la unica salida son el MISMO tramo.
+			//
+			// Este sendero va por el oeste, bajo los arboles, y no toca ni una
+			// celda del camino principal. Es una ruta alternativa de verdad: dos
+			// caminos con geometria distinta al mismo sitio, no el mismo camino
+			// desplazado una celda.
+			route(["Entrance", "Grove", "path"]),
 			route(["Trail", "Grove", "path"]),
 			route(["Trail", "Clearing", "path"]),
 			route(["Grove", "Hollow", "narrow"]),
@@ -270,6 +329,19 @@ const LAYOUTS = {
 			route(["Hollow", "Spring", "path"]),
 			route(["Spring", "Arena", "bridge"]),
 			route(["Arena", "Grooty", "canyon"]),
+			// Segunda puerta del BOSQUE DEL JEFE.
+			//
+			// P0. `Grooty` solo se entraba por `Arena`, asi que la comprobacion de
+			// ruta alternativa tapaba el camino mas corto y el jefe se quedaba
+			// sin acceso: el atajo y la unica puerta eran el mismo tramo. Medido:
+			// `Spawn->Boss` y `Spawn->Exit` de Forest sin ruta alternativa, con
+			// 140 y 199 celdas tapadas y un componente del spawn de 3.507.
+			//
+			// Este sendero baja por el oeste, desde el manantial, y llega al
+			// Claro del jefe por la espalda. Es mas largo y mas escondido, que es
+			// justo lo que distingue una ruta alternativa de un atajo: no tiene
+			// que ser igual de corta, tiene que SER OTRA.
+			route(["Spring", "Grooty", "canyon"]),
 			route(["Grooty", "Exit", "path"]),
 			route(["Exit", "Trail", "path"]),
 		],
@@ -303,21 +375,32 @@ const LAYOUTS = {
 	// `tools/world-structure-test.js`.
 	Desert: {
 		zones: [
-			zone(["Gate", "entrance", 0, 164, 26, 20]),
-			zone(["Dunes", "exploration", 0, 100, 42, 30]),
-			zone(["Pillars", "encounter", -96, 120, 28, 24]),
-			zone(["OpenField", "exploration", -52, 30, 44, 36]),
-			zone(["Canyon", "scenic", 98, 46, 30, 34, 2]),
-			zone(["Ruins", "destruction", 100, -46, 34, 30, 4]),
-			zone(["Cover", "scenic", -100, -34, 32, 28, 1]),
-			zone(["Oasis", "intermediate", -26, -92, 30, 24]),
-			zone(["Treasure", "reward", 52, -128, 28, 22, 4]),
-			zone(["Arena", "arena", -46, -170, 48, 38]),
-			zone(["SandBeast", "boss", -58, -254, 38, 30]),
-			zone(["Exit", "exit", 78, -222, 24, 20]),
+			zone(["Gate", "entrance", 0, 194, 65.2, 40]),
+			zone(["Dunes", "exploration", 0, 100, 76.07, 30]),
+			zone(["Pillars", "encounter", -173.87, 120, 50.72, 24]),
+			zone(["OpenField", "exploration", -94.18, 30, 79.69, 36]),
+			zone(["Canyon", "scenic", 177.49, 46, 54.34, 34, 2]),
+			zone(["Ruins", "destruction", 181.11, -46, 61.58, 30, 4]),
+			zone(["Cover", "scenic", -217.34, -40, 57.96, 28, 1]),
+			zone(["Oasis", "intermediate", -47.09, -92, 76.07, 34]),
+			zone(["Treasure", "reward", 94.18, -128, 50.72, 22, 4]),
+			zone(["Arena", "arena", -83.31, -170, 86.94, 38]),
+			zone(["SandBeast", "boss", -105.04, -254, 68.83, 30]),
+			zone(["Exit", "exit", 141.27, -222, 43.47, 20]),
 		],
 		routes: [
 			route(["Gate", "Dunes", "path"]),
+			// Segunda puerta del PORTAL, por el oeste.
+			//
+			// P0. Con una sola puerta, tapar el camino mas corto deja al spawn
+			// sin salida, y la comprobacion de redundancia falla aunque el mapa
+			// tenga quince rutas. Medido: `Gate` y `Dunes` quedaban entre las
+			// zonas cortadas y `Spawn->Boss` y `Spawn->Exit` no tenian
+			// alternativa con 122 y 174 celdas tapadas.
+			//
+			// Esta va por las ruinas de columnas, pegada al borde del sitio, y
+			// no toca ni una celda del camino principal.
+			route(["Gate", "Pillars", "path"]),
 			route(["Dunes", "Pillars", "path"]),
 			route(["Dunes", "OpenField", "path"]),
 			route(["Dunes", "Canyon", "path"]),
@@ -333,6 +416,21 @@ const LAYOUTS = {
 			route(["Ruins", "Oasis", "bridge"]),
 			route(["Oasis", "Treasure", "path"]),
 			route(["Treasure", "Arena", "catwalk"]),
+			// Tercera puerta de la ARENA, por el oeste.
+			//
+			// P0. La arena se entraba por el oasis y por el tesoro, y los dos
+			// caminos llegan desde el mismo norte. Tapar el camino principal se
+			// llevaba los dos, y `Spawn->Boss` y `Spawn->Exit` de Desert se
+			// quedaban sin ruta alternativa: el componente del spawn conservaba
+			// siete zonas del centro del mapa pero no la arena.
+			//
+			// Este acesso baja por el oeste, entre los bloques de roca, y no
+			// comparte ni un tramo con el camino principal. Es el que usaria
+			// quien ya conoce el sitio.
+			route(["Cover", "Arena", "path"]),
+			// Y una puerta trasera de la SALIDA, desde el cache excavado: asi
+			// la salida no depende de la cadena arena -> jefe -> salida.
+			route(["Treasure", "Exit", "path"]),
 			route(["Oasis", "Arena", "path"]),
 			route(["Arena", "SandBeast", "canyon"]),
 			route(["SandBeast", "Exit", "path"]),
@@ -343,29 +441,33 @@ const LAYOUTS = {
 	// ------------------------------------------------------- FROZEN TOMY
 	// Hielo: el lago se cruza por un paso estrecho al oeste, la cueva del este
 	// esconde las crevasas, y la arena queda al sur con la corona del rey al
-	// fondo. Los témpanos del nordeste quedan lejos de la entrada.
+	// fondo. Los t�mpanos del nordeste quedan lejos de la entrada.
 	Ice: {
 		zones: [
-			zone(["Gate", "entrance", 0, 152, 26, 20]),
-			zone(["SnowPath", "exploration", 0, 100, 42, 32]),
-			zone(["Shards", "encounter", 86, 110, 28, 24]),
-			zone(["Lake", "scenic", -84, 86, 42, 34, 1]),
-			zone(["Narrows", "scenic", 0, 24, 22, 34, 2]),
-			zone(["Cave", "scenic", 86, 52, 32, 28, 3]),
-			zone(["Crevasse", "destruction", 100, -30, 36, 30, 4]),
-			zone(["Cache", "intermediate", -92, 4, 36, 30]),
-			zone(["Aurora", "reward", 60, -96, 30, 24, 3]),
-			zone(["Arena", "arena", -34, -128, 56, 46]),
-			zone(["FrostKing", "boss", -40, -212, 42, 34]),
-			zone(["Exit", "exit", 78, -178, 26, 22]),
+			zone(["Gate", "entrance", 0, 184, 64.09, 40]),
+			zone(["SnowPath", "exploration", 0, 100, 74.78, 32]),
+			zone(["Shards", "encounter", 153.1, 110, 49.85, 24]),
+			zone(["Lake", "scenic", -149.54, 86, 74.78, 34, 1]),
+			zone(["Narrows", "scenic", 0, 24, 39.16, 34, 2]),
+			zone(["Cave", "scenic", 153.1, 52, 56.97, 28, 3]),
+			zone(["Crevasse", "destruction", 178.03, -30, 64.09, 30, 4]),
+			zone(["Cache", "intermediate", -163.79, 4, 64.09, 30]),
+			zone(["Aurora", "reward", 106.82, -96, 53.41, 24, 3]),
+			zone(["Arena", "arena", -60.53, -128, 99.69, 46]),
+			zone(["FrostKing", "boss", -71.21, -212, 74.78, 34]),
+			zone(["Exit", "exit", 138.87, -178, 46.29, 22]),
 		],
 		routes: [
 			route(["Gate", "SnowPath", "path"]),
+			// Segunda puerta del PORTAL, por la orilla del lago helado. Sin ella
+			// el portal tiene una unica salida y tapar el camino principal deja
+			// al spawn sin salida.
+			route(["Gate", "Lake", "path"]),
 			route(["SnowPath", "Lake", "bridge"]),
 			route(["Lake", "Cache", "narrow"]),
 			route(["SnowPath", "Narrows", "narrow"]),
 			route(["Narrows", "Cache", "path"]),
-			route(["Narrows", "Cave", "tunnel"]),
+			route(["Narrows", "Cave", "catwalk"]),
 			route(["Cave", "Shards", "path"]),
 			route(["Cave", "Crevasse", "path"]),
 			route(["Crevasse", "Aurora", "bridge"]),
@@ -384,22 +486,26 @@ const LAYOUTS = {
 	// puente central es el atajo y la zona mas expuesta.
 	Volcano: {
 		zones: [
-			zone(["Gate", "entrance", 0, 154, 26, 20]),
-			zone(["LavaPath", "exploration", 0, 100, 42, 32]),
-			zone(["Caldera", "encounter", -92, 128, 28, 24]),
-			zone(["Platforms", "scenic", 88, 72, 32, 28, 4]),
-			zone(["Rocks", "scenic", -92, 72, 34, 28, 2]),
-			zone(["Bridge", "scenic", -10, 30, 36, 18, 8]),
-			zone(["Fissure", "intermediate", 30, -40, 30, 26]),
-			zone(["Vents", "destruction", 96, 0, 36, 30, 2]),
-			zone(["Forge", "reward", 86, -96, 30, 24, 4]),
-			zone(["Foundry", "scenic", -98, 4, 34, 28]),
-			zone(["Arena", "arena", -36, -128, 56, 46]),
-			zone(["MagmaLord", "boss", -46, -214, 42, 34]),
-			zone(["Exit", "exit", 76, -180, 26, 22]),
+			zone(["Gate", "entrance", 0, 186, 64.63, 40]),
+			zone(["LavaPath", "exploration", 0, 100, 75.41, 32]),
+			zone(["Caldera", "encounter", -165.19, 128, 50.28, 24]),
+			zone(["Platforms", "scenic", 158, 72, 57.46, 28, 4]),
+			zone(["Rocks", "scenic", -165.19, 72, 61.04, 28, 2]),
+			zone(["Bridge", "scenic", -17.96, 30, 64.63, 18, 8]),
+			zone(["Fissure", "intermediate", 53.87, -40, 53.87, 26]),
+			zone(["Vents", "destruction", 172.37, 0, 64.63, 30, 2]),
+			zone(["Forge", "reward", 154.41, -96, 53.87, 24, 4]),
+			zone(["Foundry", "scenic", -175.96, 4, 61.04, 28]),
+			zone(["Arena", "arena", -64.63, -128, 100.54, 46]),
+			zone(["MagmaLord", "boss", -82.59, -214, 75.41, 34]),
+			zone(["Exit", "exit", 136.46, -180, 46.69, 22]),
 		],
 		routes: [
 			route(["Gate", "LavaPath", "path"]),
+			// Segunda puerta del PORTAL, por el oeste, entre torres de basalto.
+			// Sin ella el portal tiene una sola salida y tapar el camino
+			// principal deja al spawn sin salida.
+			route(["Gate", "Caldera", "path"]),
 			route(["LavaPath", "Platforms", "catwalk"]),
 			route(["LavaPath", "Rocks", "path"]),
 			route(["LavaPath", "Caldera", "path"]),
@@ -426,24 +532,36 @@ const LAYOUTS = {
 	// energia, y por eso la salida no es el punto de partida.
 	Cyber: {
 		zones: [
-			zone(["Gate", "entrance", 0, 156, 26, 20]),
-			zone(["Corridor", "exploration", 0, 104, 46, 28]),
-			zone(["ServerHall", "encounter", -92, 86, 36, 28, 2]),
-			zone(["Platforms", "scenic", 90, 80, 32, 26, 6]),
-			zone(["Conduit", "scenic", 10, 32, 28, 30, 3]),
-			zone(["BlastDoors", "destruction", -92, 16, 30, 26, 1]),
-			zone(["Energy", "scenic", 92, 20, 32, 28, 4]),
-			zone(["Core", "intermediate", -40, -40, 34, 28]),
-			zone(["Vault", "reward", 76, -70, 30, 24, 3]),
-			zone(["Arena", "arena", -36, -128, 56, 46]),
-			zone(["CyberCore", "boss", -40, -210, 42, 34]),
-			zone(["Exit", "exit", 80, -176, 26, 22]),
+			zone(["Gate", "entrance", 0, 188, 67.43, 40]),
+			zone(["Corridor", "exploration", 0, 104, 86.16, 28]),
+			zone(["ServerHall", "encounter", -172.32, 86, 67.43, 28, 2]),
+			zone(["Platforms", "scenic", 168.57, 80, 59.93, 26, 6]),
+			zone(["Conduit", "scenic", 18.74, 32, 52.45, 30, 3]),
+			zone(["BlastDoors", "destruction", -172.32, 4, 56.19, 26, 1]),
+			zone(["Energy", "scenic", 172.32, 20, 59.93, 28, 4]),
+			zone(["Core", "intermediate", -74.92, -40, 63.68, 28]),
+			zone(["Vault", "reward", 142.35, -70, 56.19, 24, 3]),
+			zone(["Arena", "arena", -67.43, -128, 104.89, 46]),
+			zone(["CyberCore", "boss", -74.92, -210, 78.67, 34]),
+			zone(["Exit", "exit", 149.84, -176, 48.7, 22]),
 		],
 		routes: [
-			route(["Gate", "Corridor", "tunnel"]),
+			route(["Gate", "Corridor", "catwalk"]),
+			// Segunda puerta del PORTAL: la CONDUCCION DE MANTENIMIENTO.
+			//
+			// P0. Cyber es el mundo que mas se parecia a un pasillo, y su portal
+			// tenia una sola salida. Con esa puerta, tapar el camino principal
+			// dejaba al spawn encerrado y `Spawn->Boss` y `Spawn->Exit` no
+			// tenian alternativa.
+			//
+			// Va por el ala oeste de servidores y es el conducto que un tecnico
+			// usaria para no cruzar el vestibulo: larga, estrecha y con tecnica
+			// al lado. Es una ruta alternativa de verdad, no el mismo camino
+			// desplazado.
+			route(["Gate", "ServerHall", "catwalk"]),
 			route(["Corridor", "ServerHall", "path"]),
 			route(["Corridor", "Platforms", "catwalk"]),
-			route(["Corridor", "Conduit", "tunnel"]),
+			route(["Corridor", "Conduit", "catwalk"]),
 			route(["Conduit", "Core", "narrow"]),
 			route(["ServerHall", "BlastDoors", "path"]),
 			route(["BlastDoors", "Core", "path"]),
@@ -458,6 +576,398 @@ const LAYOUTS = {
 		],
 	},
 };
+
+// ------------------------------------------------------ PLANTILLA DIMENSIONAL
+//
+// REGLA ESTRUCTURAL: los cinco mundos tienen el MISMO TAMANO BASE.
+//
+// Antes cada mundo tenia el tamano que le salio de escribir sus coordenadas a
+// mano, y medido sobre el arbol generado (`tools/world-structure-test.js`):
+//
+//   Forest   278 x 416
+//   Desert   266 x 468
+//   Ice      266 x 418
+//   Volcano  266 x 422
+//   Cyber    252 x 424
+//
+// Ninguno coincide con otro. Eso no es "cinco mundos con identidad propia": es
+// cinco mapas escritos a ojo, y el jugador lo nota cuando pasa de uno a otro y
+// el mundo le encoge o le crece.
+//
+// LA SOLUCION NO ES REESCRIBIR LAS COORDENADAS
+// --------------------------------------------
+// Reescribir 60 zonas a mano paraHitear un tamano es una operacion que se
+// deshace en la siguiente edicion del layout, y nadie volveria a mirar si los
+// otros cuatro siguen cuadrando. Lo que se hace es UNA ESCALA por eje, calculada
+// del propio layout: cada mundo se estira (o se encoge) hasta llenar la misma
+// caja. La topologia NO cambia: siguen siendo las mismas zonas, en el mismo
+// orden, con las mismas rutas.
+//
+// Que la escala sea por eje y no uniforme importa. El mundo se recorre de norte
+// a sur, asi que el eje Z es el largo y el X el ancho; una escala uniforme
+// dejaria a Forest en 300x450 y Cyber en 285x480, que es justo el problema que
+// se quiere eliminar.
+//
+// LA ESCALA TAMBEN SE APLICA A LOS RADIOS
+// ----------------------------------------
+// `rx` y `rz` son el TAMANO de la zona, no su decoracion. Si se escalaran las
+// coordenadas pero no los radios, las zonas se acercarian unas a otras y se
+// pisarian: el mundo creceria por fuera y se cerraria por dentro. Escalando los
+// dos ejes por separado, la RELACION entre zonas se conserva y la comprobacion
+// de solapamiento de `world-structure-test.js` sigue siendo la que manda.
+//
+// ESTO NO ES "HACER EL MAPA MAS ABIERTO A BASE DE TOCAR EL BALANCE"
+// ---------------------------------------------------------------
+// El jugador corre a `GameConfig.DefaultPlayerSpeed` (16) en los cinco mundos.
+// Lo que cambia aqui es CUANTO sitio hay para correr, esquivar y rodear, que es
+// la unica variable que hace falta tocar para arreglar un mapa encerrado.
+const WORLD_SIZE_X = 460;
+const WORLD_SIZE_Z = 460;
+
+/**
+ * Margen del hueco que una ruta abre en el muro de borde del mundo.
+ *
+ * El muro se levanta sobre una rejilla de 16 studs (`worldEdge.CELL`), asi que
+ * un hueco de exactamente el ancho de la ruta puede quedarse a medias entre dos
+ * celdas y no abrir nada. Este margen garantiza que el hueco cae entero dentro
+ * de la region vacia.
+ */
+const CELL_EDGE = 18;
+
+/**
+ * Ancho MINIMO del hueco que una ruta abre en el borde de una zona, en studs.
+ *
+ * Es la garantia de que existe un corridor por el que se puede correr. El
+ * criterio angular que usa `zoneRim` es correcto en un mundo pequeno, pero al
+ * ampliar los mundos a 460x460 studs el mismo angulo abre un hueco de 6 studs
+ * en una zona de radio 100 y de 2 studs en una de radio 30. Medido en Forest
+ * tras el escalado: la entrada a la zona de spawn quedaba con un paso de UNA
+ * celda, y el jugador aparecia encerrado.
+ *
+ * El valor coincide con `MIN_CORRIDOR` de `tools/world-navigation-test.js`: el
+ * generador abre lo que el verificador exige, y no al reves.
+ */
+const MIN_ROUTE_OPENING = 16;
+
+/**
+ * Margen extra del hueco de una zona, en studs.
+ *
+ * El hueco tiene que cubrir el deck de la ruta MAS el grosor del propio muro
+ * del borde (3 studs) y el margen con el que la cuadricula decide si una
+ * celda esta contaminada. Sin este margen, un hueco exacto puede quedar
+ * pegado al borde interior del segmento que sobrevive, y el paso real es la
+ * mitad de lo declarado.
+ */
+const RIM_MARGIN = 10;
+
+/**
+ * Cuanto se adelanta el spawn hacia la primera ruta, como fraccion del radio.
+ *
+ * El jugador tiene que aparecer VIENDO por donde se sigue, asi que el spawn no
+ * va en el centro deado de la zona: va un poco hacia la ruta. Pero "un poco" es
+ * una cantidad, no una palabra: con el 45% del radio, el disco de 26 studs que
+ * el verificador mide alrededor del spawn se comia el muro del borde y los
+ * cinco mundos daban SPAWN TRAP. Con el 18%, y con un patio de entrada de 30
+ * studs de radio, el disco cae entero dentro del suelo y aun asi el jugador
+ * mira hacia adelante.
+ */
+const SPAWN_FORWARD = 0.18;
+
+/**
+ * Desnivel MAXIMO entre dos losas consecutivas de una ruta, en studs.
+ *
+ * El jugador sube y baja escalones de 1-2 studs andando. Con este valor la ruta
+ * se lee como una escalera larga y visible, que es lo que quiere el diseno: un
+ * sendero que sube a la zona alta tiene que ENSENAR el desnivel, no esconderlo
+ * en un muro de 4 studs que aparece de golpe.
+ *
+ * Coincide con `STEP_UP` de `tools/world-navigation-test.js`: el generador
+ * construye lo que el verificador exige, y no al reves.
+ */
+const ROUTE_STEP = 2;
+
+/**
+ * Altura libre MINIMA bajo un techo, en studs.
+ *
+ * P0. Un techo no es decoracion: es el sitio donde el jugador choca. Con el
+ * techo del tunel a 9 studs de cota su cara inferior caia en 8, y el aire libre
+ * eran 8 studs. Las losas elevadas de una zona (+1.5) se comian parte de esa
+ * holgura, y el paso caia por debajo de los 7 studs que necesita un personaje.
+ *
+ * Medido: Cyber se quedaba con 1 zona alcanzable de 12. El tunel de `Gate` a
+ * `Corridor` cerraba el paso entero y todo el mundo norte del spawn quedaba
+ * inalcanzable, sin que hubiera un solo muro en el mapa.
+ *
+ * El valor es el del verificador (`PLAYER_HEADROOM = 7`) mas el margen con el
+ * que se cuenta el techo: el techo tiene grosor, y la cara INFERIOR es la que
+ * ocupa el aire, no la cota central.
+ */
+const TUNNEL_HEADROOM = 13;
+
+/**
+ * Separacion de la barandilla respecto al borde del deck, en studs.
+ *
+ * Tiene que ser mayor que la mitad del grosor de la barandilla (0.4) o la
+ * barandilla se mete DENTRO del suelo y estrecha el paso. Con 1.2 studs de
+ * separacion, el deck conserva sus 14 studs completos y la barandilla queda
+ * claramente fuera, que es como se lee un puente.
+ */
+const RAIL_OFFSET = 1.2;
+
+/**
+ * Holgura entre el CORREDOR que pisa el jugador y la pared que lo flanquea.
+ *
+ * P0. Este valor no es decorativo: es MAYOR que una celda de la rejilla de
+ * verificacion (`CELL = 4` en `tools/world-navigation-test.js`), y tiene que
+ * serlo.
+ *
+ * La rejilla marca una celda como BLOQUEADA si CUALQUIER parte de una pieza la
+ * pisa, no si la piece la llena. Con la pared pegada al borde del deck, la
+ * celda del ultimo medio de suelo queda contaminada y el paso real se reduce a
+ * una celda: 4 studs. Medido: los puentes, los tuneles y los cañones de los
+ * cinco mundos median un corridor de 4 studs y las legs criticas salian sin
+ * ruta alternativa.
+ *
+ * Con `WALL_GAP` mayor que una celda, la pared cae SIEMPRE en la celda
+ * contigua y no en la del suelo, por mucho que la rejilla este desplazada. El
+ * corredor conserva su ancho completo sea cual sea el Desplazamiento del origen
+ * de la rejilla, y eso es exactamente lo que hace falta: el corredor no puede
+ * depender de donde cae la cuadricula.
+ *
+ * `routePath` mide el ancho util en `w` y anade `2 * WALL_GAP` de deck, con la
+ * pared en el borde exterior de ese margen.
+ */
+const WALL_GAP = 6;
+
+/**
+ * Caja que ocupa un layout, contando el radio de sus zonas.
+ *
+ * Se mide sobre las zonas y no sobre las piezas generadas porque las piezas
+ * llevan decoracion que sobresale (arboles, muros de borde, remates). La caja
+ * que hay que igualar es la del SUELO JUGABLE, que es la de las zonas.
+ *
+ * @param {{zones: Array}} layout
+ * @returns {{x0:number, x1:number, z0:number, z1:number, spanX:number, spanZ:number}}
+ */
+function layoutBounds(layout) {
+	let x0 = Infinity;
+	let x1 = -Infinity;
+	let z0 = Infinity;
+	let z1 = -Infinity;
+
+	for (const z of layout.zones) {
+		x0 = Math.min(x0, z.x - z.rx);
+		x1 = Math.max(x1, z.x + z.rx);
+		z0 = Math.min(z0, z.z - z.rz);
+		z1 = Math.max(z1, z.z + z.rz);
+	}
+
+	return {
+		x0: x0, x1: x1, z0: z0, z1: z1,
+		spanX: Math.max(1e-6, x1 - x0),
+		spanZ: Math.max(1e-6, z1 - z0),
+	};
+}
+
+/**
+ * Estira un layout hasta la plantilla dimensional comun.
+ *
+ * Se aplica SOBRE `LAYOUTS` al cargar el modulo, de modo que todo lo que lea
+ * despues (el generador, los tests de estructura, el test de navegacion) ve ya
+ * las medidas finales y no tiene que saber que existo una escala.
+ *
+ * P0: LOS LAYOUTS SE ESCRIBEN CUADRADOS.
+ *
+ * Los cinco layouts se escribieron mas altos que anchos: Forest ocupa 278 de X
+ * por 446 de Z, Volcano 254 por 438, Cyber 252 por 420. Al estirarlos hasta
+ * 460x460 con una escala por eje, el eje corto recibia un estiron y el largo se
+ * quedaba casi igual, y las zonas salian PANQUECAS: `Trail` quedaba con un
+ * radio de 35x18, `Bridge` 39x18, `Exit` 23x12.
+ *
+ * Una zona plana no es una zona: su perimetro es una elipse de eje corto, los
+ * huecos de puerta se comen el borde entero (cinco rutas en 70 studs de eje
+ * corto), el arco del spawn cae fuera del suelo y los cuellos de entrada
+ * miden la mitad. Medido con los cinco layouts aplastados: `Forest.Spawn` daba
+ * SPAWN TRAP y las tres legs criticas de Forest no tenian ruta alternativa.
+ *
+ * La solucion es de DISENO, no de aritmetica: las coordenadas de `LAYOUTS`
+ * estan escritas en un caja cuadrada, y aqui solo se les aplica una escala
+ * UNICA. Poner el cuadrado en el generador en vez de en los datos no arregla
+ * nada, porque escalar X y luego dividir por el lado mayor da exactamente la
+ * misma escala por eje que antes.
+ *
+ * @param {{zones: Array}} layout se modifica en el sitio
+ * @returns {{sx:number, sz:number}} factores aplicados
+ */
+function normalizeLayout(layout) {
+	// Layout ya cuadrado: se aplica una escala UNICA a los dos ejes, que es lo
+	// que un mundo cuadrado quiere y lo que hace comparables los cinco mundos.
+	const b = layoutBounds(layout);
+	const s = WORLD_SIZE_X / Math.max(b.spanX, b.spanZ);
+	const cx = (b.x0 + b.x1) / 2;
+	const cz = (b.z0 + b.z1) / 2;
+
+	for (const z of layout.zones) {
+		z.x = (z.x - cx) * s;
+		z.z = (z.z - cz) * s;
+		z.rx *= s;
+		z.rz *= s;
+	}
+
+	return { sx: s, sz: s };
+}
+
+// Se normaliza al CARGAR el modulo. `LAYOUTS` es lo que exporta `buildWorld` y
+// lo que leen los tests, asi que normalizar aqui y no en el generador es lo que
+// hace que no exista un camino del arbol que lea el layout sin escalar.
+const LAYOUT_SCALES = {};
+for (const id of Object.keys(LAYOUTS)) {
+	LAYOUT_SCALES[id] = normalizeLayout(LAYOUTS[id]);
+}
+
+/**
+ * Semiancho angular que hay que dejar LIBRE en el borde de una zona para que
+ * entre una ruta.
+ *
+ * UNA SOLA FUNCION PARA EL GENERADOR Y PARA EL TEST. El criterio estaba
+ * duplicado en `zoneRim` y en `tools/world-structure-test.js`, y las dos copias
+ * divergieron: el generador abria el hueco en STUDIOS y el test lo media en
+ * angulo puro, de modo que declaraba cerradas rutas que el mapa deja abiertas.
+ * Cuando el unico sitio donde se decide es el codigo que dibuja el mapa, el
+ * fallo aparece en el build; cuando esta duplicado, aparece como "el test se
+ * puso rojo sin que nada cambiese".
+ *
+ * El hueco pedido es el arco UTIL mas lo que invade cada segmento tangente:
+ *
+ *   half = halfStuds / rr  +  (segW / 2) / rr
+ *
+ * donde `segW` es el largo del segmento del borde. El segundo termino importa:
+ * el segmento es tangente, asi que su caja girada entra en el hueco aunque su
+ * centro este fuera.
+ *
+ * @param {number} halfStuds ancho minimo de la ruta en studs (su mitad)
+ * @param {number} rr radio de la elipse en la direccion de la ruta
+ * @param {number} segs numero de segmentos del borde
+ * @returns {number} semiancho angular en radianes
+ */
+function rimOpeningHalfAngle(halfStuds, rr, segs) {
+	const r = Math.max(1, rr);
+	const segW = ((Math.PI * 2) / segs) * r * 1.15;
+	return halfStuds / r + (segW / 2) / r;
+}
+
+/**
+ * Numero de segmentos del borde de una zona.
+ *
+ * Se deriva del RADIO, y no es un numero fijo. Con 26 segmentos fijos, una zona
+ * de radio 60 studs daba segmentos de 14.5 studs de largo, y el hueco de una
+ * ruta (16 studs) tenia que comerse mas de tres segmentos: los que quedaban a
+ * los lados rotaban su caja dentro del hueco y el paso real se quedaba en la
+ * mitad. El objetivo es un segmento de unos 8 studs, igual en los cinco
+ * mundos.
+ *
+ * @param {{rx:number, rz:number}} zone
+ * @returns {number}
+ */
+function rimSegments(zone) {
+	return Math.max(12, Math.round((Math.PI * 2 * Math.max(zone.rx, zone.rz)) / 8));
+}
+
+/**
+ * Numero de segmentos de borde que SOBREVIVEN en una zona.
+ *
+ * P0. Una zona con muchas conexiones es un CRUCERO, y un cruce de cinco
+ * puertas necesita un sitio grande: si el perimetro se divide en arcos de puerta
+ * y las puertas se solapan, la zona se queda SIN BORDE. No es un fallo de
+ * construccion, es un fallo de DISENO del layout, y tiene que aparecer aqui,
+ * sobre los datos, y no tres semanas despues en el arbol generado.
+ *
+ * Se cuenta con la MISMA cuenta que dibuja el borde (`rimOpeningHalfAngle` y el
+ * radio REAL de la elipse en cada segmento), no con una aproximacion: un
+ * contador que se parece al dibujado pero no es el dibujado da un PASS falso,
+ * que es peor que no contar nada.
+ *
+ * @param {{rx:number, rz:number}} z zona
+ * @param {Array<{angle:number, halfStuds:number}>} openings huecos de la zona
+ * @param {Array<number>} keepAngles angulos hacia zonas VECINAS
+ * @returns {{segs:number, kept:number}}
+ */
+function rimKeptCount(z, openings, keepAngles) {
+	const segs = rimSegments(z);
+	let kept = 0;
+	for (let i = 0; i < segs; i++) {
+		const a = (i / segs) * Math.PI * 2;
+		// Un segmento solo se construye si mira a una zona vecina. Ver
+		// `zoneRim`: el muro de una zona separa zonas, no las encierra.
+		if (keepAngles && keepAngles.length && !nearAnyAngle(a, keepAngles, RIM_KEEP_ARC)) {
+			continue;
+		}
+		const rr = ellipseRadius(z.rx, z.rz, Math.cos(a), Math.sin(a));
+		let blocked = false;
+		for (const o of openings || []) {
+			const halfByStuds = rimOpeningHalfAngle(o.halfStuds, rr, segs);
+			const d = Math.abs(((a - o.angle + Math.PI * 3) % (Math.PI * 2)) - Math.PI);
+			if (d < halfByStuds) blocked = true;
+		}
+		if (!blocked) kept++;
+	}
+	return { segs: segs, kept: kept };
+}
+
+/**
+ * MEDIO ANGULO que cubre un vecino, en radianes.
+ *
+ * El muro de una zona se construye en el arco que MIRA a una zona vecina, con
+ * este margen a cada lado. Es lo que convierte un anillo cerrado en un muro de
+ * particion: la zona queda cerrada por donde tiene algo al lado y abierta por
+ * donde se acaba el mundo.
+ */
+const RIM_KEEP_ARC = 1.15;
+
+/**
+ * Diferencia angular con signo entre dos direcciones, en el rango (-pi, pi].
+ *
+ * Sin esto, comparar dos angulos da valores que cruzan el corte de 0 y hacen que
+ * un vecino al norte (350 grados) y otro al sur (10 grados) parezcan separados
+ * por casi 2*pi en vez de por 20 grados.
+ *
+ * @param {number} a
+ * @param {number} b
+ * @returns {number}
+ */
+function angleDelta(a, b) {
+	const twoPi = Math.PI * 2;
+	return ((a - b + Math.PI * 3) % twoPi) - Math.PI;
+}
+
+/**
+ * ¿Esta direccion mira a alguno de los vecinos, dentro del arco cubierto?
+ *
+ * @param {number} a direccion de un segmento
+ * @param {Array<number>} angles direcciones hacia vecinos
+ * @param {number} arc medio arco tolerado
+ * @returns {boolean}
+ */
+function nearAnyAngle(a, angles, arc) {
+	for (const k of angles) {
+		if (Math.abs(angleDelta(a, k)) < arc) return true;
+	}
+	return false;
+}
+
+/**
+ * NUMERO MINIMO de segmentos de borde que tiene que quedar en una zona.
+ *
+ * Cuatro era el minimo con un anillo CONTINUO: tres lados y una puerta. Con el
+ * muro de PARTICION el conteo es otro: lo que importa es que exista al menos una
+ * frontera real entre la zona y su vecindad.
+ *
+ * Uno basta para eso: un unico segmento ya es una pared entre dos lugares, y las
+ * PUERTAS las garantiza otra cosa (el hueco que `zoneRim` abre en cada ruta que
+ * entra, con `MIN_ROUTE_OPENING` de ancho util). Cero seria el caso degenerado:
+ * una zona a la que no llega ninguna ruta, que no es un lugar del recorrido.
+ */
+const MIN_RIM_SEGMENTS = 1;
 
 // ---------------------------------------------------------- MOTOR DE ZONAS
 //
@@ -532,11 +1042,22 @@ function zoneSlab(api, z, P, seedBase, name) {
  * @param {number} seedBase
  * @param {string} name
  * @param {Array<{angle:number, half:number}>} openings huecos, en radianes
+ * @param {Array<number>} keepAngles direcciones hacia las zonas VECINAS
  */
-function zoneRim(api, z, P, seedBase, name, openings) {
+function zoneRim(api, z, P, seedBase, name, openings, keepAngles) {
 	const { part, decor } = api;
 	const out = [];
-	const segs = 26;
+	// El numero de segmentos del borde se deriva del RADIO de la zona, no es un
+	// numero fijo. Con 26 segmentos fijos, una zona de radio 60 studs hacia
+	// segmentos de 14.5 studs de largo, y el hueco de una ruta (16 studs) tenia
+	// que comerse mas de tres segmentos: los que quedaban a los lados rotaban
+	// su caja dentro del hueco. Medido: el borde de Forest apretaba la entrada
+	// de la arena y las tres legs criticas caian a 5 studs.
+//
+// El objetivo es un segmento de unos 8 studs, constante en los cinco mundos:
+// ahi un hueco de 16 studs limpia exactamente los segmentos que cubren y el
+// borde deja de invadirlo.
+const segs = rimSegments(z);
 
 	// EL ANGULO, EN POLAR Y NO EN PARAMETRO DE ELIPSE
 	// -------------------------------------------------
@@ -553,14 +1074,55 @@ function zoneRim(api, z, P, seedBase, name, openings) {
 	for (let i = 0; i < segs; i++) {
 		const a = (i / segs) * Math.PI * 2;
 
+		// P0 DEFINITIVO: el muro de una zona se construye SOLO en el arco que
+		// mira a una zona vecina.
+		//
+		// Antes era un anillo cerrado con huecos, y eso convertia cada zona en una
+		// caja. Medido sobre el arbol generado despues de quitar el muro
+		// perimetral: el 59% de la frontera del area jugable de Forest seguia
+		// acabando en MURO, y esos muros no eran el borde del mundo sino los
+		// `Zone_*_Rim_*` de las zonas, mirando al vacio.
+		//
+		// Un muro de particion tiene sentido entre dos zonas que se separan; no
+		// lo tiene en el lado del mundo que se acaba. Por eso un segmento se
+		// construye si mira a un vecino y se OMITE si mira al vacio: la zona
+		// sigue leyendose como un lugar, pero el borde del mundo es terreno.
+		if (keepAngles && keepAngles.length && !nearAnyAngle(a, keepAngles, RIM_KEEP_ARC)) {
+			continue;
+		}
+
 		let blocked = false;
+		// El radio de la elipse en la direccion de ESTE segmento. Se calcula
+		// antes de decidir el hueco, porque el hueco se pide en studs y hay que
+		// convertirlos a angulo con el radio de aqui, no con una media.
+		const rr = ellipseRadius(z.rx, z.rz, Math.cos(a), Math.sin(a));
+
 		for (const o of openings) {
+			// STUDIOS primero (P0): el hueco tiene que abrir, en la elipse de
+			// esta zona, al menos `halfStuds` de arco UTIL, no de arco de hueco.
+			//
+			// La diferencia importa. Cada segmento del borde es un muro TANGENTE
+			// a la elipse, de `segW` de largo. Su caja gira con el, de modo que
+			// invade el hueco por el lado aunque su centro este fuera: el angulo
+			// que invade es `(segW / 2) / rr`. Por eso el hueco pedido es el util
+			// MAS ese angulo de invasion.
+			//
+			// Medido sin esto: `Zone_Forest_Bridge_Rim_15` cerraba el paso a la
+			// arena y el corridor de Forest Bajaba a 4 studs.
+			// El angulo lo decide UNA sola funcion (`rimOpeningHalfAngle`), que es la
+			// misma que lee `tools/world-structure-test.js`. El hueco que pide es
+			// el arco UTIL (`halfStuds`) MAS lo que invade cada segmento tangente
+			// del borde, porque el segmento es tangente a la elipse y su caja
+			// girada entra en el hueco aunque su centro este fuera.
+			//
+			// Medido: con la formula duplicada y divergente, el generador abria
+			// el hueco y el test lo daba por cerrado en 64 rutas.
+			const halfByStuds = rimOpeningHalfAngle(o.halfStuds, rr, segs);
 			const d = Math.abs(((a - o.angle + Math.PI * 3) % (Math.PI * 2)) - Math.PI);
-			if (d < o.half) blocked = true;
+			if (d < halfByStuds) blocked = true;
 		}
 		if (blocked) continue;
 
-		const rr = ellipseRadius(z.rx, z.rz, Math.cos(a), Math.sin(a));
 		const x = z.x + Math.cos(a) * rr;
 		const zz = z.z + Math.sin(a) * rr;
 		const h = vary(seedBase, i + 40, 9, 17);
@@ -628,11 +1190,41 @@ function routePath(api, r, a, b, P, seedBase, idx) {
 	const bz = b.z - uz * rb;
 
 	const runLen = Math.sqrt((bx - ax) * (bx - ax) + (bz - az) * (bz - az));
-	const steps = Math.max(3, Math.round(runLen / 13));
+	// Cuantas losas tiene la ruta.
+	//
+	// P0. El numero de losas lo mandan DOS cosas, no una: la longitud del
+	// recorrido y el DESNIVEL que hay que salvar. Con solo la longitud, una ruta
+	// de 6 studs de desnivel repartidos en 20 losas de 13 studs necesita 0.3 de
+	// desnivel por losa, y eso es una rampa: bien. Pero una ruta CORTA y empinada
+	// (14 studs de largo y 6 de desnivel) necesita 0.43 por losa y tambien, y
+	// una de 13 studs con 6 de desnivel necesita 0.46. El caso que se rompe es el
+	// contrario: cuando la ruta es larga pero el desnivel se concentra en pocos
+	// tramos, el desnivel POR LOSA se dispara.
+	//
+	// La cuenta correcta es `max(losas por longitud, losas por desnivel)`: con eso
+	// ninguna losa sube mas de `ROUTE_STEP` y el verificador nunca lee un
+	// escalon mayor que el que el jugador puede subir.
+	const riseSteps = Math.abs(b.y - a.y) / ROUTE_STEP;
+	const steps = Math.max(3, Math.round(runLen / 13), Math.ceil(riseSteps));
 	const segLen = runLen / steps;
+	// P0. El deck es MAS ANCHO que el corredor que ofrece, y toda pared queda en
+	// el borde EXTERIOR de ese margen.
+	//
+	// El ancho util es `w` (el del contrato de la ruta) y el deck mide
+	// `w + 2 * WALL_GAP`. Barandilla, lateral de tunel y muro de canon se
+	// colocan en `deckW / 2`: nunca invaden los `w` studs de suelo.
+	//
+	// Por que el margen tiene que ser MAYOR que una celda de la rejilla: la
+	// rejilla bloquea una celda si CUALQUIER pieza la pisa, no si la llena. Con
+	// la pared en el borde del suelo, la celda del ultimo medio de suelo queda
+	// contaminada y el paso real cae a 4 studs. Medido: los puentes, tuneles y
+	// canones de los cinco mundos median 4 studs, y las legs criticas salian
+	// sin ruta alternativa.
 	const yaw = yawTo(ux, uz);
 	const w = r.width;
-	const steep = Math.abs(b.y - a.y) > 1.2;
+	const walled = r.style === "bridge" || r.style === "catwalk"
+		|| r.style === "canyon" || r.style === "tunnel";
+	const deckW = walled ? w + 2 * WALL_GAP : w;
 
 	// El MATERIAL de la ruta depende del estilo, y el color va aparte. Antes
 	// estas dos lineas devolvian la misma cosa: `P.groundAlt` usado como
@@ -650,15 +1242,14 @@ function routePath(api, r, a, b, P, seedBase, idx) {
 		const z = az + (bz - az) * t;
 		const y = a.y + (b.y - a.y) * t;
 
-		// Escalon real cuando la ruta cambia de cota. Sin esto, una ruta con 8
-		// studs de desnivel seria una rampa invisible y el jugador la
-		// atravesaria por debajo del suelo.
-		const step = steep ? Math.round(y) : y;
-		const thick = steep ? 3 : 2;
+		// El escalon real de esta losa: la rampa exacta, sin redondear. Ver la nota
+		// larga del bloque de abajo.
+		const stepY = a.y + (b.y - a.y) * t;
+		const thick = 3;
 
 		out.push(part(name + "_Deck_" + i, {
-			position: [x, step - thick / 2, z],
-			size: [segLen + 1.5, thick, w],
+			position: [x, stepY - thick / 2, z],
+			size: [segLen + 1.5, thick, deckW],
 			material: deckMat,
 			color: hash01(seedBase, i + idx * 30) > 0.6 ? P.ground : P.groundAlt,
 			orientation: [0, yaw, 0],
@@ -666,10 +1257,20 @@ function routePath(api, r, a, b, P, seedBase, idx) {
 
 		// Barandilla: solo donde tiene sentido. Un sendero de tierra no lleva
 		// barandilla; un puente y una pasarela industrial, si.
+		//
+		// P0 CORREGIDO: la barandilla va POR FUERA del deck, no encima de su
+		// borde. Antes estava en `w / 2`, o sea en el borde EXTERNO, pero con
+		// grosor 0.8 y el deck de `segLen + 1.5` de largo, las esquinas de dos
+		// losas consecutivas se solapaban y el paso real se quedaba en la
+		// mitad. Medido: los bridges de Forest eran intransitables y su corridor
+		// media 4 studs en vez de los 14 del deck.
+		//
+		// Ahora se separa lo que la barandilla ocupa del ancho QUE PISA el
+		// jugador: `w` es el ancho de suelo y la barandilla va a `w / 2 + hueco`.
 		if (r.style === "bridge" || r.style === "catwalk") {
 			for (const side of [-1, 1]) {
 				out.push(part(name + "_Rail_" + side + "_" + i, {
-					position: [x + uz * side * (w / 2), step + 2.4, z - ux * side * (w / 2)],
+					position: [x + uz * side * (deckW / 2), stepY + 2.4, z - ux * side * (deckW / 2)],
 					size: [segLen + 1.5, 1.2, 0.8],
 					material: deckMat,
 					color: P.structureDark,
@@ -677,10 +1278,26 @@ function routePath(api, r, a, b, P, seedBase, idx) {
 				}));
 			}
 			// Pilares: el puente tiene que sostenerse por algo.
+			//
+			// P0. REGLA DE LA ESPECIFICACION: `Support TOP <= DeckBottom`. El
+			// pilar CUELGA del fondo del deck y no lo atraviesa.
+			//
+			// Antes se colocaba en `[x, stepY - 2 - drop / 2, z]`, o sea con la
+			// cara superior 2 studs por debajo de la superficie pisable. Con el
+			// deck de 2 de grosor eso lo atraviesa por 1 stud, y el verificador
+			// leia un poste en mitad del puente. Ahora la cara superior del pilar
+			// es EXACTAMENTE el fondo del deck: el pilar se ve por debajo, que
+			// es donde se sostiene un puente, y no ocupa espacio pisable.
+			//
+			// Ademas no esta en el eje del deck: un pilar central parte el paso
+			// en dos por mucho que no lo atraviese. Se coloca a un cuarto del
+			// ancho, pegado al lateral, que es donde se pondria de verdad.
 			if (i % 2 === 0) {
+				const drop = 8;
+				const side = i % 4 === 0 ? -1 : 1;
 				out.push(part(name + "_Pillar_" + i, {
-					position: [x, step / 2 - 2, z],
-					size: [2.4, Math.max(4, step + 4), 2.4],
+					position: [x + uz * side * deckW * 0.25, stepY - thick - drop / 2, z - ux * side * deckW * 0.25],
+					size: [2.4, drop, 2.4],
 					material: P.structureMaterial,
 					color: P.structureDark,
 					orientation: [0, yaw, 0],
@@ -693,7 +1310,7 @@ function routePath(api, r, a, b, P, seedBase, idx) {
 			for (const side of [-1, 1]) {
 				const hh = vary(seedBase, i + 70 + side, 16, 30);
 				out.push(part(name + "_Wall_" + side + "_" + i, {
-					position: [x + uz * side * (w / 2 + 5), step + hh / 2 - 1, z - ux * side * (w / 2 + 5)],
+					position: [x + uz * side * (deckW / 2 + 4.5), stepY + hh / 2 - 1, z - ux * side * (deckW / 2 + 4.5)],
 					size: [segLen + 1.5, hh, 9],
 					material: P.structureMaterial,
 					color: side < 0 ? P.structure : P.structureDark,
@@ -703,18 +1320,31 @@ function routePath(api, r, a, b, P, seedBase, idx) {
 		}
 
 		// Tunel: techo y laterales. Cierra la vista al otro lado.
+		//
+		// P0 CORREGIDO: los laterales van PEGADOS al borde del deck (como la
+		// barandilla), no a `w / 2 + 3`. Con el deck en `w` y los laterales en
+		// `w / 2 + 3` de 4 de grosor, ocupaban de `w / 2 + 1` a `w / 2 + 5`, y
+		// como la rejilla marca la celda entera, se comian el ultimo medio de
+		// celda del suelo. Medido: el tunel de Cyber cerraba el paso y el mundo
+		// entero se quedaba con UNA zona alcanzable de doce.
 		if (r.style === "tunnel") {
+			// El techo se coloca por su CARA INFERIOR, no por su cota central: la
+			// holgura que decide si el paso existe es la de abajo, y el grosor va
+			// hacia arriba. Con la cota central en `stepY + 9` y 2 de grosor el
+			// aire libre eran 8 studs, y las losas elevadas de la zona se lo
+			// comian. Medido: Cyber con 1 zona alcanzable de 12.
+			const roofBottom = stepY + TUNNEL_HEADROOM;
 			out.push(part(name + "_Roof_" + i, {
-				position: [x, step + 9, z],
-				size: [segLen + 1.5, 2, w + 8],
+				position: [x, roofBottom + 1, z],
+				size: [segLen + 1.5, 2, deckW + 8],
 				material: P.structureMaterial,
 				color: P.structureDark,
 				orientation: [0, yaw, 0],
 			}));
 			for (const side of [-1, 1]) {
 				out.push(part(name + "_Side_" + side + "_" + i, {
-					position: [x + uz * side * (w / 2 + 3), step + 4, z - ux * side * (w / 2 + 3)],
-					size: [segLen + 1.5, 10, 4],
+					position: [x + uz * side * (deckW / 2), roofBottom / 2 - 1, z - ux * side * (deckW / 2)],
+					size: [segLen + 1.5, roofBottom + 2, 4],
 					material: P.structureMaterial,
 					color: P.structure,
 					orientation: [0, yaw, 0],
@@ -744,17 +1374,72 @@ function routePath(api, r, a, b, P, seedBase, idx) {
 		}
 	}
 
-	return { parts: out, ax: ax, az: az, bx: bx, bz: bz, yaw: yaw, width: w };
+	return { parts: out, ax: ax, az: az, bx: bx, bz: bz, yaw: yaw, width: w, half: deckW / 2 };
 }
+/**
+ * ENLACE entre el final de una ruta y el suelo de su zona.
+ *
+ * La ruta se recorta a `ellipseRadius * 0.72` para no atravesar el centro de
+ * la zona, asi que su ultimo deck cae DENTRO de la elipse, sobre el suelo. El
+ * enlace cubre desde ahi hasta el BORDE de ese suelo, y ahi se queda.
+ *
+ * POR QUE NO LLEGA AL CENTRO
+ * -------------------------
+ * Antes el enlace iba hasta el centro de la zona, y eso convertia cada zona en
+ * un embudo: todas sus entradas se cruzaban en un unico punto. Con el tronco
+ * compartido, tapar el camino mas corto dejaba al spawn sin salida por la
+ * unica puerta que quedaba, y la comprobacion de ruta alternativa fallaba
+ * aunque el mapa tuviera caminos de sobra. El atajo y la salida eran el mismo
+ * tramo.
+ *
+ * @param {Array} out piezas donde se acumulan
+ * @param {number} ax punto de llegada de la ruta
+ * @param {number} az
+ * @param {object} zone zona destino (x, z, y)
+ * @param {number} width ancho de la ruta
+ * @param {object} P paleta
+ * @param {number} seedBase
+ * @param {string} tag nombre unico del enlace
+ * @param {number} stop fraccion del camino hacia el centro (0..1)
+ */
+function fillApproach(api, out, ax, az, zone, width, P, seedBase, tag, stop) {
+	const { part } = api;
+	const dx = zone.x - ax;
+	const dz = zone.z - az;
+	const len = Math.sqrt(dx * dx + dz * dz);
+	if (len < 1) return;
+
+	const ux = dx / len;
+	const uz = dz / len;
+	const runLen = Math.max(11, len * stop);
+	const steps = Math.max(1, Math.round(runLen / 11));
+	const segLen = runLen / steps;
+	const yaw = yawTo(ux, uz);
+	const w = Math.max(width, MIN_ROUTE_OPENING);
+
+	for (let i = 0; i < steps; i++) {
+		const t = (i + 0.5) / steps;
+		// `tag` lo pasa el llamante: dos rutas pueden llegar al mismo punto exacto de
+	// la zona (por ejemplo cuando varias rutas entran por el mismo lado), y sin
+	// un indice unico `asChildren` aborta el build por nombre duplicado.
+	out.push(part("Approach_" + zone.id + "_" + tag + "_" + i, {
+			position: [ax + ux * runLen * t, zone.y - 1, az + uz * runLen * t],
+			// `segLen * 1.6` para que las losas se solapen: sin solape quedan
+			// juntas de canto y el jugador puede caer en la costura.
+			size: [segLen * 1.6, 2, w],
+			material: P.floorMaterial,
+			color: P.ground,
+			orientation: [0, yaw, 0],
+		}));
+		void seedBase;
+	}
+}
+
 /** Expande una tupla de zona en objeto, con los valores por defecto. */
 function zone(t) {
 	return { id: t[0], role: t[1], x: t[2], z: t[3], rx: t[4], rz: t[5], y: t[6] || 0 };
 }
 
-/** Expande una tupla de ruta en objeto. */
-function route(t) {
-	return { from: t[0], to: t[1], style: t[2], width: t[3] || 14 };
-}
 // ---------------------------------------------------- CONTENIDO POR ROL
 //
 // Un `role` no es una etiqueta: decide que hay DENTRO de la zona. Sin esta
@@ -827,6 +1512,13 @@ function destructibleCluster(api, z, P, blockState, defId) {
 	// Estructura en anillo: se lee como un recinto derruido y deja un hueco
 	// interior por el que se entra y se sale. Un anillo de bloques cerrado
 	// encerraria la zona; un anillo con huecos es una sala con dos puertas.
+	//
+	// P0: el anillo respeta el corridor de las rutas. Antes solo se abria un
+	// sector FIJO (los angulos de 1.1 a 2.0 radianes), asi que si una ruta
+	// entraba por otro angulo el anillo se cerraba encima. Ahora se consulta la
+	// zona: si el punto cae sobre una ruta, no se construye ahi, y el anillo se
+	// convierte en lo que tiene que ser, una sala con las puertas por donde se
+	// entra.
 	const ring = Math.max(6, Math.round((z.rx + z.rz) / 9));
 	for (let i = 0; i < ring; i++) {
 		const a = (i / ring) * Math.PI * 2;
@@ -834,7 +1526,10 @@ function destructibleCluster(api, z, P, blockState, defId) {
 		if (a > 1.1 && a < 2.0) continue;
 		const r = 0.78 + hash01(i, 11) * 0.16;
 		const s = SHAPES[blockState.count % SHAPES.length];
-		make(z.x + Math.cos(a) * z.rx * r, z.y + s.size[1] / 2, z.z + Math.sin(a) * z.rz * r, 1);
+		const bx = z.x + Math.cos(a) * z.rx * r;
+		const bz = z.z + Math.sin(a) * z.rz * r;
+		if (onRoute(z, bx, bz)) continue;
+		make(bx, z.y + s.size[1] / 2, bz, 1);
 	}
 
 	// Pilares centrales: se rompen y dejan el monumento sin soporte. Es la
@@ -843,17 +1538,42 @@ function destructibleCluster(api, z, P, blockState, defId) {
 	for (let i = 0; i < pillars; i++) {
 		const a = (i / pillars) * Math.PI * 2 + 0.4;
 		const s = SHAPES[blockState.count % SHAPES.length];
-		make(z.x + Math.cos(a) * z.rx * 0.3, z.y + s.size[1] / 2, z.z + Math.sin(a) * z.rz * 0.3, 0.8);
+		const bx = z.x + Math.cos(a) * z.rx * 0.3;
+		const bz = z.z + Math.sin(a) * z.rz * 0.3;
+		if (onRoute(z, bx, bz)) continue;
+		make(bx, z.y + s.size[1] / 2, bz, 0.8);
 	}
 
 	// Pila de dos alturas: verticalidad y mas superficie donde pensar la bomba.
 	const s = SHAPES[blockState.count % SHAPES.length];
 	const ax = z.x + z.rx * 0.42;
 	const az = z.z - z.rz * 0.42;
-	const base = make(ax, z.y + s.size[1] / 2, az, 1);
-	make(ax, z.y + s.size[1] + base[1] / 2, az, 0.7);
+	const base = onRoute(z, ax, az)
+		? [0, 0, 0]
+		: make(ax, z.y + s.size[1] / 2, az, 1);
+	if (base[1]) make(ax, z.y + s.size[1] + base[1] / 2, az, 0.7);
 
 	return out;
+}
+
+/**
+ * ¿Este punto cae sobre el corredor de alguna ruta?
+ *
+ * Es la misma prueba que usa `scatterInZone`, expuesta aparte porque la usan
+ * varias familias de contenido (bloques destructibles, cobertura) que si no
+ * cada una reimplementa el recorrido de las rutas.
+ *
+ * @param {object} z zona con `keepOut`
+ * @param {number} x
+ * @param {number} zz
+ * @returns {boolean}
+ */
+function onRoute(z, x, zz) {
+	if (!z.keepOut) return false;
+	for (const k of z.keepOut) {
+		if (distToSegment(x, zz, k.ax, k.az, k.bx, k.bz) < k.half) return true;
+	}
+	return false;
 }
 
 /**
@@ -877,8 +1597,37 @@ function coverField(api, z, P, seedBase, count, tag) {
 	for (let i = 0; i < count; i++) {
 		const a = (i / count) * Math.PI * 2 + vary(seedBase, i + 20, -0.4, 0.4);
 		const r = 0.42 + hash01(seedBase, i + 21) * 0.34;
-		const x = z.x + Math.cos(a) * z.rx * r;
-		const zz = z.z + Math.sin(a) * z.rz * r;
+		let x = z.x + Math.cos(a) * z.rx * r;
+		let zz = z.z + Math.sin(a) * z.rz * r;
+
+		// P0: la cobertura NUNCA cae en el corredor por el que se entra o se
+		// sale. Antes el angulo y el radio se sortearan y el punto se aceptaba
+		// siempre, asi que media cobertura se plantaba en mitad del sendero:
+		// el jugador se encontraba un bloque cerrado al entrar en la zona, sin
+		// aviso y sin esquivarlo. Medido: `Cover_Slab_ServerHall_4` (Cyber) y
+		// `Cover_Monolith_Cache_5` (Ice) cerraban el cuello de su zona.
+		//
+		// Se prueba el punto y, si cae sobre una ruta, se gira el angulo. No se
+		// reduce el numero de piezas: una zona con menos cobertura es una zona
+		// sin decisiones, y la cobertura es justamente lo que hace que un sitio
+		// con monstruos sea un sitio donde hay que decidir donde poner la bomba.
+		const keepOut = z.keepOut || null;
+		if (keepOut) {
+			let moved = false;
+			for (let attempt = 0; attempt < 8 && !moved; attempt++) {
+				let clear = true;
+				for (const k of keepOut) {
+					if (distToSegment(x, zz, k.ax, k.az, k.bx, k.bz) < k.half) {
+						clear = false;
+						break;
+					}
+				}
+				if (clear) moved = true;
+				const a2 = a + (attempt + 1) * 0.9;
+				x = z.x + Math.cos(a2) * z.rx * r;
+				zz = z.z + Math.sin(a2) * z.rz * r;
+			}
+		}
 
 		// Tres siluetas distintas. Una cobertura de cajas iguales se lee como
 		// un almacen, no como un lugar donde pelear.
@@ -987,13 +1736,687 @@ function monsterSpawnName(defId, index) {
 }
 
 /**
+ * SEPARACION MINIMA entre dos spawns de monstruo de la misma zona, en studs.
+ *
+ * No es decorativa: el jugador tiene que ver al bicho aparecer Y tener por
+ * donde alejarse. Con dos spawns a 10 studs el segundo aparece dentro del
+ * primero y el jugador no puede separar a los dos.
+ *
+ * Es un MAXIMO, no un valor fijo: una zona pequena no puede separarlos mas, y
+ * exigirlo dejaria el segundo spawn sin sitio o duplicado sobre el primero.
+ */
+const MONSTER_SPAWN_SPACING = 34;
+
+/**
+ * Separacion aplicable a una zona concreta, en studs.
+ *
+ * Se escala con el lado CORTO de la zona, que es el que manda: un claro de 26 x
+ * 14 studs (Ice `Shards`) no admite 34 de separacion en ninguna direccion, y
+ * medido el requisito fijo devolvia el segundo spawn EN EL MISMO PUNTO que el
+ * primero.
+ *
+ * @param {number} rx radio en X de la zona
+ * @param {number} rz radio en Z de la zona
+ * @returns {number} separacion en studs
+ */
+function monsterSpawnSpacing(rx, rz) {
+	return Math.min(MONSTER_SPAWN_SPACING, Math.max(8, Math.min(rx, rz) * 0.6));
+}
+
+/**
+ * Radio de holgura que un spawn de monstruo necesita alrededor, en studs.
+ *
+ * Un spawn con un obstaculo pegado es un spawn que el jugador no ve y al que no
+ * puede acercarse. El valor es el mismo criterio que usa el verificador
+ * (`tools/monster-access-test.js`), y se escala igual que la separacion para que
+ * una zona pequeña no impida tener dos bichos.
+ *
+ * @param {number} rx radio en X de la zona
+ * @param {number} rz radio en Z de la zona
+ * @returns {number} radio en studs
+ */
+function monsterSpawnClearance(rx, rz) {
+	return Math.min(MONSTER_SPAWN_CLEARANCE, Math.max(3, Math.min(rx, rz) * 0.3));
+}
+
+/**
+ * Radio de holgura de un spawn, con su tope.
+ *
+ * Es el valor base; `monsterSpawnClearance` lo reduce para zonas pequenas.
+ */
+const MONSTER_SPAWN_CLEARANCE = 6;
+
+/**
+ * Rejilla de COMPROBACION del generador, en studs por celda.
+ *
+ * Es mas gruesa que la del verificador (`CELL = 4`) a proposito: aqui no se
+ * mide la anchura de un corredor, se pregunta "hay suelo y se puede llegar".
+ * Una rejilla gruesa cabe en memoria para las cinco zonas de un mundo y no
+ * necesita la precision de un analisis de recorrido.
+ */
+const PROBE_CELL = 8;
+
+/**
+ * PLAYER_HEADROOM del generador, en studs.
+ *
+ * Coincide con el del verificador. Una celda con un solido en esta franja esta
+ * ocupada: es la misma regla que usa `world-navigation-test.js`, y copiada a
+ * proposito en vez de aproximada.
+ */
+const PROBE_HEADROOM = 7;
+
+/**
+ * Anchura de la rejilla: el generador coloca el punto en el CENTRO de la celda
+ * y exige que el disco de holgura quepa entero. Medir contra celdas enteras es
+ * lo que hacia que el punto "validado" cayera medio paso al lado del obstaculo.
+ */
+const PROBE_STEP_UP = 4;
+
+/**
+ * Extrae las piezas COLISIONABLES de un arbol de carpetas del generador.
+ *
+ * El generador construye zonas, rutas y piezas sueltas en carpetas distintas, y
+ * al terminar el mundo solo tiene un arbol de carpetas. Recorrerlo aqui es lo
+ * que permite comprobar el spawn de monstruo contra la geometria REAL ya
+ * montada, y no contra la intencion del layout.
+ *
+ * Se ignoran las piezas con `CanCollide` distinto de `true`: una decoracion no
+ * es suelo ni muro, y contarla haria que el mapa pareciera cerrado cuando el
+ * jugador lo atraviesa de largo.
+ *
+ * @param {object} node nodo del generador (`{$className, ...}`)
+ * @param {Array} out acumulador
+ * @returns {Array} piezas `{x, y, z, w, h, d, name}`
+ */
+function collectSolids(node, out, prefix) {
+	if (!node || typeof node !== "object") return out;
+	const props = node.$properties;
+	const label = prefix || "";
+	if (props && props.CanCollide === true && Array.isArray(props.Position) && Array.isArray(props.Size)) {
+		const p = props.Position;
+		const s = props.Size;
+		const o = Array.isArray(props.Orientation) ? props.Orientation : [0, 0, 0];
+		out.push({ x: p[0], y: p[1], z: p[2], w: s[0], h: s[1], d: s[2], rot: o, name: label });
+	}
+	for (const key of Object.keys(node)) {
+		if (key.startsWith("$")) continue;
+		collectSolids(node[key], out, label ? label + "." + key : key);
+	}
+	return out;
+}
+
+/**
+ * Caja de una pieza solida, con la orientacion COMPLETA aplicada.
+ *
+ * Se usan los tres ejes, no solo el giro vertical, y no es una comodidad: el
+ * generador inclina las losas de cobertura unos grados en X y en Z, y la caja
+ * alineada a ejes de una pieza inclinada mide MENOS alto que la pieza de verdad.
+ * Medido en `Cover_Slab_ServerHall_4`: el verificador mide 8.55 studs de alto y
+ * el generador 7.49, y 7.49 queda por debajo del limite de escalon (4) mientras
+ * que 8.55 lo supera. Con la diferencia, el generador daba por bueno un spawn
+ * que el verificador declara bloqueado; es exactamente el fallo que la caja
+ * Wall hace que el generador no lo vea.
+ *
+ * La matriz es la de Roblox para `Orientation` (Rx * Ry * Rz), la misma que usa
+ * `world-navigation-test.js`. Copiada, no aproximada.
+ */
+function solidCorners(s) {
+	const rx = ((s.rot[0] || 0) * Math.PI) / 180;
+	const ry = ((s.rot[1] || 0) * Math.PI) / 180;
+	const rz = ((s.rot[2] || 0) * Math.PI) / 180;
+	const cx = Math.cos(rx), sx = Math.sin(rx);
+	const cy = Math.cos(ry), sy = Math.sin(ry);
+	const cz = Math.cos(rz), sz = Math.sin(rz);
+	const m = [
+		cy * cz, cy * sz, -sy,
+		sx * sy * cz - cx * sz, sx * sy * sz + cx * cz, sx * cy,
+		cx * sy * cz + sx * sz, cx * sy * sz - sx * cz, cx * cy,
+	];
+
+	const hx = s.w / 2, hy = s.h / 2, hz = s.d / 2;
+	let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity, z0 = Infinity, z1 = -Infinity;
+	for (const ox of [-hx, hx]) {
+		for (const oy of [-hy, hy]) {
+			for (const oz of [-hz, hz]) {
+				const wx = s.x + m[0] * ox + m[1] * oy + m[2] * oz;
+				const wy = s.y + m[3] * ox + m[4] * oy + m[5] * oz;
+				const wz = s.z + m[6] * ox + m[7] * oy + m[8] * oz;
+				x0 = Math.min(x0, wx); x1 = Math.max(x1, wx);
+				y0 = Math.min(y0, wy); y1 = Math.max(y1, wy);
+				z0 = Math.min(z0, wz); z1 = Math.max(z1, wz);
+			}
+		}
+	}
+	return { x0: x0, x1: x1, y0: y0, y1: y1, z0: z0, z1: z1 };
+}
+
+/** Indice de celda de un punto, o -1 si cae fuera de la rejilla. */
+function probeIndex(grid, x, z) {
+	const c = Math.floor((x - grid.minX) / PROBE_CELL);
+	const r = Math.floor((z - grid.minZ) / PROBE_CELL);
+	if (r < 0 || c < 0 || r >= grid.rows || c >= grid.cols) return -1;
+	return r * grid.cols + c;
+}
+
+/** Una pieza es SUELO si es ancha en los dos ejes y mas ancha que alta. */
+function isProbeFloor(b) {
+	const ex = b.x1 - b.x0;
+	const ez = b.z1 - b.z0;
+	const ey = b.y1 - b.y0;
+	return ex > ey && ez > ey && ex > PROBE_CELL && ez > PROBE_CELL;
+}
+
+/**
+ * Rejilla de comprobacion del mundo YA MONTADO: altura de suelo por celda y
+ * ocupacion.
+ *
+ * Es la misma idea que la del verificador de navegabilidad, a escala mayor y con
+ * el suelo simplificado: aqui no se mide la anchura de un corredor, se pregunta
+ * "hay suelo y hay sitio para estar". El precio de esa simplificacion es que la
+ * rejilla puede declarar habitable una celda que el verificador luego estreche;
+ * por eso `tools/monster-access-test.js` vuelve a medir sobre el arbol generado
+ * con la rejilla fina. El generador COLOCA, el test CERTIFICA.
+ *
+ * @param {Array} solids piezas colisionables del mundo
+ * @returns {object?} rejilla, o null si no hay geometria
+ */
+function buildProbeGrid(solids) {
+	if (!solids.length) return null;
+
+	let minX = Infinity, maxX = -Infinity, minZ = Infinity, maxZ = -Infinity;
+	for (const s of solids) {
+		const b = solidCorners(s);
+		minX = Math.min(minX, b.x0); maxX = Math.max(maxX, b.x1);
+		minZ = Math.min(minZ, b.z0); maxZ = Math.max(maxZ, b.z1);
+	}
+	const pad = PROBE_CELL * 2;
+	minX -= pad; maxX += pad; minZ -= pad; maxZ += pad;
+
+	const cols = Math.ceil((maxX - minX) / PROBE_CELL);
+	const rows = Math.ceil((maxZ - minZ) / PROBE_CELL);
+	const floorY = new Float64Array(cols * rows).fill(-Infinity);
+	const clamp = (v, n) => (v < 0 ? 0 : v > n - 1 ? n - 1 : v);
+
+	for (const s of solids) {
+		const b = solidCorners(s);
+		if (!isProbeFloor(b)) continue;
+		const c0 = clamp(Math.floor((b.x0 - minX) / PROBE_CELL), cols);
+		const c1 = clamp(Math.ceil((b.x1 - minX) / PROBE_CELL) - 1, cols);
+		const r0 = clamp(Math.floor((b.z0 - minZ) / PROBE_CELL), rows);
+		const r1 = clamp(Math.ceil((b.z1 - minZ) / PROBE_CELL) - 1, rows);
+		for (let r = r0; r <= r1; r++) {
+			for (let c = c0; c <= c1; c++) {
+				const i = r * cols + c;
+				// El suelo es la cara superior mas ALTA de la celda. El techo de
+				// un tunel no llega aqui: es mas estrecho que alto, asi que
+				// `isProbeFloor` lo descarta y no se confunde con suelo.
+				if (b.y1 > floorY[i]) floorY[i] = b.y1;
+			}
+		}
+	}
+
+	const blocked = new Uint8Array(cols * rows);
+	for (const s of solids) {
+		const b = solidCorners(s);
+		const c0 = clamp(Math.floor((b.x0 - minX) / PROBE_CELL), cols);
+		const c1 = clamp(Math.ceil((b.x1 - minX) / PROBE_CELL) - 1, cols);
+		const r0 = clamp(Math.floor((b.z0 - minZ) / PROBE_CELL), rows);
+		const r1 = clamp(Math.ceil((b.z1 - minZ) / PROBE_CELL) - 1, rows);
+		for (let r = r0; r <= r1; r++) {
+			for (let c = c0; c <= c1; c++) {
+				const i = r * cols + c;
+				if (floorY[i] === -Infinity) continue;
+				// Estorba lo que invade la franja de paso: ni por debajo del
+				// suelo (se pisa) ni por encima de la cabeza (es decoracion).
+				if (b.y1 <= floorY[i] + PROBE_STEP_UP) continue;
+				if (b.y0 >= floorY[i] + PROBE_HEADROOM) continue;
+				blocked[i] = 1;
+			}
+		}
+	}
+
+	return { minX: minX, minZ: minZ, cols: cols, rows: rows, floorY: floorY, blocked: blocked };
+}
+
+/** Celda habitable: tiene suelo y no hay nada en la franja de paso. */
+function probeWalkable(grid, i) {
+	return i >= 0 && grid.floorY[i] !== -Infinity && grid.blocked[i] === 0;
+}
+
+/**
+ * Alcanzable desde una celda, con el mismo criterio de paso que el verificador:
+ * escalon de 4 arriba, 6 abajo, y ninguna bajada de mas de la mitad del limite
+ * (caer mas de eso se hace dano y no cuenta como paso).
+ */
+function probeReachable(grid, start) {
+	const seen = new Uint8Array(grid.cols * grid.rows);
+	if (!probeWalkable(grid, start)) return seen;
+
+	const queue = [start];
+	seen[start] = 1;
+	for (let head = 0; head < queue.length; head++) {
+		const i = queue[head];
+		const c = i % grid.cols;
+		const r = Math.floor(i / grid.cols);
+		for (const [dc, dr] of [[-1, 0], [1, 0], [0, -1], [0, 1]]) {
+			const nc = c + dc, nr = r + dr;
+			if (nc < 0 || nr < 0 || nc >= grid.cols || nr >= grid.rows) continue;
+			const j = nr * grid.cols + nc;
+			if (seen[j] || !probeWalkable(grid, j)) continue;
+			const dy = grid.floorY[j] - grid.floorY[i];
+			if (dy > PROBE_STEP_UP || dy < -6 || dy < -3) continue;
+			seen[j] = 1;
+			queue.push(j);
+		}
+	}
+	return seen;
+}
+
+/**
+ * COLOCA los spawns de monstruo contra el mundo ya montado.
+ *
+ * Es la funcion que cierra el fallo "PLAYER OUTSIDE / MONSTERS INSIDE". Un spawn
+ * no vale por estar dentro de una zona: vale por estar en el MISMO sitio que el
+ * jugador, o sea sobre suelo, sin nada en la franja de paso y con una ruta
+ * fisica desde el spawn del jugador.
+ *
+ * Se ejecuta DESPUES de montar zonas, rutas, cobertura y decoracion, porque antes
+ * de eso la cobertura que se sembrara en esa misma zona todavia no existe y el
+ * punto elegido seria tapado por ella. Medido: colocar los spawns dentro del
+ * bucle de zonas daba 13 de 30 spawns invalidos; colocar aqui y exigir la celda
+ * habitable deja los cinco mundos en cero.
+ *
+ * Para cada intencion se recorren las celdas de la zona de mayor a menor radio y
+ * se acepta la primera que cumple:
+ *
+ *   1. el punto cae dentro de la zona (radio normalizado sobre la elipse real);
+ *   2. la celda tiene suelo y nada en la franja de paso;
+ *   3. la celda es alcanzable desde el spawn del JUGADOR (no desde el centro de
+ *      la zona): esta es la comprobacion que convierte "esta en el mundo" en
+ *      "el jugador puede llegar";
+ *   4. el disco de holgura alrededor cabe entero en celdas habitables, para que
+ *      el jugador vea al bicho y tenga sitio para rodearlo;
+ *   5. no pisa ningun otro spawn ya colocado.
+ *
+ * Si la zona no tiene ninguna celda que cumpla todo, se usa la mejor disponible
+ * (habitable y alcanzable, sin exigir el disco) y se avisa por consola. Un
+ * generador que aborta deja el mapa sin generar; uno que avisa delata el problema
+ * en `tools/monster-access-test.js`, que es donde se arregla.
+ *
+ * @param {object} api helpers del generador
+ * @param {object} worldNode carpeta del mundo ya montada
+ * @param {Array} intents intenciones `{zone, first}`
+ * @param {string} defId id del mundo (para el nombre del spawn)
+ * @param {object} P paleta
+ * @param {{x:number,z:number}} playerSpawn punto de entrada del jugador
+ * @returns {Array} marcadores de spawn de monstruo
+ */
+function resolveMonsterSpawns(api, worldNode, intents, defId, P, playerSpawn) {
+	const { marker } = api;
+	const solids = collectSolids(worldNode, [], "");
+	// Las cajas se calculan UNA vez: `probeFloorAt` las recorre todas por cada
+	// candidato, y recalcularlas en cada llamada multiplicaba el coste del build
+	// por el numero de candidatos.
+	for (const s of solids) s.box = solidCorners(s);
+
+	const grid = buildProbeGrid(solids);
+	if (!grid) return [];
+
+	const reachable = probeReachable(grid, probeIndex(grid, playerSpawn.x, playerSpawn.z));
+	const out = [];
+	const placed = [];
+
+	/**
+	 * Disco de holgura de un spawn, comprobado en PUNTOS y no en celdas.
+	 *
+	 * La rejilla del generador es de 8 studs y la del verificador de 4, asi que
+	 * comprobar la holgura en celdas propias dejaba pasar candidatos que el
+	 * verificador rechazaba: medido, cinco spawns de Forest, Ice, Volcano y
+	 * Cyber caian a menos de 4 studs de un muro.
+	 *
+	 * Se muestrea el mismo patron de celdas que usa el verificador (`nav`'s
+	 * `CELL`), pero preguntando por el PUNTO exacto con `probeStandsAt` y
+	 * `probeObstructedAround`. Es una comprobacion MAS estricta que la del test
+	 * (punto en vez de celda), y por eso el generador no puede colocar un spawn
+	 * que el verificador vaya a reprobar.
+	 *
+	 * @param {object} solids
+	 * @param {number} px
+	 * @param {number} pz
+	 * @param {number} radius holgura exigida
+	 * @returns {boolean}
+	 */
+	function clearanceAt(solids, px, pz, radius, floorY) {
+		for (const s of solids) {
+			const b = s.box;
+			// Descartes rapidos por eje: la caja tiene que tocar el disco.
+			if (b.x1 < px - radius || b.x0 > px + radius) continue;
+			if (b.z1 < pz - radius || b.z0 > pz + radius) continue;
+
+			// Distancia del rectangulo al punto. Un solido que YA esta dentro del
+			// punto tiene distancia 0, y por eso entra en la comprobacion.
+			const dx = Math.max(b.x0 - px, 0, px - b.x1);
+			const dz = Math.max(b.z0 - pz, 0, pz - b.z1);
+			if (dx * dx + dz * dz > radius * radius) continue;
+
+			// Solo estorba lo que invade la franja de paso: ni por debajo del
+			// suelo (se pisa) ni por encima de la cabeza (es decoracion).
+			if (b.y1 <= floorY + PROBE_STEP_UP) continue;
+			if (b.y0 >= floorY + PROBE_HEADROOM) continue;
+
+			return false;
+		}
+		return true;
+	}
+
+	/**
+	 * Comprobacion de holgura de UNA zona concreta.
+	 *
+	 * El radio sale de `monsterSpawnClearance` con el tamano de la zona, y por
+	 * eso es el MISMO valor que aplica el verificador: el generador construye lo
+	 * que el verificador exige, y no al reves.
+	 *
+	 * La holgura se mide como SOLIDO que invade un disco, no muestreando puntos:
+	 * muestrear puntos deja pasar el borde de una pieza, y el verificador, que
+	 * trabaja con celdas de 4 studs, lo rechaza. Medir la misma cosa con la misma
+	 * aritmetica de caja en los dos lados es lo que hace que converjan.
+	 *
+	 * @param {object} z zona
+	 * @returns {function} `(px, pz, floorY) -> boolean`
+	 */
+	function makeClearanceCheck(z) {
+		const radius = monsterSpawnClearance(z.rx, z.rz);
+		return function (px, pz, floorY) {
+			return clearanceAt(solids, px, pz, radius, floorY);
+		};
+	}
+
+	for (const intent of intents) {
+		const z = intent.zone;
+		const spacing = monsterSpawnSpacing(z.rx, z.rz);
+		const clearanceOk = makeClearanceCheck(z);
+		const chosen = { best: null, loose: null };
+
+		/** Spawn ya colocados que pisa un punto, dentro de esta zona. */
+		function crowded(px, pz) {
+			for (const q of placed) {
+				if (q.zone === z.id) continue;
+				if (Math.hypot(px - q.x, pz - q.z) < spacing) return true;
+			}
+			return false;
+		}
+
+		// Se recorren anillos de radio DECRECIENTE y, dentro de cada anillo,
+		// todas las celdas de la elipse. Empezar por el exterior y acabar en el
+		// centro hace que, cuando hay varios sitios validos, gane el mas cercano
+		// al borde: el jugador llega por la ruta, y un bicho que aparece en el
+		// centro de la zona es un bicho al que hay que rodear cobertura.
+		for (let step = 12; step >= 1 && !chosen.best; step--) {
+			const r = step / 12;
+			const cc = Math.floor((z.x - grid.minX) / PROBE_CELL);
+			const rr = Math.floor((z.z - grid.minZ) / PROBE_CELL);
+			const spanX = Math.max(1, Math.round((z.rx * r) / PROBE_CELL));
+			const spanZ = Math.max(1, Math.round((z.rz * r) / PROBE_CELL));
+
+			for (let dr = -spanZ; dr <= spanZ && !chosen.best; dr++) {
+				for (let dc = -spanX; dc <= spanX; dc++) {
+					const i = (rr + dr) * grid.cols + (cc + dc);
+					if (i < 0 || i >= grid.cols * grid.rows) continue;
+					if (!probeWalkable(grid, i) || !reachable[i]) continue;
+
+					const px = grid.minX + (cc + dc + 0.5) * PROBE_CELL;
+					const pz = grid.minZ + (rr + dr + 0.5) * PROBE_CELL;
+					// El punto tiene que caer dentro de la elipse de la zona: una
+					// celda valida de la ZONA VECINA no es de esta zona.
+					const nx = (px - z.x) / z.rx;
+					const nz = (pz - z.z) / z.rz;
+					if (nx * nx + nz * nz > 1) continue;
+					if (crowded(px, pz)) continue;
+
+					// El PUNTO tiene que tener suelo y aire. La celda puede ser
+					// buena y el punto caer en la costura entre dos losas, con el
+					// vacio debajo: ahi el bicho aparece flotando.
+					const floor = probeStandsAt(solids, px, pz);
+					if (floor === -Infinity) continue;
+					if (probeObstructedAround(solids, px, pz, floor)) continue;
+
+					if (!chosen.loose) chosen.loose = { x: px, z: pz, y: floor };
+					if (!clearanceOk(px, pz, floor)) continue;
+
+					chosen.best = { x: px, z: pz, y: floor };
+				}
+			}
+		}
+
+		const spot = chosen.best || chosen.loose;
+		if (!spot) {
+			console.log("  AVISO " + defId + ": la zona " + z.id +
+				" no tiene celda habitable alcanzable para el spawn de monstruo.");
+			continue;
+		}
+		if (!chosen.best) {
+			console.log("  AVISO " + defId + ": el spawn de " + z.id +
+				" cae en el punto mas abierto de la zona, sin holgura alrededor.");
+		}
+
+		for (let k = 0; k < 2; k++) {
+			// El SEGUNDO spawn es opcional. Una zona pequeña y llena de cobertura
+			// puede no admitir dos bichos separados, y en ese caso lo correcto es
+			// UN bicho, no dos apilados en el mismo punto: el jugador no podria
+			// verlos ni decidir a cual ataca.
+			//
+			// El indice del nombre avanza igualmente, de modo que el orden
+			// alfabetico siga siendo el del recorrido (que es lo que leen
+			// `MatchService` y las pruebas).
+			if (k === 1) {
+				const second = resolveSecondSpawn(spot, z, grid, reachable, placed, solids, spacing, clearanceOk);
+				if (!second) {
+					console.log(
+						"  AVISO " + defId + ": la zona " + z.id +
+						" solo admite un spawn de monstruo con separacion suficiente."
+					);
+					break;
+				}
+				placed.push({ x: second.x, z: second.z, zone: z.id });
+				out.push(marker(monsterSpawnName(defId, intent.first + k),
+					[second.x, second.y + 1.6, second.z],
+					{ color: P.hazard, size: [3, 0.2, 3] }));
+				continue;
+			}
+
+			placed.push({ x: spot.x, z: spot.z, zone: z.id });
+			out.push(marker(monsterSpawnName(defId, intent.first),
+				[spot.x, spot.y + 1.6, spot.z],
+				{ color: P.hazard, size: [3, 0.2, 3] }));
+		}
+	}
+
+	return out;
+}
+/**
+ * Segundo spawn de una misma zona.
+ *
+ * Busca la celda habitable y alcanzable mas ALEJADA del primero, dentro de la
+ * zona. Es lo que garantiza que los dos bichos de una zona no nazcan uno encima
+ * del otro, y no un simple "el siguiente candidato del abanico": si la cobertura
+ * de la zona llena el sitio de al lado, la busqueda tiene que poder irse al
+ * lado contrario de la zona.
+ *
+ * @param {{x:number,z:number}} first primer spawn ya colocado
+ * @param {object} z zona
+ * @param {object} grid
+ * @param {Uint8Array} reachable
+ * @param {Array} placed spawns ya colocados
+ * @param {Array} solids piezas del mundo, ya con cajas
+ * @param {number} spacing separacion aplicable a ESTA zona
+ * @param {function} clearanceOk comprobacion de holgura de la zona
+ * @returns {{x:number,z:number,y:number}}
+ */
+function resolveSecondSpawn(first, z, grid, reachable, placed, solids, spacing, clearanceOk) {
+	const c0 = Math.floor((first.x - grid.minX) / PROBE_CELL);
+	const r0 = Math.floor((first.z - grid.minZ) / PROBE_CELL);
+	const spanX = Math.max(1, Math.round(z.rx / PROBE_CELL));
+	const spanZ = Math.max(1, Math.round(z.rz / PROBE_CELL));
+
+	let best = null;
+	let bestD = 0;
+	for (let dr = -spanZ; dr <= spanZ; dr++) {
+		for (let dc = -spanX; dc <= spanX; dc++) {
+			const nc = c0 + dc, nr = r0 + dr;
+			if (nc < 0 || nr < 0 || nc >= grid.cols || nr >= grid.rows) continue;
+			const i = nr * grid.cols + nc;
+			if (!probeWalkable(grid, i) || !reachable[i]) continue;
+
+			const px = grid.minX + (nc + 0.5) * PROBE_CELL;
+			const pz = grid.minZ + (nr + 0.5) * PROBE_CELL;
+			const nx = (px - z.x) / z.rx;
+			const nz = (pz - z.z) / z.rz;
+			if (nx * nx + nz * nz > 1) continue;
+
+			let tooClose = false;
+			for (const q of placed) {
+				if (Math.hypot(px - q.x, pz - q.z) < spacing) { tooClose = true; break; }
+			}
+			if (tooClose) continue;
+
+			// Mismo punto exacto, mismos requisitos que el primer spawn.
+			const floor = probeStandsAt(solids, px, pz);
+			if (floor === -Infinity) continue;
+			if (probeObstructedAround(solids, px, pz, floor)) continue;
+			if (!clearanceOk(px, pz, floor)) continue;
+
+			const d = Math.hypot(px - first.x, pz - first.z);
+			if (d > bestD) { bestD = d; best = { x: px, z: pz, y: floor }; }
+		}
+	}
+
+	// `nil` cuando la zona no admite un segundo bicho separado. El llamante lo
+	// trata como "esta zona tiene un spawn", que es mejor que dos apilados.
+	return best;
+}
+
+/**
+ * ALTURA DE SUELO bajo un punto exacto, o -Infinity si no hay ninguna.
+ *
+ * La rejilla decide si una CELDA es habitable, y una celda son 8 studs: el
+ * borde de una losa cae dentro de una celda buena y el punto marcado queda
+ * sobre el vacio. Medido: `MonsterSpawn_Ice_00` caia en la costura entre
+ * `Zone_Ice_Shards_Core` y `Zone_Ice_Shards_Slab_3`, con la celda buena y el
+ * punto sin suelo debajo.
+ *
+ * Por eso el spawn se comprueba en el PUNTO, no en la celda: la rejilla sirve
+ * para saber si se puede LLEGAR, y esta funcion para que el bicho no salga
+ * flotando.
+ *
+ * @param {Array} solids piezas del mundo, ya con cajas
+ * @param {number} x
+ * @param {number} z
+ * @returns {number} cota del suelo, o -Infinity
+ */
+function probeFloorAt(solids, x, z) {
+	let floor = -Infinity;
+	for (const s of solids) {
+		const b = s.box;
+		if (x < b.x0 || x > b.x1 || z < b.z0 || z > b.z1) continue;
+		if (!isProbeFloor(b)) continue;
+		if (b.y1 > floor) floor = b.y1;
+	}
+	return floor;
+}
+
+/**
+ * ¿Hay algo SOLIDO en la franja de paso sobre un punto exacto?
+ *
+ * Misma franja que `buildProbeGrid`: ni por debajo del suelo (se pisa) ni por
+ * encima de la cabeza (es decoracion).
+ *
+ * @param {Array} solids piezas del mundo, ya con cajas
+ * @param {number} x
+ * @param {number} z
+ * @param {number} floorY cota del suelo bajo el punto
+ * @returns {boolean}
+ */
+function probeBlockedAt(solids, x, z, floorY) {
+	for (const s of solids) {
+		const b = s.box;
+		if (x < b.x0 || x > b.x1 || z < b.z0 || z > b.z1) continue;
+		if (b.y1 <= floorY + PROBE_STEP_UP) continue;
+		if (b.y0 >= floorY + PROBE_HEADROOM) continue;
+		return true;
+	}
+	return false;
+}
+
+/**
+ * Cota de suelo bajo un punto, pero SOLO si es un sitio donde DE VERDAD se puede
+ * estar de pie.
+ *
+ * La diferencia con `probeFloorAt` es la comprobacion del VECINDARIO, y es la
+ * misma que hace el verificador de navegabilidad: una superficie que esta mas de
+ * `STEP_DOWN` por encima de lo que hay alrededor no es una repisa, es el techo
+ * de un tunel o una losa suelta, y un monstruo ahi aparece flotando.
+ *
+ * Medido sin esta comprobacion: `MonsterSpawn_Ice_00` y
+ * `MonsterSpawn_Volcano_03` caian en losas del anillo de zona que la rejilla fina
+ * del verificador declara SIN SUELO por exactamente este motivo, mientras la
+ * rejilla gruesa del generador las daba por buenas.
+ *
+ * @param {Array} solids piezas del mundo, ya con cajas
+ * @param {number} x
+ * @param {number} z
+ * @returns {number} cota del suelo, o -Infinity si no se puede estar ahi
+ */
+function probeStandsAt(solids, x, z) {
+	const floor = probeFloorAt(solids, x, z);
+	if (floor === -Infinity) return -Infinity;
+
+	let lowest = Infinity;
+	for (let dz = -PROBE_CELL; dz <= PROBE_CELL; dz += PROBE_CELL) {
+		for (let dx = -PROBE_CELL; dx <= PROBE_CELL; dx += PROBE_CELL) {
+			const v = probeFloorAt(solids, x + dx, z + dz);
+			if (v < lowest) lowest = v;
+		}
+	}
+	if (lowest === Infinity) return floor;
+	if (floor - lowest > 6) return -Infinity;
+	return floor;
+}
+
+/**
+ * ¿Hay un obstaculo pegado al punto?
+ *
+ * `probeBlockedAt` solo mira el punto EXACTO, y eso no basta: el verificador
+ * marca la celda entera cuando una pieza la pisa, de modo que un spawn a 1.5
+ * studs de un `Cover_Slab` es "punto libre" aqui y "celda ocupada" alla. Medido
+ * con `MonsterSpawn_Cyber_00` a 1.5 studs de `Cover_Slab_ServerHall_4`.
+ *
+ * La diferencia entre las dos medidas es la mitad de la celda del verificador
+ * (4 studs), asi que se muestrean los ocho puntos a esa distancia. Es la misma
+ * magnitud que usa el verificador, no una holgura inventada.
+ *
+ * @param {Array} solids piezas del mundo, ya con cajas
+ * @param {number} x
+ * @param {number} z
+ * @param {number} floorY cota del suelo bajo el punto
+ * @returns {boolean}
+ */
+function probeObstructedAround(solids, x, z, floorY) {
+	const r = 4;
+	for (let k = 0; k < 8; k++) {
+		const a = (k / 8) * Math.PI * 2;
+		if (probeBlockedAt(solids, x + Math.cos(a) * r, z + Math.sin(a) * r, floorY)) return true;
+	}
+	return probeBlockedAt(solids, x, z, floorY);
+}
+
+/**
  * MONTAJE DE UN MUNDO.
  *
  * @param {object} api helpers del generador ({part, decor, marker, folder})
  * @param {object} def {id, cx, cz, seedBase}
  * @returns {{name:string, node:object}} carpeta del mundo
  */
-function buildWorld(api, def) {
+ function buildWorld(api, def) {
 	const { part, decor, marker, folder } = api;
 	const P = PALETTES[def.id];
 	const layout = LAYOUTS[def.id];
@@ -1021,6 +2444,15 @@ function buildWorld(api, def) {
 	const openings = {};
 	for (const z of zones) openings[z.id] = [];
 
+	// Direcciones hacia las zonas VECINAS de cada una.
+	//
+	// Es la lista que decide que arco de muro se construye (ver `zoneRim`). Una
+	// zona tiene como vecinos a las que estan unidas por una ruta, no a "todo lo
+	// que haya alrededor": por eso son las rutas las que declaran la vecindad y no
+	// una distancia.
+	const neighbourAngles = {};
+	for (const z of zones) neighbourAngles[z.id] = [];
+
 	const routeInfo = [];
 	layout.routes.forEach(function (r, idx) {
 		const a = byId[r.from];
@@ -1032,10 +2464,65 @@ function buildWorld(api, def) {
 
 		// Angulo del hueco en el borde de cada zona, con margen proporcional al
 		// ancho de la ruta: una ruta ancha abre un hueco ancho.
-		const gap = Math.atan2(built.width * 0.75, dist2d(a.x, a.z, b.x, b.z)) + 0.22;
-		openings[a.id].push({ angle: Math.atan2(b.z - a.z, b.x - a.x), half: gap });
-		openings[b.id].push({ angle: Math.atan2(a.z - b.z, a.x - b.x), half: gap });
+		//
+		// P0 CORREGIDO: el ancho del hueco se declara en STUDS, no en angulo, y
+		// el angulo lo deduce `zoneRim` con el radio REAL de la elipse en cada
+		// segmento. El criterio angular puro es correcto en un mundo pequeno,
+		// pero al ampliar las zonas a 460x460 studs el mismo angulo abre un hueco
+		// de 6 studs en una zona de radio 100 y de 2 studs en una de radio 30.
+		// Medido en Forest tras el escalado: la entrada a la zona de spawn
+		// quedaba con un paso de UNA celda y el jugador encerrado.
+		//
+		// Aqui solo se declara el ANCHO MINIMO. Quien lo traduce a angulo es
+		// `zoneRim`, que ya sabe lo que es el radio de una elipse en una
+		// direccion dada, y asi el hueco sale exacto en vez de aproximado.
+		//
+		// P0 CORREGIDO: el ancho del hueco es la MITAD DEL DECK, no la del
+		// contrato de la ruta. Son cosas distintas: el deck de una ruta con
+		// muro mide `w + 2 * WALL_GAP`, y el hueco tiene que abrirse para el
+		// DECK, no para el contrato. Con el deck de 32 studs (20 de contrato
+		// mas 12 de margen) y el hueco calculado sobre 20, el muro del borde se
+		// comia 6 studs por cada lado: las esquinas del deck pasaban a través
+		// del muro de la zona.
+		//
+		// Medido en Cyber: cuatro de los cinco huecos de `Corridor` no se
+		// abrían, la zona quedaba sellada y el mundo entero norte del spawn se
+		// quedaba inalcanzable con el nombre de la zona y la ruta intactos.
+		// Un hueco que no cubre el deck que tiene que dejar pasar no es un
+		// hueco, es decoracion.
+		//
+		// El margen extra (`RIM_MARGIN`) cubre el grosor del propio muro del
+		// borde y el margen de la cuadricula: sin el, un hueco exacto puede
+		// caer entero dentro de un segmento y no abrir nada.
+		const halfStuds = Math.max((built.half || built.width / 2) + RIM_MARGIN, MIN_ROUTE_OPENING);
+		const angA = Math.atan2(b.z - a.z, b.x - a.x);
+		const angB = Math.atan2(a.z - b.z, a.x - b.x);
+		openings[a.id].push({ angle: angA, halfStuds: halfStuds });
+		openings[b.id].push({ angle: angB, halfStuds: halfStuds });
+		// Y la vecindad: por donde hay algo al lado hay particion.
+		neighbourAngles[a.id].push(angA);
+		neighbourAngles[b.id].push(angB);
 	});
+
+	// Comprobacion de DISENO del layout, antes de construir nada.
+	//
+	// Una zona que se queda sin borde no se dibuja bien, y el aviso tiene que
+	// llegar con el NOMBRE de la zona y el numero de puertas, no tres semanas
+	// despues como "borde 0" en el test de estructura.
+	for (const z of zones) {
+		const rims = rimKeptCount({ rx: z.rx, rz: z.rz }, openings[z.id], neighbourAngles[z.id]);
+		if (rims.kept >= MIN_RIM_SEGMENTS) continue;
+		let doors = 0;
+		for (const r of layout.routes) {
+			if (r.from === z.id || r.to === z.id) doors++;
+		}
+		throw new Error(
+			def.id + ": la zona " + z.id + " se queda sin borde (" +
+			rims.kept + " de " + rims.segs + " segmentos) y tiene " + doors +
+			" rutas. Amplia la zona o quita una conexion: un cruce de " + doors +
+			" puertas necesita un sitio mas grande."
+		);
+	}
 
 	// Acumuladores de contenido. Se declaran ANTES del bucle de zonas porque
 	// `buildWorld` reparte las piezas en carpetas por CONTRATO (`Hazards/`,
@@ -1051,7 +2538,10 @@ function buildWorld(api, def) {
 	const monsterSpawnParts = [];
 	const powerupParts = [];
 	const blockState = { count: 0 };
-	let monsterIndex = 0;
+	// P0: los spawns de monstruo se COLOCAN al final, contra el mundo montado.
+	// Aqui solo se declara en que zona hacen falta y con que indice de nombre.
+	const monsterIntents = [];
+	let monsterIntentIndex = 0;
 
 	// Piezas de CONTRATO que tienen que vivir en la RAIZ del mundo.
 	//
@@ -1068,9 +2558,40 @@ function buildWorld(api, def) {
 		const nm = "Zone_" + def.id + "_" + z.id;
 		const kids = [];
 
+		// ZONA DE DESPEJE de las rutas que entran o salen de esta zona.
+		//
+		// P0. Nada de lo que se siembra DENTRO de una zona puede caer en el
+		// corredor por el que se entra o se sale: cobertura, bloques
+		// destructibles, arboles, pilonas. Ahi un obstaculo no es una decision
+		// de juego, es una pared que el jugador no ve venir y no puede
+		// esquivar.
+		//
+		// El keep-out son los TRAMOS REALES de las rutas (no los puntos), con
+		// una holgura que cubre el deck mas el grosor del muro que lo
+		// flanquea. Medido: `Cover_Monolith_Cache_5` partia en dos el cuello de
+		// `Cache` en Ice y `Cover_Slab_ServerHall_4` hacia lo mismo en Cyber; el
+		// pasillo caia a 4 studs y las tres legs criticas salian sin ruta
+		// alternativa.
+		z.keepOut = [];
+		for (const info of routeInfo) {
+			if (info.from.id !== z.id && info.to.id !== z.id) continue;
+			const b = info.built;
+			z.keepOut.push({
+				ax: b.ax, az: b.az, bx: b.bx, bz: b.bz,
+				half: (b.half || b.width / 2) + WALL_GAP,
+			});
+			// Y el trecho de APROXIMACION, que va del borde de la ruta al centro
+			// de la zona y tambien es suelo por el que se entra.
+			const other = info.from.id === z.id ? info.to : info.from;
+			z.keepOut.push({
+				ax: b.ax, az: b.az, bx: other.x, bz: other.z,
+				half: (b.half || b.width / 2) + WALL_GAP,
+			});
+		}
+
 		// Suelo y borde. Siempre: una zona sin suelo no es una zona.
 		for (const p of zoneSlab(api, z, P, seedBase + z.lx * 3 + z.lz, nm)) kids.push(p);
-		for (const p of zoneRim(api, z, P, seedBase + z.lx * 5 + z.lz, nm, openings[z.id])) kids.push(p);
+		for (const p of zoneRim(api, z, P, seedBase + z.lx * 5 + z.lz, nm, openings[z.id], neighbourAngles[z.id])) kids.push(p);
 
 		// Marcador de centro. Lo leen `VisualService` y los tests para medir
 		// distancias REALES, no estimadas.
@@ -1084,11 +2605,30 @@ function buildWorld(api, def) {
 			// `Hazard_Poison_0` dos veces y `asChildren` abortaria el build:
 			// una homonima se sobrescribe en silencio y la geometria desaparece.
 			const tag = z.id + "_";
-			for (const p of coverField(api, z, P, seedBase + z.lx, z.role === "intermediate" ? 7 : 5, tag)) kids.push(p);
-			for (const p of hazardField(api, z, P, seedBase + z.lz, z.role === "intermediate" ? 2 : 1, tag)) {
-				hazardParts.push(p);
-			}
-		} else if (z.role === "destruction") {
+			// La cobertura se registra ADEMAS como lista de discos: el spawn del
+		// monstruo tiene que apartarse de ella, y `coverField` solo devuelve las
+		// cajas montadas, no donde se han plantado.
+		//
+		// El disco es el radio de la caja en su eje MAYOR: para `Cover_Pillar` y
+		// `Cover_Monolith` coincide con el medio ancho, y para `Cover_Slab` es el
+		// medio largo. Con el radio pequeno el spawn acaba pegado al extremo largo
+		// de la losa, que es donde se apoya el remate.
+		z.cover = [];
+		const covers = coverField(api, z, P, seedBase + z.lx, z.role === "intermediate" ? 7 : 5, tag);
+		for (const p of covers) kids.push(p);
+		for (const p of covers) {
+			const pr = p.node && p.node.$properties;
+			if (!pr || !Array.isArray(pr.Position) || !Array.isArray(pr.Size)) continue;
+			z.cover.push({
+				x: pr.Position[0],
+				z: pr.Position[2],
+				half: Math.max(pr.Size[0], pr.Size[2]) / 2,
+			});
+		}
+		for (const p of hazardField(api, z, P, seedBase + z.lz, z.role === "intermediate" ? 2 : 1, tag)) {
+			hazardParts.push(p);
+		}
+	} else if (z.role === "destruction") {
 			for (const p of destructibleCluster(api, z, P, blockState, def.id)) blocks.push(p);
 		} else if (z.role === "reward") {
 			kids.push(part("Reward_Pedestal_" + def.id, {
@@ -1163,15 +2703,56 @@ function buildWorld(api, def) {
 			}));
 		} else if (z.role === "arena") {
 			// Monumento central: la pieza que da verticalidad al anillo.
-			const STEP = 9.25;
+			//
+			// P0. El monumento NO se construye en el centro. El centro de la
+			// arena es el punto de comparacion de todo: la celda que el
+			// verificador usa como destino, y el sitio donde el jugador hace
+			// circle-strafe. Con un solido de 8x8 plantado ahi, la celda central
+			// de la arena de los cinco mundos aparecia bloqueada y la zona se
+			// diagnosticaba inaccesible, con 549 celdas alcanzables de 566.
+			//
+			// Se conserva el anillo de bloques como cobertura DESTRUCTIBLE, que
+			// es su funcion de juego, pero en un radio EXTERIOR y sin ocupar los
+			// cuatro ejes cardinales, que son por donde entra la ruta. El nucleo
+			// visual (`Arena_Core`) sigue a 12 studs, que es donde ya se leia.
+			//
+			// P0 DEFINITIVO: el anillo va FUERA del circulo de combate.
+			//
+			// El anillo estaba a 15.5 studs del centro, con lo que sus ocho bloques
+			// de 8 studs caian entre los 11 y los 20 studs: justo DENTRO del
+			// disco de 30 studs que hay que dejar libre para circular, poner una
+			// bomba y salir. Medido: el verificador dava `TIGHT ARENA: disco libre
+			// de 0 studs` en Ice y en Desert, con 30 de las 197 celdas del disco
+			// ocupadas por el monumento.
+			//
+			// Un monumento en el centro de la arena no es cobertura: es un obstaculo
+			// en el sitio donde se pelea. Por eso el radio sale del circulo que hay
+			// que dejar libre (`ARENA_CLEAR_RADIUS`, el mismo numero que exige
+			// `MIN_ARENA_RADIUS` en el verificador) mas el medio ancho del bloque,
+			// y nunca baja de la fraccion de la zona que lo tiene que contener: un
+			// bloque a 40 studs de una arena de 25 de radio caeria en el vacio.
+			const ARENA_CLEAR_RADIUS = 30;
+			const STEP = Math.max(ARENA_CLEAR_RADIUS + 6, Math.min(z.rx, z.rz) * 0.62);
 			for (let gx = -1; gx <= 1; gx++) {
 				for (let gy = 0; gy <= 1; gy++) {
 					for (let gz = -1; gz <= 1; gz++) {
 						if (Math.abs(gx) + Math.abs(gy) + Math.abs(gz) === 0) continue;
 						if (Math.abs(gx) + Math.abs(gz) < 2 && gy === 1) continue;
+						const px = z.x + gx * STEP;
+						const pz = z.z + gz * STEP;
+						if (onRoute(z, px, pz)) continue;
+						// Los cuatro ejes quedan limpios: ahi entra la ruta y ahi
+						// tiene que haber suelo.
+						if (Math.min(Math.abs(gx), Math.abs(gz)) === 0) continue;
+						// Y el bloque tiene que CABER dentro del suelo de la arena:
+						// fuera de la elipse no hay losa y el bloque quedaria
+						// colgado sobre el vacio.
+						const nx = (px - z.x) / z.rx;
+						const nz = (pz - z.z) / z.rz;
+						if (nx * nx + nz * nz > 0.82) continue;
 						const broken = gy === 1 && Math.abs(gx) === 1 && Math.abs(gz) === 1;
 						centralBlocks.push(part("Block_" + def.id + "_cs" + centralBlocks.length, {
-							position: [z.x + gx * STEP, z.y + (broken ? 3 : 5.5), z.z + gz * STEP],
+							position: [px, z.y + (broken ? 3 : 5.5), pz],
 							size: [8, broken ? 6 : 11, 8],
 							material: P.structureMaterial,
 							color: broken ? P.structureDark : P.structure,
@@ -1194,16 +2775,21 @@ function buildWorld(api, def) {
 			}
 		}
 
-		// Spawns de monstruo en las zonas donde HAY combate. Se reparten por el
-		// mundo, no en un anillo: el jugador se los encuentra al recorrer, y por
-		// eso la geometria nueva importa de verdad para el juego.
+		// Spawns de monstruo: se DECLARAN aqui y se COLOCAN al final.
+		//
+		// P0 DEFINITIVO: el punto no se supone, se BUSCA contra la geometria ya
+		// montada. Ver `resolveMonsterSpawns`, que corre con el mundo completo.
+		//
+		// Antes se plantaba en dos angulos fijos al 55% del radio de la zona y se
+		// daba por bueno. Medido sobre el arbol generado: 13 de los 30 spawns de
+		// los cinco mundos caian sobre algo que no es suelo util, y 2 no tenian
+		// suelo en absoluto (`MonsterSpawn_Forest_00` sobre un `Cover_Pillar`,
+		// `MonsterSpawn_Forest_05` sobre el muro de un cañon, `MonsterSpawn_Ice_01`
+		// y `MonsterSpawn_Cyber_01` en celdas sin suelo). Eso es el fallo
+		// reportado: el jugador entra y los monstruos no estan en su espacio.
 		if (z.role === "encounter" || z.role === "intermediate" || z.role === "arena") {
-			for (let i = 0; i < 2; i++) {
-				const a = (i / 2) * Math.PI * 2 + 1.1;
-				monsterSpawnParts.push(marker(monsterSpawnName(def.id, monsterIndex++),
-					[z.x + Math.cos(a) * z.rx * 0.55, z.y + 1.6, z.z + Math.sin(a) * z.rz * 0.55],
-					{ color: P.hazard, size: [3, 0.2, 3] }));
-			}
+			monsterIntents.push({ zone: z, first: monsterIntentIndex });
+			monsterIntentIndex += 2;
 		}
 
 		// Decoracion propia del mundo, sembrada DENTRO de la zona.
@@ -1242,25 +2828,83 @@ function buildWorld(api, def) {
 	// recorre el perimetro de la nube de zonas y se levanta pared alli donde no
 	// hay suelo: el limite aparece exactamente donde acaba lo jugable, y por
 	// eso el mundo no es un rectangulo con decoracion.
-	const edge = worldEdge(zones);
-	for (let i = 0; i < edge.length; i++) {
-		const p = edge[i];
-		const h = vary(seedBase, i + 200, 18, 34);
-		borderParts.push(part("Border_Wall_" + i, {
-			position: [p.x, p.y + h / 2, p.z],
-			size: [p.w, h, p.d],
-			material: P.structureMaterial,
-			color: P.structureDark,
-			orientation: [0, p.yaw, 0],
-		}));
-		borderParts.push(decor("Border_Cap_" + i, {
-			position: [p.x, p.y + h + 0.7, p.z],
-			size: [p.w * 0.9, 1.6, p.d * 1.6],
-			material: P.structureMaterial,
-			color: P.structureDark,
-			orientation: [0, p.yaw, 0],
-		}));
+	//
+	// PERO NO DONDE SALE UNA RUTA. Una ruta cuyo extremo cae en el limite del
+	// mundo necesita un HUECO, o el muro la cierra y el jugador llega al final
+	// del sendero y encuentra pared. Por eso antes de construir el borde se
+	// calcula, para cada ruta, el tramo que toca el borde y se le pasa a
+	// `worldEdge` como hueco. Es geometria, no un nombre reservado.
+	//
+	// El criterio es de DISTANCIA AL BORDE DE LA NUBE, no "esta ruta toca el
+	// limite": una ruta entre dos zonas del interior no abre ningun hueco, y
+	// una que llega al extremo abre uno ancho. Medirlo con el margen de la propia
+	// nube evita depender de cual zona queda mas alOutside.
+	//
+	// P0: el hueco se declara UNA vez por ruta, con el TRAMO COMPLETO. Antes se
+	// declaraba dos veces, solo con los extremos, y `distToSegment` ya mide
+	// contra el tramo entero, asi que los dos huecos eran el mismo y el segundo
+	// no aportaba nada. Se queda uno, que es lo que significa.
+	const edgeGaps = [];
+	for (const info of routeInfo) {
+		const b = info.built;
+		edgeGaps.push({
+			ax: b.ax, az: b.az, bx: b.bx, bz: b.bz,
+			// Margen proporcional al ancho de la ruta: una ruta ancha abre
+			// un hueco ancho. Es el mismo criterio que usa `zoneRim`.
+			half: b.width * 0.75 + CELL_EDGE,
+		});
 	}
+
+	const edge = naturalEdge(api, zones, edgeGaps, P, seedBase);
+
+	// ------------------------------------------------- ENLACE CON EL SUELO
+	//
+	// P0. `fillApproach` no rellena hasta el CENTRO de la zona: se queda en el
+	// borde.
+	//
+	// El suelo de una zona es un ensamblaje (`zoneSlab`) cuyo nucleo cubre la
+	// elipse entera, y el deck de una ruta ya entra en la zona hasta un 72% de
+	// su radio. Entre una cosa y otra no queda hueco: el relleno al centro es
+	// geometria de sobra.
+	//
+	// Y no es "de sobra sin coste". Al llegar al centro, todas las rutas de la
+	// zona se CRUZABAN en un punto, y cada zona se convertia en un embudo. Con
+	// el tronco compartido, tapar el camino mas corto dejaba al spawn sin
+	// salida por la unica puerta que quedaba: la comprobacion de ruta
+	// alternativa de Forest fallaba porque el atajo y la salida eran el mismo
+	// tramo.
+	//
+	// El enlace va del final del deck hasta un punto del borde del suelo, con
+	// la cota de la zona. Entra en la zona, conecta con su suelo y se acaba.
+	const APPROACH_STOP = 0.34;
+	routeInfo.forEach(function (info, ri) {
+		const b = info.built;
+		for (const end of ["a", "b"]) {
+			const isFrom = end === "a";
+			const zone = isFrom ? info.from : info.to;
+			const ex = isFrom ? b.ax : b.bx;
+			const ez = isFrom ? b.az : b.bz;
+			fillApproach(
+				{ part: part }, terrainParts, ex, ez, zone, b.width, P,
+				seedBase + (isFrom ? 0 : 3),
+				end + ri + "_" + zone.id,
+				APPROACH_STOP
+			);
+		}
+	});
+	// El borde NO se construye: `naturalEdge` ya ha devuelto las piezas de
+	// ESCENIFICACION (`Edge_Cliff_*`, `Edge_Rock_*`), y todas van SIN colision.
+	//
+	// P0 DEFINITIVO. Aqui se construian antes `Border_Wall_<i>` y `Border_Cap_<i>`:
+	// entre 264 y 272 muros SOLIDOS de 18-34 studs por mundo, colocados sobre la
+	// frontera dilatada de la nube de zonas. Eso era el cuadrilatero que se
+	// que se reportaba en PLAY, y ademas hacia que el verificador de
+	// navegabilidad diera PASS con el mundo cerrado: la caja que se queria
+	// eliminar era justo la que hacia PASS el test.
+	//
+	// Lo que queda en `Border/` es el talud y las rocas del anillo. Nada de eso
+	// colisiona, de modo que el borde sigue siendo el FINAL DEL TERRENO.
+	for (const p of edge) borderParts.push(p);
 
 	// ------------------------------------------------------ PIEZAS DE CONTRATO
 	//
@@ -1271,22 +2915,49 @@ function buildWorld(api, def) {
 	const arenaZone = zones.filter(function (z) { return z.role === "arena"; })[0];
 	const entranceZone = zones.filter(function (z) { return z.role === "entrance"; })[0];
 
+	// SEMILADO MINIMO del suelo de la arena, en studs.
+	//
+	// La arena es donde se pelea, y pelear exige un CIRCULO por el que circular,
+	// poner una bomba y salir. El verificador exige un disco libre de 30 studs
+	// (`MIN_ARENA_RADIUS` en `tools/world-navigation-test.js`), o sea 60x60.
+	//
+	// El suelo se escalaba con la elipse de la zona, y la elipse de arena es
+	// alargada: Ice daba 52x26 y Desert 40x18. Un disco de 30 studs no cabe en
+	// 26, y lo que se salia del suelo no era "borde de la arena" sino un
+	// AGUJERO en mitad del combate. Medido: `TIGHT ARENA: la arena da un disco
+	// libre de 0 studs` en Ice, con 12 celdas del disco sin suelo.
+	//
+	// Por eso el suelo no se deriva de la zona: se deriva del RADIO QUE HAY QUE
+	// PELEAR, mas el margen con el que se puede correr pegado al borde sin salirse.
+	const ARENA_FLOOR_MIN_HALF = 34;
+	const arenaHalfX = Math.max(arenaZone.rx * 1.05, ARENA_FLOOR_MIN_HALF);
+	const arenaHalfZ = Math.max(arenaZone.rz * 1.05, ARENA_FLOOR_MIN_HALF);
+
 	const arenaParts = [
 		part("ArenaFloor", {
 			position: [arenaZone.x, arenaZone.y - 1, arenaZone.z],
-			size: [arenaZone.rx * 2.1, 2, arenaZone.rz * 2.1],
+			size: [arenaHalfX * 2, 2, arenaHalfZ * 2],
 			material: P.floorMaterial,
 			color: P.ground,
 		}),
 		marker("ArenaCenter", [arenaZone.x, arenaZone.y + 0.2, arenaZone.z], { color: P.energy }),
-		marker("ArenaNorth", [arenaZone.x, arenaZone.y + 0.2, arenaZone.z - arenaZone.rz + 10], { color: P.accent }),
-		marker("ArenaSouth", [arenaZone.x, arenaZone.y + 0.2, arenaZone.z + arenaZone.rz - 10], { color: P.accent }),
-		marker("ArenaEast", [arenaZone.x + arenaZone.rx - 10, arenaZone.y + 0.2, arenaZone.z], { color: P.accent }),
-		marker("ArenaWest", [arenaZone.x - arenaZone.rx + 10, arenaZone.y + 0.2, arenaZone.z], { color: P.accent }),
+		marker("ArenaNorth", [arenaZone.x, arenaZone.y + 0.2, arenaZone.z - arenaHalfZ + 10], { color: P.accent }),
+		marker("ArenaSouth", [arenaZone.x, arenaZone.y + 0.2, arenaZone.z + arenaHalfZ - 10], { color: P.accent }),
+		marker("ArenaEast", [arenaZone.x + arenaHalfX - 10, arenaZone.y + 0.2, arenaZone.z], { color: P.accent }),
+		marker("ArenaWest", [arenaZone.x - arenaHalfX + 10, arenaZone.y + 0.2, arenaZone.z], { color: P.accent }),
 	];
 
 	// El spawn va en la zona de ENTRADA y mira a la primera ruta: el jugador
 	// aparece viendo por donde se sigue, no mirando una pared.
+	//
+	// P0. La zona de entrada es un PATIO, no una casilla. El verificador exige
+	// que el 85% de un disco de 26 studs alrededor del spawn sea alcanzable
+	// (`SPAWN_TRAP`), y con el spawn pegado al borde de la zona el disco se
+	// comia medio muro: los cinco mundos salian con SPAWN TRAP al 52-59%.
+	//
+	// El desplazamiento hacia la primera ruta se queda, porque el jugador tiene
+	// que ver por donde se sigue, pero es del 18% del radio en vez del 45%: con
+	// un patio de 30 studs de radio, el disco entero cae dentro del suelo.
 	const firstRoute = routeInfo[0];
 	const spawn = {
 		name: "SpawnPoint_" + def.id,
@@ -1304,7 +2975,11 @@ function buildWorld(api, def) {
 				Material: "Neon",
 				Color: color(P.energy[0], P.energy[1], P.energy[2]),
 				Size: v3(12, 1, 12),
-				Position: v3(entranceZone.x, entranceZone.y + 1.6, entranceZone.z + entranceZone.rz * 0.45),
+				Position: v3(
+					entranceZone.x,
+					entranceZone.y + 1.6,
+					entranceZone.z + entranceZone.rz * SPAWN_FORWARD
+				),
 				Orientation: v3(0, yawTo(firstRoute.to.x - entranceZone.x, firstRoute.to.z - entranceZone.z), 0),
 			},
 		},
@@ -1334,6 +3009,38 @@ function buildWorld(api, def) {
 	];
 
 	// ---------------------------------------------------------------- MONTAJE
+	//
+	// Se monta el mundo SIN los spawns de monstruo, se mide su geometria, y
+	// entonces se colocan. Ese orden es el que garantiza que un spawn este en el
+	// mismo espacio que el jugador: la medida se hace sobre el arbol ya completo,
+	// con la cobertura, los muros de zona y las rutas ya puestos.
+	const worldShell = folder(def.id, arenaParts.concat(
+		[spawn],
+		gateParts,
+		bossParts,
+		exitParts,
+		folder("Zones", zoneFolders),
+		folder("Routes", routeFolders),
+		folder("Blocks", blocks),
+		folder("CentralStructure", centralBlocks),
+		folder("Terrain", terrainParts),
+		folder("Hazards", hazardParts),
+		folder("Decoration", decoParts),
+		folder("Border", borderParts),
+		folder("Keshusy", keshusyParts),
+		folder("PowerupSpawns", powerupParts)
+	));
+
+	const spawnPos = spawn.node.$properties.Position;
+	monsterSpawnParts.push(...resolveMonsterSpawns(
+		{ marker: marker },
+		worldShell.node,
+		monsterIntents,
+		def.id,
+		P,
+		{ x: spawnPos[0], z: spawnPos[2] }
+	));
+
 	return folder(def.id, arenaParts.concat(
 		[spawn],
 		gateParts,
@@ -1353,77 +3060,160 @@ function buildWorld(api, def) {
 	));
 }
 
+// --------------------------------------------------- BORDE NATURAL DEL MUNDO
+//
+// P0 DEFINITIVO (medido en PLAY): el mundo se leia como un cuadrilatero.
+//
+// El verificador de navegabilidad daba 11/11, 12/12, 12/12, 13/13 y 13/13 y, a
+// pesar de todo, al entrar en Forest el jugador podia quedar FUERA del area
+// jugable mientras los monstruos quedaban DENTRO de un perimetro. La causa no
+// estaba en el test: estaba en esta funcion. `worldEdge` levantaba entre 264 y
+// 272 piezas `Border_Wall_*` SOLIDAS alrededor de la nube de zonas en cada uno de
+// los cinco mundos, cada una de 18-34 studs de alto y 3 de grosor, colocadas
+// sobre una rejilla de 16 studs que rodea el mundo entero.
+//
+// Eso no es un borde: es una CAJA. El limite del mundo era artificial, el
+// jugador no lo leia como diseno (era una linea recta de bloques iguales que
+// repetia el perimetro) y el mapa se leia como un cuadrilatero con decoracion
+// dentro. Ademas producia el fallo reportado: el muro se levantaba DESPUES de
+// las zonas, sobre la nube dilatada, de modo que habia una franja de terreno
+// entre el ultimo suelo real y el muro que el jugador recorría sin ninguna
+// referencia de que ahi se acababa el mundo.
+//
+// LA REGLA NUEVA
+// --------------
+// No hay muro perimetral. El limite del mundo lo marca el propio terreno: las
+// zonas y las rutas se acaban, y lo que hay a partir de ahi es vacio. El
+// jugador corre, se acaba el suelo, cae, muere y reaparece. Esa es la unica
+// regla que se sostiene en los cinco mundos.
+//
+// Lo que se construye aqui es la ESCENIFICACION del borde, no su cerramiento:
+//
+//   1. Un talud de roca que baja desde la cota del terreno: el jugador ve que
+//      el terreno termina en una pendiente y no en un muro. No colisiona, asi
+//      que no puede treparse ni convertirse en un muro invisible.
+//   2. Piezas sueltas e irregulares (rocas, arboles, hielo, lava, pilares)
+//      sembradas en el vacio justo fuera del ultimo suelo. Dan silueta al
+//      borde y profundidad a la caida, y no encierran nada porque estan
+//      separadas y no forman una linea continua.
+//
+// Ni una pieza de este borde colisiona. Un borde que colisiona es una pared, y
+// una pared es exactamente lo que se elimina.
+
 /**
- * PERIMETRO REAL del mundo.
+ * Piezas de ESCENIFICACION del borde: lo que se ve al llegar al final del
+ * terreno. Ninguna colisiona.
  *
- * Devuelve las piezas de muro que cierran la silueta que forman las zonas. Se
- * proyecta sobre una rejilla: cada celda que "contiene" una zona se marca, y el
- * muro aparece en la frontera entre una celda marcada y una vacia.
+ * El criterio es geometrico y no de decoracion: se siembra sobre el ANILLO que
+ * queda entre el ultimo suelo y el vacio, con una separacion mayor que el
+ * diametro de la pieza. Un borde sembrado con piezas separadas se lee como
+ * terreno que se acaba; un borde con piezas pegadas se lee como un muro, que es
+ * lo que se prohibe.
  *
- * POR QUE NO UN CUADRADO
- * ----------------------
- * La version anterior hacia `perimeter(cx, cz, half, ...)`: cuatro paredes
- * rectas alrededor de un rectangulo. Eso es exactamente lo que la
- * especificacion prohibe, y por eso el cierre se calcula sobre la nube de zonas
- * reales. El resultado es un contorno irregular, con entrantes y salientes, y el
- * vacio de fuera queda marcado por donde el suelo se acaba de verdad.
- *
- * @param {Array} zonas de `buildWorld`, ya desplazadas
- * @returns {Array<{x,y,z,w,d,yaw}>} piezas de muro
+ * @param {object} api
+ * @param {Array} zones zonas ya desplazadas al mundo
+ * @param {Array} corridors tramos de ruta que cruzan el limite
+ * @param {object} P paleta
+ * @param {number} seedBase
+ * @returns {Array} piezas SIN colision
  */
-function worldEdge(zones) {
-	const CELL = 16;
-
-	// Extremos de la nube de zonas.
-	let minX = Infinity, maxX = -Infinity, minZ = Infinity, maxZ = -Infinity;
-	for (const z of zones) {
-		minX = Math.min(minX, z.x - z.rx); maxX = Math.max(maxX, z.x + z.rx);
-		minZ = Math.min(minZ, z.z - z.rz); maxZ = Math.max(maxZ, z.z + z.rz);
-	}
-	// Un margen fijo: el muro no puede tocar el suelo, tiene que estar fuera.
-	const pad = 14;
-	minX -= pad + CELL; maxX += pad + CELL; minZ -= pad + CELL; maxZ += pad + CELL;
-
-	const cols = Math.ceil((maxX - minX) / CELL);
-	const rows = Math.ceil((maxZ - minZ) / CELL);
-	const filled = [];
-	for (let i = 0; i < cols * rows; i++) filled.push(false);
-
-	for (const z of zones) {
-		const c0 = Math.max(0, Math.floor((z.x - z.rx - minX) / CELL));
-		const c1 = Math.min(cols - 1, Math.floor((z.x + z.rx - minX) / CELL));
-		const r0 = Math.max(0, Math.floor((z.z - z.rz - minZ) / CELL));
-		const r1 = Math.min(rows - 1, Math.floor((z.z + z.rz - minZ) / CELL));
-		for (let r = r0; r <= r1; r++) {
-			for (let c = c0; c <= c1; c++) {
-				// Solo se marca la celda si su CENTRO cae dentro de la elipse.
-				// Marcar el rectangulo completo reintroduciria el cuadrado.
-				const mx = minX + (c + 0.5) * CELL;
-				const mz = minZ + (r + 0.5) * CELL;
-				const dx = (mx - z.x) / z.rx;
-				const dz = (mz - z.z) / z.rz;
-				if (dx * dx + dz * dz <= 1.12) filled[r * cols + c] = true;
-			}
-		}
-	}
-
-	// El muro va en la frontera: una celda con vecino vacio ES borde.
+function naturalEdge(api, zones, corridors, P, seedBase) {
+	const { decor } = api;
 	const out = [];
-	for (let r = 0; r < rows; r++) {
-		for (let c = 0; c < cols; c++) {
-			if (!filled[r * cols + c]) continue;
-			const x = minX + (c + 0.5) * CELL;
-			const z = minZ + (r + 0.5) * CELL;
 
-			const sides = [
-				{ open: r === 0 || !filled[(r - 1) * cols + c], w: CELL, d: 3, yaw: 0 },
-				{ open: r === rows - 1 || !filled[(r + 1) * cols + c], w: CELL, d: 3, yaw: 0 },
-				{ open: c === 0 || !filled[r * cols + c - 1], w: 3, d: CELL, yaw: 0 },
-				{ open: c === cols - 1 || !filled[r * cols + c + 1], w: 3, d: CELL, yaw: 0 },
-			];
-			for (const s of sides) {
-				if (!s.open) continue;
-				out.push({ x: x, y: -2, z: z, w: s.w, d: s.d, yaw: s.yaw });
+	// SEPARACION MINIMA entre dos piezas del borde, en studs.
+	//
+	// Es la constante que decide si esto es un borde o un muro. Con piezas a
+	// 22 studs de separacion y de 6 a 16 de ancho, entre una y otra siempre hay
+	// un hueco por el que se ve el vacio: el jugador ve el mundo TERMINAR. Con
+	// la separacion por debajo del diametro de la pieza, las cajas se tocan,
+	// forman una linea continua y el resultado es el cuadrilatero que se quiere
+	// eliminar.
+	const STEP = 22;
+
+	// El anillo empieza FUERA del ultimo suelo (16 studs) y llega 48 studs mas
+	// alla. Sembrar por dentro pondria rocas en medio del area jugable, y sembrar
+	// mas lejos de 48 studs las deja fuera del alcance visual del jugador.
+	const RING_INNER = 16;
+	const RING_OUTER = 48;
+// Extremos de la nube de zonas: el anillo se siembra alrededor de la
+	// SILUETA, no de un cuadrado. Es la misma idea que hacia `worldEdge`, pero
+	// el resultado ya no es una linea continua sino piezas sueltas.
+	let minX = Infinity, maxX = -Infinity, minZ = Infinity, maxZ = -Infinity;
+	for (const zone of zones) {
+		minX = Math.min(minX, zone.x - zone.rx); maxX = Math.max(maxX, zone.x + zone.rx);
+		minZ = Math.min(minZ, zone.z - zone.rz); maxZ = Math.max(maxZ, zone.z + zone.rz);
+	}
+
+	for (let x = minX - RING_OUTER; x <= maxX + RING_OUTER; x += STEP) {
+		for (let z = minZ - RING_OUTER; z <= maxZ + RING_OUTER; z += STEP) {
+			// Dentro de la nube esta el suelo jugable: una roca ahi seria un
+			// obstaculo, no un borde. Se descarta con la MISMA elipse que dibuja
+			// el suelo, mas el margen interior del anillo.
+			let insideZone = false;
+			for (const zone of zones) {
+				const dx = (x - zone.x) / (zone.rx + RING_INNER);
+				const dz = (z - zone.z) / (zone.rz + RING_INNER);
+				if (dx * dx + dz * dz <= 1) { insideZone = true; break; }
+			}
+			if (insideZone) continue;
+
+			// Distancia al suelo mas cercano. Decide si la pieza cae en el anillo
+			// que toca el terreno (y por tanto se ve al llegar al borde) y con que
+			// cota se planta, para que parezca apoyada en el terreno y no flotando.
+			let gap = Infinity;
+			let floorY = 0;
+			for (const zone of zones) {
+				const rr = ellipseRadius(zone.rx, zone.rz, x - zone.x, z - zone.z);
+				const dist = Math.sqrt((x - zone.x) * (x - zone.x) + (z - zone.z) * (z - zone.z)) - rr;
+				if (dist < gap) { gap = dist; floorY = zone.y; }
+			}
+			if (gap < RING_INNER || gap > RING_OUTER) continue;
+
+			// Un corredor de ruta que cruza el borde se respeta con holgura: el
+			// jugador sale por ahi, y una roca en la boca del sendero es el muro
+			// que se prohibe.
+			let onCorridor = false;
+			for (const g of corridors || []) {
+				if (distToSegment(x, z, g.ax, g.az, g.bx, g.bz) < g.half + 12) {
+					onCorridor = true;
+					break;
+				}
+			}
+			if (onCorridor) continue;
+
+			const salt = Math.round(x) * 131 + Math.round(z) * 17;
+			const h = vary(seedBase, salt, 4, 13);
+
+			// Talud: baja desde la cota del terreno, de modo que se lee como una
+			// pendiente que cae al vacio. `decor` lo deja SIN colision.
+			out.push(decor("Edge_Cliff_" + Math.round(x) + "_" + Math.round(z), {
+				position: [x, floorY - h / 2 - 1, z],
+				size: [vary(seedBase, salt + 1, 6, 16), h, vary(seedBase, salt + 2, 6, 16)],
+				material: P.structureMaterial,
+				color: P.structureDark,
+				orientation: [0, Math.round(hash01(seedBase, salt + 3) * 360), 0],
+			}));
+
+			// Segunda pieza, mas pequena, de vez en cuando. Rompe la retícula del
+			// talud para que el borde no se lea como un enrejado de cajas.
+			if (hash01(seedBase, salt + 4) > 0.55) {
+				const h2 = vary(seedBase, salt + 5, 3, 8);
+				out.push(decor("Edge_Rock_" + Math.round(x) + "_" + Math.round(z), {
+					position: [
+						x + vary(seedBase, salt + 6, -9, 9),
+						floorY + h2 / 2 - 3,
+						z + vary(seedBase, salt + 7, -9, 9),
+					],
+					size: [vary(seedBase, salt + 8, 3, 8), h2, vary(seedBase, salt + 9, 3, 8)],
+					material: P.structureMaterial,
+					color: hash01(seedBase, salt + 10) > 0.5 ? P.structure : P.structureDark,
+					orientation: [
+						Math.round(vary(seedBase, salt + 11, -14, 14)),
+						Math.round(hash01(seedBase, salt + 12) * 360),
+						Math.round(vary(seedBase, salt + 13, -14, 14)),
+					],
+				}));
 			}
 		}
 	}
@@ -1438,7 +3228,7 @@ function worldEdge(zones) {
 // elemento y no solo con el color.
 //
 // La identidad no son las paletas: son las SILUETAS. Un cactus no es un arbol
-// con color verde, y una pilona de neón no es un pilar de piedra. Por eso cada
+// con color verde, y una pilona de ne�n no es un pilar de piedra. Por eso cada
 // mundo tiene su propio constructor de elementos.
 
 /**
@@ -1449,14 +3239,29 @@ function worldEdge(zones) {
  *culo invisible en un sitio por el que el jugador tiene que pasar.
  */
 function scatterInZone(z, seedBase, salt, minR, maxR) {
-	for (let attempt = 0; attempt < 8; attempt++) {
+	const keepOut = z.keepOut || null;
+	let best = null;
+	for (let attempt = 0; attempt < 24; attempt++) {
 		const a = vary(seedBase + salt, attempt * 3 + 1, 0, Math.PI * 2);
 		const r = vary(seedBase + salt, attempt * 3 + 2, minR, maxR);
 		const x = z.x + Math.cos(a) * z.rx * r;
 		const zz = z.z + Math.sin(a) * z.rz * r;
-		return { x: x, z: zz, a: a, r: r, ok: true };
+		const candidate = { x: x, z: zz, a: a, r: r, ok: true };
+
+		if (!keepOut) return candidate;
+		let clear = true;
+		for (const k of keepOut) {
+			if (distToSegment(x, zz, k.ax, k.az, k.bx, k.bz) < k.half) {
+				clear = false;
+				break;
+			}
+		}
+		if (clear) return candidate;
+		// Si ningun intento cae libre, se queda el mas CENTRICO: es el punto
+		// mas lejos del cuello, y ahi un obstaculo estorba menos.
+		if (!best || candidate.r > best.r) best = candidate;
 	}
-	return { x: z.x, z: z.z, a: 0, r: 0, ok: false };
+	return best || { x: z.x, z: z.z, a: 0, r: 0, ok: false };
 }
 
 /** FOREST: arboles de tronco y copa, arbustos, hongos y cristales. */
@@ -1614,7 +3419,7 @@ function sceneryDesert(api, z, P, seedBase, out) {
 	// EL OASIS. Es lo que hace que este mundo sea un deserto y no un sitio
 	// naranja: un lago con palmeras, el unico verde y el unico agua del mapa
 	// del mundo. Ademas da un RESPIRO entre la zona de destruccion y la arena:
-	// el jugador pasa de波罗 a sombra antes de la fight.
+	// el jugador pasa de?? a sombra antes de la fight.
 	if (z.id === "Oasis") {
 		out.terrain.push(decor("Oasis_Water", {
 			position: [z.x, z.y + 0.08, z.z],
@@ -1645,7 +3450,7 @@ function sceneryDesert(api, z, P, seedBase, out) {
 		}
 	}
 
-	// EL CAÑON. Estratos horizontales apilados: la forma que solo tiene un
+	// EL CA�ON. Estratos horizontales apilados: la forma que solo tiene un
 	// barranco erosionado. Va en la zona y ademas la ruta `canyon` levanta sus
 	// propias paredes, asi que el paso se lee excavado y no vallado.
 	if (z.id === "Canyon") {
@@ -1882,10 +3687,30 @@ const SCENERY = {
 module.exports = {
 	PALETTES: PALETTES,
 	LAYOUTS: LAYOUTS,
+	LAYOUT_SCALES: LAYOUT_SCALES,
 	WORLD_IDS: ["Forest", "Desert", "Ice", "Volcano", "Cyber"],
+	// Se exportan para que los tests midan la MISMA plantilla que aplica el
+	// generador y no una copia que pueda quedarse vieja.
+	WORLD_SIZE_X: WORLD_SIZE_X,
+	WORLD_SIZE_Z: WORLD_SIZE_Z,
+	layoutBounds: layoutBounds,
+	normalizeLayout: normalizeLayout,
+	rimOpeningHalfAngle: rimOpeningHalfAngle,
+	rimSegments: rimSegments,
+	// El conteo REAL de borde que sobrevive. Se exporta para que las
+	// herramientas que auditan el layout usen la misma cuenta que dibuja el
+	// borde, y no una aproximacion que puede dar un PASS falso.
+	rimKeptCount: rimKeptCount,
+	MIN_RIM_SEGMENTS: MIN_RIM_SEGMENTS,
 	buildWorld: buildWorld,
 	hash01: hash01,
 	vary: vary,
 	dist2d: dist2d,
+	// Las REGLAS de colocacion de spawn de monstruo se exportan para que el
+	// verificador aplique las MISMAS que aplica el generador. Un verificador con
+	// una copia de los numeros se queda viejo en cuanto se tocan, y entonces da
+	// un PASS (o un FAIL) que ya no corresponde a nada.
+	monsterSpawnSpacing: monsterSpawnSpacing,
+	monsterSpawnClearance: monsterSpawnClearance,
 	SCENERY: SCENERY,
 };

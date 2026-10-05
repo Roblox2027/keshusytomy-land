@@ -862,7 +862,30 @@ const project = {
 		// colocaba en `StarterGui.UI.KeshusyHUD`: dos rutas distintas para el
 		// mismo objeto, y `source-runtime-diff` lo daba por ausente para
 		// siempre. Por eso se断言 el nombre de la carpeta explicitly.
-		StarterGui: Object.assign({ $className: "Folder" }, folder("UI", [hudGui]).node),
+		// OJO con `$className` y con el ORDEN de `Object.assign`.
+		//
+		// Rojo empareja este nodo con el SERVICIO `StarterGui` del DataModel,
+		// y el servicio tiene su propia clase. Declararlo `"Folder"` hace que
+		// Rojo cree una CARPETA llamada `StarterGui` en vez de rellenar el
+		// servicio: el `ScreenGui` llegaba al build (`rojo build` lo serializa
+		// sin quejarse) pero en PLAY `StarterGui` salia VACIO, asi que
+		// `EffectsController` fallaba con "KeshusyHUD no existe" y
+		// `InputController` se quedaba sin boton de bomba. Fallo invisible al
+		// build: solo se veia ejecutando el juego.
+		//
+		// Y el orden importa de verdad: `folder()` ya trae su propio
+		// `$className`, asi que con
+		// `Object.assign({ $className: "StarterGui" }, folder(...).node)` el
+		// "Folder" de la derecha pisaba al "StarterGui" de la izquierda y el
+		// arreglo no hacia NADA. Por eso se borra la clave del nodo hijo
+		// antes de asignar.
+		//
+		// La carpeta `UI` se mantiene DENTRO del servicio (no se aplana) para
+		// no cambiar la ruta que leen las herramientas de auditoria.
+		StarterGui: Object.assign(
+			{ $className: "StarterGui" },
+			Object.assign({}, folder("UI", [hudGui]).node, { $className: undefined })
+		),
 
 		// `StarterPlayer` NO puede mapearse con `$path` a secas.
 		//

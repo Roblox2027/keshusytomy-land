@@ -171,6 +171,23 @@ local function publishAttributes(player: Player, session: any)
 	player:SetAttribute("IsReady", session.IsReady)
 	player:SetAttribute("Kills", session.Kills)
 	player:SetAttribute("Deaths", session.Deaths)
+
+	-- MEDIDO EN PLAY: al entrar, `World` era `nil`. El HUD lo leia y, al no
+	-- ser una cadena, lo tratava como "no se cual es el mundo": ni el nombre
+	-- ni el color del bioma. El jugador estaba EN el lobby, con el atributo
+	-- en `nil`.
+	--
+	-- El diseno exige que `World` coincida siempre con la posicion real, y
+	-- `nil` no coincide con ninguna: es el unico valor que no describe nada.
+	-- Aqui solo se publica el valor por defecto, "Lobby". Quien mueve al
+	-- jugador (`MatchService.MovePlayer`) lo sobreescribe en cada traslado.
+	--
+	-- Solo si NO hay valor: `publishAttributes` tambien se llama en cambios de
+	-- estado a mitad de partida, y no debeResetear el mundo de un jugador que
+	-- esta jugando.
+	if player:GetAttribute("World") == nil then
+		player:SetAttribute("World", "Lobby")
+	end
 end
 
 --- Marca al jugador como listo para jugar.
@@ -276,6 +293,50 @@ local function refreshLevel(player: Player, session: any)
 		player:SetAttribute("LeveledUpTo", session.Level)
 		Logger.Info(("%s alcanzo el nivel %d"):format(player.Name, session.Level))
 	end
+end
+
+--- Vuelca el nivel del perfil en la sesion en memoria.
+---
+--- MEDIDO EN PLAY: `ProgressionService.AddXP` actualiza el perfil y publica
+--- el atributo `Level`, pero NO la sesion de `PlayerService`. Como
+--- `PortalService.GetPlayerLevel` lee la SESION, el nivel se quedaba en 1
+--- para siempre:
+---
+---   AddXP 60 veces -> atributo Level = 630 | nivel de la sesion = 1
+---   TryEnter(Desert) -> false ("requiere nivel 10")
+---
+--- Es decir: jugando de verdad,subiendo de nivel de verdad, los cuatro
+--- mundos con requisito de nivel NO se desbloquean nunca. El atributo mentia
+--- en pantalla y el portal decia la verdad.
+---
+--- ESTA FUNCION ES LA QUE CONECTA AMBAS MEDIDAS. Es la sesion la que leen el
+--- portal y las recompensas; el perfil es la fuente de verdad y ya esta
+--- escrito cuando esta funcion se llama.
+--- @param player Player
+--- @return number level nivel ahora en la sesion
+function Service.SyncLevelFromProfile(player: Player): number
+	local session = Service._sessions[player.UserId]
+
+	if not session then
+		return 0
+	end
+
+	-- El perfil manda. Si no hay dato de XP, la sesion se queda como esta:
+	-- inventar un nivel aqui seria una segunda fuente de verdad.
+	local profileLevel = player:GetAttribute("Level")
+
+	if type(profileLevel) == "number" then
+		local previous = session.Level
+		session.Level = profileLevel
+
+		if session.Level > previous then
+			player:SetAttribute("LeveledUpTo", session.Level)
+			Logger.Info(("%s alcanzo el nivel %d"):format(player.Name, session.Level))
+		end
+	end
+
+	publishAttributes(player, session)
+	return session.Level
 end
 
 --- Suma experiencia y monedas a la sesion del jugador.
@@ -537,7 +598,32 @@ local function bindCharacter(player: Player)
 		else
 			Service.SetPlayerState(player, PlayerState.Alive)
 
-			if Service._matchService then
+			-- P0 DEFINITIVO: si el jugador ha muerto DENTRO de un mundo, reaparece
+			-- en el spawn de ESE mundo, no en el lobby.
+			--
+			-- Antes toda muerte fuera de ronda teletransportaba al lobby, y eso
+			-- rompia la regla de que MORIR NO BLOQUEA EL JUEGO: un jugador que caia
+			-- al borde de Forest (que ya no tiene muro: el terreno se acaba y se
+			-- cae) reaparecia 1300 studs al lado del portal y tenia que volver a
+			-- entrar a mano. Con caida -> muerte -> respawn en el mundo, el flujo
+			-- correcto es: caer, morir, volver a aparecer en el bosque, y seguir
+			-- jugando. El portal sigue disponible para quien quiera cambiar de
+			-- mundo.
+			local spawnService = Service._spawnService
+			local worldRespawn = nil
+
+			if spawnService and spawnService.GetWorldRespawnPosition then
+				worldRespawn = spawnService.GetWorldRespawnPosition(player)
+			end
+
+			if worldRespawn then
+				local character = player.Character
+
+				if character and character:FindFirstChild("HumanoidRootPart") then
+					character:PivotTo(CFrame.new(worldRespawn))
+					Logger.Debug(("%s reaparecio en su mundo"):format(player.Name))
+				end
+			elseif Service._matchService then
 				Service._matchService.MovePlayer(player, "Lobby")
 			end
 		end

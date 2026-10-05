@@ -13,6 +13,12 @@
 	Limite honesto: que el dano llegue de verdad a un Humanoid, que la
 	bomba se vea en pantalla o que un muro proteja de forma real solo se
 	comprueba en Roblox Studio. Eso queda BLOCKED, no PASS.
+
+	La garantia de que la CAIDA no teletransporta al jugador no se prueba
+	aqui: `luau.exe` no tiene acceso a disco, asi que leer el fuente de
+	`SpawnService` es imposible. Se comprueba en `tools/world-edge-test.js`,
+	que si puede leerlo y falla si vuelve a aparecer un `PivotTo` en la
+	ruta de caida.
 ]]
 
 local Harness = require("../TestHarness")
@@ -250,16 +256,20 @@ local function describeCombatMath()
 			expect.toBe(GameConfig.BlockDamageScale < 1, true)
 		end)
 	end)
-	Harness.describe("Zona de rescate y ciclo de ronda", function()
-		Harness.it("el rescate usa la zona ACTUAL, no siempre el lobby", function()
-			-- Reproduce `resolveRescueTarget` de SpawnService.
-			-- BUG REAL: la arena esta a 500 studs del lobby. Rescatar
-			-- siempre en el lobby sacaba al jugador de la partida y la
-			-- ronda no terminaba nunca (GetAliveCount lo contaba vivo).
+	Harness.describe("Zona de reaparicion y ciclo de ronda", function()
+		Harness.it("durante la ronda el reaparicion va a la arena", function()
+			-- Reproduce la decision de `PlayerService.bindCharacter`.
+			-- BUG REAL: la arena esta a 500 studs del lobby. Devolver siempre al
+			-- lobby sacaba al jugador de la partida y la ronda no terminaba
+			-- nunca (`GetAliveCount` lo contaba vivo).
+			--
+			-- P0: esta decision es la de la RONDA, que es distinta de la caida.
+			-- Caer ya no "rescata": mata y el motor reaparece. Lo que se decide
+			-- aqui es a donde va un reaparicion DENTRO de una ronda.
 			local LOBBY_X = 0
 			local ARENA_X = 500
 
-			local function resolveRescueTarget(isPlaying, matchService)
+			local function roundRespawnTarget(isPlaying, matchService)
 				if isPlaying and matchService then
 					local arena = matchService.GetDestination("Arena")
 
@@ -271,8 +281,6 @@ local function describeCombatMath()
 				return LOBBY_X
 			end
 
-			-- `GetDestination` se llama con PUNTO (no dos puntos), igual
-			-- que en `SpawnService.resolveRescueTarget`.
 			local matchService = {
 				GetDestination = function(key)
 					if key == "Arena" then
@@ -283,9 +291,9 @@ local function describeCombatMath()
 			}
 
 			-- Con ronda en curso debe ir a la arena.
-			expect.toBe(resolveRescueTarget(true, matchService), ARENA_X)
+			expect.toBe(roundRespawnTarget(true, matchService), ARENA_X)
 			-- Sin ronda, al lobby.
-			expect.toBe(resolveRescueTarget(false, matchService), LOBBY_X)
+			expect.toBe(roundRespawnTarget(false, matchService), LOBBY_X)
 		end)
 
 		Harness.it("sin servicio de traslados se degrada al lobby sin fallar", function()

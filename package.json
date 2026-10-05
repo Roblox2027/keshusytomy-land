@@ -7,15 +7,23 @@
     "test": "tools\\luau\\luau.exe tests\\RunTests.lua",
     "test:worlds": "node tools/world-structure-test.js",
     "test:contract": "node tools/world-contract-source.js",
+    "test:navigation": "node tools/world-navigation-test.js",
+    "test:spawn": "node tools/world-spawn-audit.js",
+    "test:world-edge": "node tools/world-edge-test.js",
+    "test:monster-access": "node tools/monster-access-test.js",
+    "test:bomb-grid": "node tools/bomb-placement-grid.js",
+    "test:bomb-grid:legacy": "node tools/bomb-placement-grid.js --legacy",
+    "test:powerup-boss": "node tools/powerup-boss-contract.js",
     "analyze": "node tools/analyze.js",
     "verify:structure": "node tools/verify-structure.js",
     "verify:wiring": "node tools/verify-wiring.js",
     "verify:env": "node tools/verify-environment.js",
+    "hud:geometry": "node tools/dump-hud-geometry.js",
     "rojo:build": "rojo\\rojo.exe build default.project.json -o .ai\\runtime\\latest.rbxlx",
     "rojo:serve": "rojo\\rojo.exe serve default.project.json",
     "runtime:scan": "node tools/diagnostics/runtime-scan.js",
     "mcp:list": "node tools/studio-mcp.js list",
     "context": "node tools/generate-ai-context.js",
-    "verify": "npm run verify:structure && npm run verify:wiring && npm test && npm run test:worlds && npm run test:contract && npm run rojo:build && npm run verify:env && npm run context"
+    "verify": "npm run verify:structure && npm run verify:wiring && npm test && npm run test:worlds && npm run test:contract && npm run test:navigation && npm run test:spawn && npm run test:world-edge && npm run test:monster-access && npm run test:bomb-grid && npm run test:powerup-boss && npm run rojo:build && npm run verify:env && npm run context"
   }
 }

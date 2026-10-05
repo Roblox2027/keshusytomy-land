@@ -23,16 +23,30 @@ local expect = Harness.expect
 
 local Button = require("../../src/ReplicatedStorage/Shared/Libraries/BombButtonRules")
 
+--- Las pruebas de RESPONSIVE y de NO SOLAPAMIENTO viven ahora en
+--- `HudLayout.spec.lua`: la bomba es una ZONA del HUD, no un `ScreenGui`
+--- paralelo con su propia cuenta de posiciones, y esa cuenta era la que
+--- divergia. Aqui solo queda la FORMA de la bomba y sus estados.
+
 --- Mezcla dos colores hacia `Muted`. Es la MISMA cuenta que hace el
---- controlador al aplicar `Dim`, escrita aqui para poder comprobar que
---- un estado bloqueado se ve de verdad mas apagado que uno disponible.
+--- controlador al aplicar `Dim`, escrita aqui para poder comprobar que un
+--- estado bloqueado se ve de verdad mas apagado que uno disponible.
 --- @param color table { R, G, B }
 --- @param muted table { R, G, B }
 --- @param dim number
---- @return number brightness
+--- @return number brillo
 local function brightness(color: any, muted: any, dim: number): number
 	return (color.R + color.G + color.B) / 3 * (1 - dim) + (muted.R + muted.G + muted.B) / 3 * dim
 end
+
+	Harness.describe("BombButtonRules: el tiempo de rechazo es utilizable", function()
+		Harness.it("el motivo de rechazo dura lo suficiente para leerse", function()
+			-- Menos de un segundo no se lee; mas de cinco deja el boton
+			-- mentido cuando el jugador ya puede volver a usarlo.
+			expect.toBe(Button.Timing.RejectionDuration >= 1.5, true)
+			expect.toBe(Button.Timing.RejectionDuration <= 5, true)
+		end)
+	end)
 
 local function describeBombButton()
 	Harness.describe("BombButtonRules: la geometria es una BOMBA", function()
@@ -185,10 +199,15 @@ local function describeBombButton()
 			expect.toBe(placed.Label, "OK")
 		end)
 
-		Harness.it("la etiqueta secundaria muestra la TECLA en reposo", function()
+		Harness.it("la etiqueta secundaria muestra el ESTADO en reposo", function()
 			-- El texto es secundario y pequeno, como pide el diseno: la
 			-- bomba es el elemento visual principal.
-			expect.toBe(Button.Appearance(Button.State.Ready, 0).Label, "F")
+			--
+			-- MEDIDO EN PLAY (antes): decia "F", igual que `KeyHint`. Con los
+			-- dos textos iguales, "listo" y "recargando" se veian IGUALES y
+			-- el estado de la bomba no se leia nunca. El atajo lo dice
+			-- `KeyHint`; esta etiqueta dice el estado.
+			expect.toBe(Button.Appearance(Button.State.Ready, 0).Label, "LISTO")
 		end)
 
 		Harness.it("el texto del boton NUNCA es la palabra BOMBA", function()

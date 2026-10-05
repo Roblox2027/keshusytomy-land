@@ -66,10 +66,273 @@ conectado), no por lectura de archivos.
 | 6 | Destruction | PASS | 48 bloques registrados, dano real aplicado |
 | 7 | Round | PASS | ciclo completo y **repetido**; `_stallCount = 0` en regimen |
 | 9 | Monsters (PvE) | PASS | 4 monstruos generados por ronda, detectan y hacen dano |
+| 11 | Boss | **PENDING PLAY** | CODIGO NUEVO, sin certificar en PLAY. Antes no existia nada (ver abajo) |
+| 25 | VFX / Powerups | **PENDING PLAY** | CODIGO NUEVO, sin certificar en PLAY. Antes era 4 de 8 (ver abajo) |
 | 14 | Economy / 15 Inventory / 26 Shop | PASS | ver la tabla de la columna economica |
 | 15 | DataStore | HARNESS | logica real; la persistencia real esta bloqueada por el entorno |
 | 28 | Quests / 31 Codes | NO INICIADA | stubs honestos |
 | 34 | Anti-Exploit | PARCIAL | primera capa real; servicio completo pendiente |
+
+### Auditoria global de gameplay: bombas y muerte de enemigos
+
+Dos bugs de gameplay, **en los cinco mundos**, reproducidos y corregidos.
+Ninguno venia del mundo donde se reporto: los dos eran de la clase "el
+codigo crecio de una regla sin estado y nadie lo pregunta".
+
+#### BUG 1 -- las bombas solo se colocaban en la zona de arena
+
+**CAUSA REAL, no supuesta.** `BombService.detectArenaBounds` derivaba los
+limites de bomba de UNA sola pieza: `ArenaFloor`. Y desde el commit que
+convirtio los cinco mundos en mundos con zonas y rutas, `ArenaFloor` dejo
+de ser la losa del mundo: paso a ser el suelo de la ZONA DE ARENA, con un
+semilado minimo de 34 studs (`tools/worlds.js`, `ARENA_FLOOR_MIN_HALF`).
+
+El mundo son 11 zonas y 19 rutas; la arena es UNA. Todo lo demas caia
+fuera del rectangulo y se rechazaba con `OUTSIDE_ARENA`: el spawn, la
+entrada, los senderos y la zona del jefe, en Forest, Desert, Ice, Volcano
+y Cyber por igual. El sintoma "se coloca en algunas posiciones y en otras
+no" era el mapa entero excepto un rectangulo.
+
+Se corrigio en tres capas:
+
+1. `BombPlacementRules` (nuevo, logica pura): el area jugable es la
+   **union** del suelo de un mundo, con el mismo margen que
+   `WorldBoundsRules`, y solo se rechaza por numero, area o rango.
+2. `BombService.detectArenaBounds` lee el suelo real (`Zones/`, `Routes/`,
+   `Blocks/`, `ArenaFloor`) y excluye decoracion, `Keshusy`, `Hazards` y
+   `Border`: un adorno con `CanQuery` inesperado ya no puede EXPANDIR el
+   area jugable (punto 49 de la auditoria).
+3. El rayo de asiento se reparo: antes bajaba 20 studs con
+   `RespectCanCollide = false` (atravesaba el suelo y podia parar en un
+   trigger) y no excluia la carpeta de bombas ni la de monstruos. Ahora
+   busca 40 arriba y 80 abajo, solo sobre geometria SOLIDA, y excluye al
+   personaje, las bombas y los enemigos por `IsMonsterFolder`.
+
+Lo que NO se hizo: tocar la seguridad. Siguen vigente la autoridad del
+servidor, la validacion numerica (NaN/infinito/no-tipo), el rango de 18
+studs, el enfriamiento, el tope de bombas por jugador y por mundo, y el
+limite del mundo. No se abrio nada de eso "para que la bomba siempre salga".
+
+#### BUG 2 -- enemigos con Health = 0 que seguian vivos
+
+**CAUSA REAL, no supuesta.** La muerte no tenia ESTADO. Habia un unico
+`record.Dead`, que se ponia a true DENTRO del manejador de
+`Humanoid.Died` y en ningun otro sitio. De ahi salian tres fallos
+medibles:
+
+1. Si `Died` no se disparaba, nadie lo comprobaba: el enemigo se quedaba
+   con 0 de vida, persiguiendo, golpeando y ocupando el mapa.
+2. `ApplyDamageToMonster` escribia `LastDamageSource` **despues** de
+   `TakeDamage`, y `TakeDamage` dispara `Died` de forma sincrona: en el
+   GOLPE MORTAL el manejador leia al asesino ANTERIOR. El enemigo moria,
+   el contador de bajas subia, y el XP no llegaba (o llegaba el de otro).
+3. `playDeathVfx` no tenia destroy garantizado: si su hilo fallaba, el
+   modelo se quedaba en el Workspace para siempre, y como ya no estaba en
+   `_monsters`, nada lo volvia a mirar.
+
+La correccion es una mascara de estados real, `Alive -> Dying -> Dead ->
+Cleaned`, en `MonsterDeathRules` (puro, probado sin motor):
+
+- **Atomica**: `EnterDying` concede el derecho a pagar y solo lo concede
+  desde `Alive`. Dos golpes simultaneos producen UNA recompensa.
+- **Congelacion inmediata**: al morir se anulan `WalkSpeed`, `JumpPower`,
+  `AutoRotate`, el objetivo y la patrulla, ANTES de pagar y de animar. Sin
+  esto, un enemigo al que una cadena de bombas mata durante su propio
+  `Attack` aun podia completar el golpe.
+- **Barrido por vida**: `SweepDead` corre en cada latido, FUERA del filtro
+  de ronda, y procesa la muerte de cualquier enemigo con `Health <= 0`,
+  sin Humanoid o sin modelo. Un `Died` perdido se recupera; uno duplicado
+  no hace nada.
+- **Cleanup con plazo maximo** (`DEATH_CLEANUP_DEADLINE`): un enemigo que
+  no puede morir visible desaparece igualmente.
+- `BreakJointsOnDeath = false`: la muerte visible la hace el servicio, con
+  plazo, y para eso el modelo tiene que seguir intacto un momento.
+
+Los cinco bosses (Grooty, Sand Beast, Frost King, Magma Lord, Cyber Core)
+comparten el MISMO camino de muerte: no hay un ciclo "de jefe" que pueda
+quedarse con 0 de vida mientras la fauna no.
+
+#### Estado de la auditoria
+
+| Mundo | Bomb placement | Enemy death | Boss death |
+| ----- | -------------- | ----------- | ---------- |
+| Forest | PASS (geometria) | PASS (contrato) | PASS (contrato) |
+| Desert | PASS (geometria) | PASS (contrato) | PASS (contrato) |
+| Ice | PASS (geometria) | PASS (contrato) | PASS (contrato) |
+| Volcano | PASS (geometria) | PASS (contrato) | PASS (contrato) |
+| Cyber | PASS (geometria) | PASS (contrato) | PASS (contrato) |
+
+`PASS (geometria)` = `tools/bomb-placement-grid.js` acepta las 5x5, los
+centros y las esquinas de cada zona, los puntos de cada ruta y los bordes.
+`PASS (contrato)` = `tests/shared/MonsterDeath.spec.lua` sobre la mascara
+de estados real que usa `MonsterService`.
+
+**GLOBAL GAMEPLAY AUDIT: BLOCKED.**
+
+El estado NO es `READY`, y no por prudencia: es que **el play test no se ha
+podido ejecutar**. Studio/MCP no responde (`verify:env` lo dice), asi que
+no hay evidencia de que la bomba se vea, de que el enemigo desaparezca en
+pantalla ni de que la recompensa llegue. La regla del proyecto es
+inegociable: los tests automaticos no certifican el juego en ejecucion.
+
+Lo que queda PENDING PLAY, y es TODO lo que de verdad demuestra el
+arreglo: entrar en cada uno de los cinco mundos, colocar bombas en varias
+zonas, matar un enemigo normal / en ataque / persiguiendo / con golpes
+seguidos / con bomba / con otro sistema, comprobar recompensa y
+desaparicion, llegar al boss, matarlo, comprobar su cleanup, morir,
+respawnear y reentrar.
+
+#### Pruebas nuevas
+
+- `tests/shared/BombPlacement.spec.lua` (contrato de colocacion).
+- `tests/shared/MonsterDeath.spec.lua` (contrato de muerte de enemigos y
+  bosses).
+- `tools/bomb-placement-grid.js` (rejilla 5x5 en los cinco mundos).
+  `npm run test:bomb-grid:legacy` es el **control negativo**: reproduce el
+  area jugable antigua (solo `ArenaFloor`, sin margen) y falla en los
+  cinco mundos con 78-92 celdas rechazadas. Sin ese control, la rejilla
+  solo demuestra que sabe restar.
+
+### Auditoria total 2026-10-04: lo que NO existia y ahora si
+
+Esta seccion no es un plan: son dos huecos que la auditoria encontro
+midiendo el SOURCE, no leyendo documentacion. Los dos estaban
+"resueltos" en apariencia: habia datos, habia mapa y habia interfaz.
+
+**1. LOS BOSSES NO EXISTIAN.**
+
+Lo que habia:
+
+-   `WorldDefinitions/*.lua` declaraba `BossDefinitionId` en los cinco
+    mundos (`ForestGrooty`, `DesertSandBeast`, `IceFrostKing`,
+    `VolcanoMagmaLord`, `CyberCore`).
+-   `tools/worlds.js` construia la plataforma `BossSpawn_<Id>` en los
+    cinco, con su totem, su corona y su suelo.
+-   El HUD tenia el panel `Overlays/BossBar`, con nombre y barra.
+
+Lo que NO habia: **ni una definicion de boss**. `MonsterDefinitions`
+tenia nueve bichos y ningun jefe. Ningun servicio leia
+`BossDefinitionId`. Ningun servicio leia `BossSpawn_<Id>`. Nadie
+escribia `BossName`, `BossHealth` ni `BossMaxHealth`.
+
+Consecuencia real: Grooty, Sand Beast, Frost King, Magma Lord y Cyber
+Core eran decoracion. El panel de boss del HUD estaba bien construido y
+nunca se encendia una sola vez.
+
+Lo que se ha escrito:
+
+-   Cinco definiciones en `MonsterDefinitions` con `IsBoss`, `World`,
+    vida de 900 a 3800 y 100 XP.
+-   `MonsterScaleRules.BossByWorld` + `GetBossId`: el mapa mundo->boss
+    que consume `MatchService`.
+-   `MonsterService`: barra de vida publicada SOLO a quien esta en el
+    mundo del boss, tres fases (100 % / 60 % / 30 %) que suben el dano
+    de 1.0 a 1.5x, y apagado de la barra al morir y al limpiar ronda.
+-   `MatchService.SpawnBossForWorld` + `CollectBossSpawnPoint` +
+    `UpdateBossSpawns`: el jefe aparece cuando el jugador SE ACERCA a su
+    plataforma (70 studs), no al entrar en la arena.
+
+**2. LOS POWERUPS ERAN 4 DE 8, Y UNO DE LOS 4 NO EXISTIA.**
+
+`PowerupService.KINDS` era `{ Bomb, Speed, Shield, Heal }`. Pero:
+
+-   `VisualKit.POWERUPS` tenia **cinco** entradas, con `Fire` incluida.
+-   `ApplyEffect` tenia un caso `Fire` COMPLETO, con atributo y duracion.
+-   El HUD tenia su `"PODER"` pintado en la fila de efectos.
+
+`Fire` no estaba en `KINDS`, y `KINDS` es la lista que decide que se
+GENERA. Es decir: "+PODER" estaba implementado, anunciado y pintado, y
+nunca aparecia en el mundo. Ni una prueba fallaba, porque cada capa era
+correcta por separado.
+
+Ademas faltaban cuatro de la especificacion: `Dash`, `Ghost`, `Magnet`
+y `Freeze`, que no existian en ninguna capa.
+
+Lo que se ha escrito:
+
+-   `KINDS` pasa a los nueve, y pasa a ser la fuente unica.
+-   `Dash` (2.5 s a 2.4x), `Ghost` (transparencia 0.85), `Magnet`
+    (radio 46, arrastre suave) y `Freeze` (5 s, radio 55) implementados
+    con efecto REAL y con su atributo `...Until`.
+-   La flecha `PowerupService -> MonsterService` en `ServerMain`: sin ella
+    `Freeze` se recogia y no congelaba a nadie.
+-   `UIController` lee los cuatro atributos nuevos: antes hacian su
+    efecto en el servidor y no se veian en ninguna parte.
+-   `VisualKit.POWERUPS` con las cinco entradas nuevas.
+
+**POR QUE NO HAY UN "PASS" DE PLAY EN ESTA SECCION**
+
+Porque no se ha podido ejecutar. El puente MCP de Roblox Studio
+(`127.0.0.1:58741`) dejo de escuchar durante la auditoria y no se
+recupero: el proceso `RobloxStudioBeta` sigue vivo pero el puerto no
+acepta conexiones, y `get_place_info` responde `fetch failed` de forma
+reproducible. Sin ese puente no hay `solo_playtest`, ni
+`eval_server_runtime`, ni capturas.
+
+Lo que SI se ha comprobado, y es lo que sostiene el codigo nuevo:
+
+-   `npm test`: **715 pasan, 0 fallan**.
+-   `npm run verify`: PASS integral, incluido `rojo:build`.
+-   `tools/powerup-boss-contract.js`: nuevo, comprueba que los 9 powerups
+    generados = pintados = implementados = leidos por el HUD, y que los 5
+    bosses estan declarados, generados y con barra en el HUD.
+-   `luau-compile` sale 0 en los 8 ficheros editados.
+-   `verify:structure` y `verify:wiring`: PASS.
+-   `test:worlds`, `test:contract`, `test:navigation`, `test:spawn`,
+    `test:world-edge`, `test:monster-access`: PASS en los cinco mundos.
+
+Lo que NO se ha comprobado: que el jefe aparezca, que la barra baje, que
+el jugador mate a Grooty y cobre. Eso es `PENDING PLAY` y sigue siendo
+`PENDING PLAY` hasta que el puente vuelva.
+| P0 | Borde de mundo sin cuadrilatero | PENDING PLAY | codigo y verificadores en PASS; falta PLAY real |
+
+### P0: el borde de mundo sin cuadrilatero (estado real)
+
+El objetivo era quitar el cuadrilatero artificial y dejar el flujo
+borde -> caida -> muerte -> respawn -> reentrada. **No se declara PASS**:
+lo verificado por codigo esta todo en verde, pero el recorrido completo se
+tiene que ver en Roblox Studio.
+
+Lo que se corrigio y por que importa:
+
+| Defecto | Como se manifestaba |
+| ------- | ------------------- |
+| Muro perimetral de 264-272 piezas `Border_Wall_*` por mundo | El cuadrilatero. Ademas hacia pasar la navegabilidad: el muro es lo que hacia "correcto" el mapa |
+| Bordes con `CanCollide = true` | El borde era terreno decorado que ademas frenaba al jugador |
+| 13 de 30 spawns de monstruo invalidos | Sin suelo, sin holgura o inalcanzables desde el spawn del jugador |
+| Caida teletransportada al punto de salida | El jugador caia, no moria: no habia flujo real |
+| Anillos de zona cerrados hacia el vacio | El 48% de la frontera de Forest acababa en muro, y era `Zone_*_Rim_*`, no el borde del mundo |
+
+La ultima fila es la mas instructive. El muro de una zona **de** ser
+particion entre dos lugares con puerta; no tiene sentido en el lado por el que
+el mundo se acaba. Por eso `zoneRim` construye el arco que mira a una zona
+vecina y omite el que mira al vacio.
+
+Verificadores anadidos, todos en PASS y registrados en `npm run verify`:
+
+| Script | Que mide |
+| ------ | -------- |
+| `npm run test:spawn` | El spawn del jugador: suelo, 20x20 libres, orientacion y sondas |
+| `npm run test:world-edge` | Sin cuadrilatero: cero `Border/` colisionable, cero muro perimetral, silueta rellena < 70%, caida alcanzable por N/S/E/O y caida que **mata** en el servidor |
+| `npm run test:monster-access` | Cada `MonsterSpawn`: suelo, holgura, ruta andando desde el spawn del jugador y separacion |
+
+`test:world-edge` comprueba tambien, sobre el fuente, que la ruta de caida de
+`SpawnService` no hace `PivotTo`: la muerte la ejecuta el motor con
+`Humanoid.Health = 0`, y el limite logico (`WorldBoundsRules`) marca pero no
+actua.
+
+LO QUE SIGUE SIN PROBAR, Y POR QUE NO ES PASS
+
+- **PLAY real en los cinco mundos.** Entrada, 10 y 30 studs del borde, giro,
+  bordes N/S/E/O, caida, muerte, respawn y reentrada. Sin captura, no hay PASS.
+- **La muerte y el respawn en ejecucion.** El codigo esta cableado y el
+  `analyze` no reporta errores propios, pero que `Humanoid.Health = 0` dispare
+  `Died` y que el jugador reaparezca en el spawn de SU mundo es una afirmacion
+  que solo se comprueba en el motor.
+- **La reentrada.** El mundo se recuerda por el atributo `World` que escribe
+  `MatchService.MovePlayer`, y `SpawnService` lo usa cuando la posicion ya no
+  dice nada (al reaparecer el personaje nace en el lobby). Ese camino esta
+  escrito y razonado, no observado.
 
 ### Columna economica: que se certifico y como
 
@@ -214,6 +477,12 @@ habria salido con `luau-compile`, `rojo build` ni los tests unitarios.
 - **Cliente MCP**: `client-1` agota el tiempo de espera. Es infraestructura, no
   juego. Por eso la fase 3 (input) queda PARTIAL y no PASS: la arquitectura
   esta cableada, pero la pulsacion fisica no se ha podido observar.
+
+- **PLAY real del borde de mundo.** Los tres verificadores del P0
+  (`test:spawn`, `test:world-edge`, `test:monster-access`) miden geometria y
+  fuente, y dan PASS. No sustituyen a correr el juego: que el personaje caiga,
+  muera por `Humanoid.Health = 0`, reaparezca en el spawn de SU mundo y se pueda
+  reentrar solo se ve en PLAY. Hasta esa captura, el P0 queda PENDING PLAY.
 
 ## Formato de reporte de fase
 

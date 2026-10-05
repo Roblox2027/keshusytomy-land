@@ -266,4 +266,230 @@ return function()
 			expect.toBe(b._entries["InputController"], nil)
 		end)
 	end)
+
+	-- ---------------------------------------------------------------------
+	-- ALCANCE LEXICO EN ServerMain
+	-- ---------------------------------------------------------------------
+	--
+	-- MEDIDO EN PLAY: este fallo hacia que la BOMBA no apareciese nunca, y no
+	-- lo detectaba ni una prueba de logica ni el analizador estatico.
+	--
+	--   AntiExploitService: userId=... BombAction.Place -> state_violation
+	--
+	-- con la ronda claramente en `Playing`. El filtro estaba bien; lo que
+	-- estaba mal era que el handler le pasaba `nil`:
+	--
+	--   serverState = roundService and roundService.GetState() or nil
+	--
+	-- `roundService` era un `local` de `wireDependencies`, y los handlers de
+	-- `REMOTE_CHANNELS` se construyen en el ambito de ARCHIVO. Ahi el nombre
+	-- no existe, asi que Lua lo resolvia como GLOBAL.
+	--
+	-- Estas pruebas comprueban el alcance con un modelo minimo, porque el
+	-- fallo es de ALCANCE LEXICO, no de logica: el codigo es correcto y aun
+	-- asi hace lo contrario de lo que dice.
+	Harness.describe("Alcance lexico: los handlers ven los servicios del archivo", function()
+		-- Reproduce la estructura que fallo: un local de una FUNCION, y un
+		-- consumidor construido FUERA de ella.
+		local archivo = { bombService = nil, roundService = nil }
+
+		local function cablear()
+			-- Sin `local`: asigna al local de ARCHIVO, que es lo que hace
+			-- ahora `wireDependencies`.
+			archivo.roundService = { GetState = function() return "Playing" end }
+			return archivo.roundService
+		end
+
+		-- El consumidor se construye DESPUES, en otro ambito, como los
+		-- handlers de `REMOTE_CHANNELS`.
+		local function elHandler()
+			return function()
+				return archivo.roundService and archivo.roundService.GetState() or nil
+			end
+		end
+
+		local handler = elHandler()
+
+		-- Antes de cablear, el handler ve `nil`: ese es el estado en el que
+		-- nacia el juego y la razon de que la bomba no saliera nunca.
+		expect.toBe(handler(), nil)
+
+		cablear()
+
+		-- Despues de cablear, el MISMO handler ve el estado real. Si el
+		-- cableado se hiciera con `local roundService = ...` dentro de
+		-- `cablear`, esta asercion volveria a fallar.
+		expect.toBe(handler(), "Playing")
+	end)
+
+	Harness.it("el fallo antiguo se reproduce con un local de funcion", function()
+		-- La contraprueba: el mismo modelo, pero con el `local` que estaba
+		-- en el codigo. Sirve para demostrar que la prueba anterior NO esta
+		-- describiendo el modelo arreglado por accidente: si esta version
+		-- PASARA, la prueba de arriba no probaria nada.
+		local archivo = {}
+
+		local function cablearConLocal()
+			local roundService = { GetState = function() return "Playing" end }
+			return roundService
+		end
+
+		local function elHandler()
+			-- Cierra sobre un ambito donde ese `roundService` no existe.
+			return function()
+				return archivo.roundService
+			end
+		end
+
+		cablearConLocal()
+		expect.toBe(elHandler()(), nil)
+	end)
+
+	-- ---------------------------------------------------------------------
+	-- CABLEADO DE LOS SERVICIOS DE LA COLUMNA ECONOMICA (Code y Quest)
+	-- ---------------------------------------------------------------------
+	--
+	-- MEDIDO EN PLAY: `CodeService` y `QuestService` NO arrancaban, y el
+	-- juego entraba en "modo degradado" sin error visible del cliente:
+	--
+	--   ERROR: [WIRING FAIL] CodeService no existe (su Init fallo)
+	--   ERROR: CodeService: sin ProfileService/EconomyService
+	--   ERROR: [BOOT FAIL] hay servicios cuyo Start fallo
+	--
+	-- La causa era de ALCANCE LEXICO, la misma de la seccion anterior:
+	-- `wireDependencies` resolvia con `local` los servicios de la columna
+	-- economica, pero de `codeService` y `questService` se olvida. El
+	-- `connect(...)` de esos dos recibia entonces los LOCALES DE ARCHIVO,
+	-- que aun valian `nil` porque se asignan despues, en `Start`. El
+	-- `SetDependencies` no se ejecutaba nunca y su `Start` se negaba.
+	--
+	-- Estas pruebas comprueban el CONTRATO, no el texto: que la etapa de
+	-- cableado entrega una instancia real a cada consumidor.
+	Harness.describe("Cableado: Code y Quest reciben sus dependencias", function()
+		-- Doble minimo del contrato: `Start` se NIEGA a arrancar sin las
+		-- dependencias, igual que hacen los servicios reales.
+		local function makeEconomyService(nombre)
+			local service = { _profileService = nil, _economyService = nil }
+
+			function service.Init()
+				return true
+			end
+
+			function service.SetDependencies(profileService, economyService)
+				service._profileService = profileService
+				service._economyService = economyService
+			end
+
+			function service.Start()
+				if not service._profileService or not service._economyService then
+					return false
+				end
+				return true
+			end
+
+			service.Nombre = nombre
+			return service
+		end
+
+		local function montar()
+			local registry = makeRegistry()
+			-- `makeRegistry:Get` solo devuelve instancias en estado
+			-- `Initialized`, asi que los dobles de dependencia tienen que
+			-- pasar por `Init` como cualquier servicio real.
+			local function dependencia(nombre)
+				local d = { Nombre = nombre }
+				function d.Init()
+					return true
+				end
+				function d.Start()
+					return true
+				end
+				return d
+			end
+
+			local profileService = dependencia("ProfileService")
+			local economyService = dependencia("EconomyService")
+			local codeService = makeEconomyService("CodeService")
+			local questService = makeEconomyService("QuestService")
+
+			registry:Register("ProfileService", profileService, {})
+			registry:Register("EconomyService", economyService, { "ProfileService" })
+			registry:Register("CodeService", codeService, { "ProfileService", "EconomyService" })
+			registry:Register("QuestService", questService, { "ProfileService", "EconomyService" })
+
+			registry:InitAll()
+			return registry, profileService, economyService, codeService, questService
+		end
+
+		Harness.it("el registro ya expone Code y Quest tras Init", function()
+			local registry = montar()
+			expect.toBeTruthy(registry:Get("CodeService"))
+			expect.toBeTruthy(registry:Get("QuestService"))
+		end)
+
+		Harness.it("Code arranca con perfil y economia inyectados", function()
+			local registry, profileService, economyService, codeService = montar()
+
+			codeService.SetDependencies(
+				registry:Get("ProfileService"),
+				registry:Get("EconomyService")
+			)
+
+			expect.toBe(codeService.Start(), true)
+			expect.toBe(codeService._profileService, profileService)
+			expect.toBe(codeService._economyService, economyService)
+		end)
+
+		Harness.it("Quest arranca con perfil y economia inyectados", function()
+			local registry, profileService, economyService, questService = montar()
+
+			questService.SetDependencies(
+				registry:Get("ProfileService"),
+				registry:Get("EconomyService")
+			)
+
+			expect.toBe(questService.Start(), true)
+			expect.toBe(questService._profileService, profileService)
+			expect.toBe(questService._economyService, economyService)
+		end)
+
+		Harness.it("sin cablear, el Start se NEGA (el fallo que se medio)", function()
+			-- La contraprueba: el mismo doble, sin `SetDependencies`. Es el
+			-- estado en el que vivia el juego. Sin esta linea, la prueba
+			-- anterior podria estar probando un doble que siempre arranca.
+			local _, _, _, codeService, questService = montar()
+
+			expect.toBe(codeService.Start(), false)
+			expect.toBe(questService.Start(), false)
+		end)
+
+		Harness.it("el alcance lexico no se pierde al cablear", function()
+			-- Reproduce el fallo exacto: un local de ARCHIVO que sigue
+			-- siendo `nil` porque el cableado uso el nombre equivocado.
+			local archivo = { codeService = nil }
+
+			local function cablear(registry)
+				-- El codigo CORREGIDO resuelve con `local` y lo pasa.
+				local codeService = registry:Get("CodeService")
+				archivo.codeService = codeService
+				return codeService
+			end
+
+			local function elConnect(registry)
+				return function()
+					-- Como el `connect` real: recibe el local de ARCHIVO.
+					return archivo.codeService
+				end
+			end
+
+			local registry = montar()
+			local conectar = elConnect(registry)
+
+			expect.toBe(conectar(), nil)
+
+			cablear(registry)
+
+			expect.toBe(conectar(), registry:Get("CodeService"))
+		end)
+	end)
 end

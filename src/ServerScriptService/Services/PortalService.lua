@@ -15,7 +15,9 @@
 		1. El `worldId` es una cadena no vacia.
 		2. El jugador tiene personaje con Humanoid vivo.
 		3. El `worldId` corresponde a un portal que existe en el mapa.
-		4. El portal esta abierto y no hay ronda en curso.
+		4. El portal esta abierto. Un jugador que ya esta dentro de una ronda
+		   en curso no puede salirse por el, pero una ronda en curso NO cierra
+		   el portal a quien esta en el lobby.
 		5. El jugador tiene el nivel requerido por el mundo.
 		6. El mundo destino esta disponible (FeatureConfig + registro).
 		7. El jugador esta junto al umbral y no esta en cooldown.
@@ -52,6 +54,20 @@ Service.PORTAL_PREFIX = "Portal_"
 --- Segundos que un jugador debe esperar entre dos traslados. Evita que el
 --- portal se use como bomba de teletransporte.
 Service.PORTAL_COOLDOWN = 3
+
+--- Distancia al centro de la arena dentro de la cual se considera que el
+--- jugador esta PARTICIPANDO en la ronda, y por tanto no puede salir por el
+--- portal.
+---
+--- QUE MIDE: la distancia al `ArenaCenter` del mundo del jugador. Es una
+--- pregunta de coordenadas, no de reloj ni de atributo.
+---
+--- POR QUE 300 Y NO UN NUMERO MENOR: el mundo mide 466x466 studs y la arena
+--- ocupa una parte con un radio de juego real. Cortar a 50 studs dejaria salir
+--- al jugador desde el borde de la arena, que es justo donde uno se retirada.
+--- Con 300 solo se bloquea a quien esta de verdad dentro o al lado inmediato
+--- del combate, y el resto del mundo sigue siendo alcanzable.
+Service.ARENA_EXIT_GUARD = 300
 
 --- Distancia maxima a la que se acepta una peticion de portal.
 ---
@@ -298,11 +314,63 @@ function Service.CanTravel(player: Player, worldId: any): (boolean, string?)
 		return false, "mundo no disponible"
 	end
 
-	-- 6. No hay ronda en curso: durante la partida los jugadores viven en la
-	-- arena y salir por el portal seria una via de escape.
+	-- 6. No se puede ABANDONAR una ronda en curso, pero una ronda en
+	-- curso NO cierra el portal.
+	--
+	-- MEDIDO EN PLAY (no deducido): la condicion era `IsPlaying()` a secas, y
+	-- el ciclo de ronda esta casi siempre activo:
+	--
+	--   Waiting(1s) -> Countdown(5s) -> RoundStarting(3s) -> Playing(180s)
+	--
+	-- Es decir, el portal estaba disponible ~1 s de cada 189. La sensacion de
+	-- juego era "el portal no funciona", y el motivo que llegaba al cliente
+	-- era "hay una ronda en curso", que no explica nada: la ronda no es del
+	-- jugador, es del servidor.
+	--
+	-- LO QUE SE PROTEGE DE VERDAD: que un jugador no se evada de una ronda
+	-- en la que ya esta participando. Eso se decide por la POSICION REAL del
+	-- jugador, no por un reloj global y no por un atributo:
+	--
+	--   - jugador en el lobby      -> puede entrar a un mundo. No participa
+	--                                 en nada todavia.
+	--   - jugador dentro de una arena -> no puede salir por el portal.
+	--
+	-- POR QUE LA POSICION Y NO EL ATRIBUTO `World`
+	-- -------------------------------------------
+	-- MEDIDO en PLAY: durante la certificacion de los cinco mundos, el
+	-- atributo de un jugador parado EN el lobby decía `Forest`. Con el
+	-- atributo como criterio, ese jugador quedaba "en una ronda" y el portal
+	-- lo rechazaba estando en el lobby de verdad.
+	--
+	-- El atributo `World` lo publica `MatchService.MovePlayer` y se actualiza
+	-- en cada traslado, asi que es fiable para el HUD, pero no sirve para
+	-- decidir si alguien esta HECHO trampa: puede quedar desfasado respecto de
+	-- donde esta el cuerpo. La arena es un sitio con coordenadas, y el cuerpo
+	-- tambien. La pregunta se hace con las dos.
+	--
+	-- La distancia se mide contra la arena del mundo del jugador. El margen es
+	-- amplio a proposito: `SpawnProtectionTime` teletransporta 4 studs por
+	-- encima del centro, y la arena tiene un radio real de juego. Se puede
+	-- cortar el paso a un jugador al BORDE de la arena, nunca a uno que esta
+	-- caminando hacia la salida del mundo.
 	local roundService = Service._roundService
+
 	if roundService and roundService.IsPlaying and roundService.IsPlaying() then
-		return false, "hay una ronda en curso"
+		local matchService = Service._matchService
+		local currentWorld = player:GetAttribute("World")
+		local worldId = if type(currentWorld) == "string" and currentWorld ~= "Lobby"
+			then currentWorld
+			else nil
+
+		local arena = matchService and matchService.GetWorldArena and matchService.GetWorldArena(worldId)
+
+		if arena and rootPart then
+			local distancia = ((rootPart :: BasePart).Position - arena.Position).Magnitude
+
+			if distancia <= Service.ARENA_EXIT_GUARD then
+				return false, "no se abandona una ronda en curso"
+			end
+		end
 	end
 
 	-- 7. Nivel requerido.

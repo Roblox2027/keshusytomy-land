@@ -102,6 +102,32 @@ local playerService = nil
 local bombService = nil
 local portalService = nil
 local coreService = nil
+-- `RoundService` vive aqui y NO solo en `wireDependencies`, por el mismo
+-- motivo que los de abajo.
+--
+-- MEDIDO EN PLAY (el P0 que hacia que la bomba NUNCA apareciese):
+--
+--   AntiExploitService: userId=... BombAction.Place -> state_violation (suspicious)
+--
+-- El filtro de red estaba CORRECTO: la ronda estaba en `Playing` y `Playing`
+-- estaba permitido. El fallo era que el handler le pasaba `nil`:
+--
+--   serverState = roundService and roundService.GetState() or nil
+--
+-- `roundService` era un local de `wireDependencies`, y los handlers de
+-- `REMOTE_CHANNELS` se construyen en el ambito de ARCHIVO. Ahi ese nombre no
+-- existe, asi que Lua lo resolvia como GLOBAL: `nil`. Y `nil` no es un estado
+-- de ronda, es un estado DESCONOCIDO, asi que el filtro rechazaba la peticion
+-- como violacion de estado.
+--
+-- El efecto era invisible desde fuera: el filtro de red no publica motivo al
+-- cliente, asi que el boton solo se apagaba. Y el rechazo era
+-- `state_violation` con la ronda claramente en `Playing`, que es una
+-- contradicion que no lleva a ninguna parte hasta que se lee el log.
+--
+-- La red de seguridad NO era "quitar la comprobacion": el filtro sigue
+-- exigiendo un estado jugable. Lo que se corrige es que el estado LLEGUE.
+local roundService = nil
 
 -- Los seis de la columna economica.
 --
@@ -349,7 +375,12 @@ local SERVICES = {
 local function wireDependencies(registry: any): { string }
 	local report: { string } = {}
 	local worldService = registry:Get("WorldService")
-	local roundService = registry:Get("RoundService")
+	-- `RoundService` se ASIGNA al local de ARCHIVO (arriba), no se declara aqui.
+	-- Si se declarara con `local roundService = ...` seria un NUEVO local que
+	-- solo vive hasta que esta funcion termine, y los handlers de
+	-- `REMOTE_CHANNELS` (que viven en el ambito de archivo) lo verian como un
+	-- global inexistente. Ese fue el P0 medido: el filtro recibia `nil`.
+	roundService = registry:Get("RoundService")
 	local playerService = registry:Get("PlayerService")
 	local combatService = registry:Get("CombatService")
 	local explosionService = registry:Get("ExplosionService")
@@ -368,6 +399,20 @@ local powerupService = registry:Get("PowerupService")
 	local inventoryService = registry:Get("InventoryService")
 	local progressionService = registry:Get("ProgressionService")
 	local shopService = registry:Get("ShopService")
+	-- CodeService y QuestService comparten pareja con la tienda, asi que se
+	-- resuelven aqui y no en el bloque de `Start`.
+	--
+	-- BUG CORREGIDO (medido en PLAY): faltaban estas DOS lineas. `connect`
+	-- recibia el local de ARCHIVO `codeService`/`questService`, que en ese
+	-- momento seguian siendo `nil` porque aun no se habian asignado (se
+	-- hacen mas abajo, en `Start`). La consecuencia era silenciosa y grave:
+	-- `[WIRING FAIL] CodeService no existe (su Init fallo)`, el `SetDependencies`
+	-- nunca se ejecutaba, y su `Start` se negaba a arrancar con "sin
+	-- ProfileService/EconomyService". Los codigos de canje y las misiones
+	-- quedaban muertos, y el servidor entraba en "modo degradado" sin que
+	-- nada mas lo delatara.
+	local codeService = registry:Get("CodeService")
+	local questService = registry:Get("QuestService")
 
 	-- Declara una conexion y verifica que se pudo hacer de verdad.
 	-- @param label string
@@ -436,9 +481,13 @@ local powerupService = registry:Get("PowerupService")
 		end
 	)
 
-	connect("ProgressionService", progressionService, { "ProfileService", "EconomyService" },
+	-- `playerService` se inyecta para volcar el nivel del perfil en la sesion
+	-- en memoria. MEDIDO EN PLAY: sin esto, `ProgressionService.AddXP` subia
+	-- el atributo `Level` pero la sesion se quedaba en 1, y como los portales
+	-- leen la sesion, los cuatro mundos con nivel NO se desbloqueaban nunca.
+	connect("ProgressionService", progressionService, { "ProfileService", "EconomyService", "PlayerService" },
 		function(service: any)
-			service.SetDependencies(profileService, economyService)
+			service.SetDependencies(profileService, economyService, playerService)
 		end
 	)
 
@@ -566,12 +615,33 @@ local powerupService = registry:Get("PowerupService")
 	)
 
 	-- PowerupService: solo necesita el mundo para saber cual es el
-	-- directorio por defecto cuando la ronda no indica otro.
+	-- directorio por defecto cuando la ronda no indica otro, y
+	-- `BombService` para que el powerup "+BOMBA" conceda capacidad REAL.
 	connect("PowerupService", powerupService, { "WorldService" },
 		function(service: any)
-			service.SetDependencies(worldService)
+			service.SetDependencies(worldService, nil, bombService)
 		end
 	)
+
+	-- PowerupService -> MonsterService: la flecha que hace que CONGELAR
+	-- tenga efecto.
+	--
+	-- MEDIDO EN AUDITORIA: sin esta flecha, `Freeze` no tenia a quien
+	-- congelar. El powerup se recogia, se publicaba `PowerupFreezeUntil` y no
+	-- pasaba nada: el jugador veia "CONGELAR no funciona" con razon, y el
+	-- atributo en el HUD hacia que pareciese un fallo de estado y no de
+	-- cableado.
+	--
+	-- Es al reves por el mismo motivo que la de `ExplosionService`: el
+	-- registro de servicios es topologico y esta flecha seria un ciclo.
+	if powerupService and monsterService then
+		pcall(function()
+			powerupService.SetMonsterService(monsterService)
+		end)
+		table.insert(report, "[WIRING OK] PowerupService -> MonsterService")
+	else
+		table.insert(report, "[WIRING FAIL] PowerupService/MonsterService no disponibles")
+	end
 
 	-- MatchService -> PowerupService: la ronda es quien genera los powerups
 	-- de la arena. Sin esta flecha, `SpawnPowerupsForRound` devolveria 0 en

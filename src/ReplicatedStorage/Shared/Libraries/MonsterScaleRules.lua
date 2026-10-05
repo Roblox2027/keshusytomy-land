@@ -64,6 +64,14 @@ Rules.VisualScale = {
 	FireBeast = 1.9,
 	BomberMonster = 1.7,
 	CyberStalker = 1.65,
+	-- Los bosses van por encima de la fauna, y con un margen claro: un Grooty
+	-- de 2.9 se lee como "el otro" a distancia, que es lo que hace que el
+	-- jugador sepa que tiene que usar las dos bombas y no una.
+	ForestGrooty = 2.9,
+	DesertSandBeast = 3.1,
+	IceFrostKing = 3.3,
+	VolcanoMagmaLord = 3.5,
+	CyberCore = 3.7,
 }
 
 --- Rango permitido por monstruo. Sirve para VALIDAR, no para construir.
@@ -77,7 +85,37 @@ Rules.Ranges = {
 	FireBeast = { 1.6, 2.0 },
 	BomberMonster = { 1.5, 1.9 },
 	CyberStalker = { 1.4, 1.8 },
+	ForestGrooty = { 2.6, 3.2 },
+	DesertSandBeast = { 2.8, 3.4 },
+	IceFrostKing = { 3.0, 3.6 },
+	VolcanoMagmaLord = { 3.2, 3.8 },
+	CyberCore = { 3.4, 4.0 },
 }
+
+--- IDS de los bosses, indexados por mundo.
+--
+-- Vive aqui, y no en `MonsterDefinitions`, por la misma razon que el resto de
+-- las tablas de este modulo: son DATOS PUROS que las pruebas necesitan leer
+-- sin el motor. Lo consume `MatchService` para saber a quien generar en
+-- `BossSpawn_<Id>`.
+Rules.BossByWorld = {
+	Forest = "ForestGrooty",
+	Desert = "DesertSandBeast",
+	Ice = "IceFrostKing",
+	Volcano = "VolcanoMagmaLord",
+	Cyber = "CyberCore",
+}
+
+--- Id del boss de un mundo, o nil si ese mundo no tiene.
+--- @param worldId string?
+--- @return string?
+function Rules.GetBossId(worldId: string?): string?
+	if type(worldId) ~= "string" then
+		return nil
+	end
+
+	return Rules.BossByWorld[worldId]
+end
 
 --- Multiplicador de ESCALA POR MUNDO.
 ---
@@ -97,6 +135,28 @@ Rules.WorldScale = {
 
 --- Escala por defecto de un monstruo del que no se sabe nada.
 Rules.DefaultVisualScale = 1.5
+
+--- Altura de REFERENCIA del jugador, en studs.
+---
+-- MEDIDO en PLAY: la caja del personaje R15 mide 5.50 studs de alto. Este es
+-- el numero al que se refiere `VisualScale`, porque el diseno esta escrito
+-- como "con el jugador a Height = 1.0".
+--
+-- Sin el, el multiplicador se aplicaba a la forma BASE de `VisualKit` (un
+-- cubo de ~3 studs) en lugar de al jugador, y las dos magnitudes no tienen
+-- nada que ver: un Slime declarado 1.4 salia a 3.0 x 1.4 = 4.2 studs, un 24 %
+-- MAS BAJO que el jugador de 5.5, cuando el contrato dice que tiene que ser
+-- un 40 % mas alto. Los tests no lo/flagan porque comparan 1.4 contra 1.0,
+-- y ambas cifras son del mismo mundo de fantasy: no aplican la escala a nada,
+-- asi que no pueden detectar que la escala se estuviera aplicando a la FORMA
+-- en vez de al JUGADOR. Un Slime salia a 4.2 studs con un jugador de 5.5 y las
+-- pruebas seguian en verde.
+--
+-- Es una constante y no una medida en runtime a proposito: `VisualKit`
+-- construye el cuerpo antes de que exista ningun jugador al que medir, y
+-- anclarlo aqui es lo que hace que el numero sea el mismo en el juego y en
+-- la sonda de QA.
+Rules.PlayerHeightStuds = 5.5
 
 --- Proporcion de HITBOX por defecto respecto al modelo.
 ---
@@ -191,6 +251,48 @@ function Rules.GetHitboxRatio(id: string): number
 	end
 
 	return base
+end
+
+--- Tamano del CUERPO de un monstruo, ya escalado.
+---
+-- Devuelve el `Vector3` del cuerpo a partir de la FORMA (la silueta, que
+-- decide como se ve) y de la ESCALA FINAL (que decide cuanto mas grande que
+-- el jugador es).
+--
+-- La ALTURA sale de la escala contra el jugador: `PlayerHeightStuds *
+-- escala`. El ANCHO y el FONDO salen de la PROPORCION de la forma, para que un
+-- Slime siga siendo redondo y un Guardian siga siendo un bloque: cambiar la
+-- escala no debe cambiar el estilo.
+---
+-- Es la unica forma de que `VisualScale` signifique lo que el diseno dice que
+-- significa. Multiplicar la forma base directamente hacia que el numero
+-- declarado y el tamano en studs fueran dos cosas distintas.
+--
+-- Devuelve una TABLA `{X, Y, Z}` y no un `Vector3`: este modulo no usa
+-- ningun servicio del motor a proposito (ver la cabecera), y `Vector3` no
+-- existe fuera de Roblox. Quien lo llama en el juego lo convierte con
+-- `Vector3.new(...)`, que es donde el motor ya esta disponible.
+--- @param shapeSize { X: number, Y: number, Z: number } forma sin escalar
+--- @param finalScale number escala ya resuelta con `Rules.Resolve`
+--- @return { X: number, Y: number, Z: number }
+function Rules.BodySize(shapeSize: { X: number, Y: number, Z: number }, finalScale: number)
+	local height = Rules.PlayerHeightStuds * finalScale
+
+	if shapeSize.Y <= 0 then
+		-- Forma degenerada: sin altura de referencia no hay proporcion que
+		-- conservar, asi que se usa un cubo del alto que toca antes que
+		-- dividir por cero.
+		return { X = height, Y = height, Z = height }
+	end
+
+	local proportionX = shapeSize.X / shapeSize.Y
+	local proportionZ = shapeSize.Z / shapeSize.Y
+
+	return {
+		X = height * proportionX,
+		Y = height,
+		Z = height * proportionZ,
+	}
 end
 
 --- Hitbox ABSOLUTA a partir de un tamano de modelo.

@@ -21,6 +21,7 @@ local FeatureConfig = require(CONFIG:WaitForChild("FeatureConfig"))
 local GameConfig = require(CONFIG:WaitForChild("GameConfig"))
 local PerformanceConfig = require(CONFIG:WaitForChild("PerformanceConfig"))
 local AIService = require(SHARED:WaitForChild("Libraries"):WaitForChild("AIService"))
+local MonsterDeathRules = require(SHARED:WaitForChild("Libraries"):WaitForChild("MonsterDeathRules"))
 local MonsterScaleRules = require(SHARED:WaitForChild("Libraries"):WaitForChild("MonsterScaleRules"))
 local VisualKit = require(SHARED:WaitForChild("Libraries"):WaitForChild("VisualKit"))
 local MonsterDefinitions = require(SHARED:WaitForChild("MonsterDefinitions"))
@@ -157,6 +158,17 @@ local function buildMonsterModel(def: any): Model?
 	-- "un monstruo que sale disparado" justo al aparecer.
 	humanoid.WalkSpeed = def.PatrolSpeed or def.Speed
 	humanoid.DisplayName = def.Name
+	-- `BreakJointsOnDeath` se DESACTIVA a proposito.
+	--
+	-- Con el valor por defecto (true), el motor rompe las articulaciones
+	-- del modelo en el instante de morir. Aqui eso no produce un cadaver
+	-- creible: produce un modelo deshecho que `playDeathVfx` ya no puede
+	-- encoger, y en un `Model` sin `Motor6D` deja al Humanoid en un estado
+	-- en el que el servicio ya no puede ni congelarlo ni limpiarlo.
+	--
+	-- La muerte visible la hace ESTE servicio, con un plazo maximo, y para
+	-- eso el modelo tiene que seguir intacto un momento.
+	humanoid.BreakJointsOnDeath = false
 	humanoid.Parent = model
 
 	model.Parent = folder
@@ -220,6 +232,10 @@ end
 --- Existe separada de `OnMonsterDied` a proposito: `ClearAll` (fin de
 --- ronda) usa esta. Si `ClearAll` pagase, un jugador que espera al final de
 --- la ronda cobraria el XP de todos los monstruos indefinidamente.
+---
+--- Aun asi marca la muerte como `Dying`: si el `Died` del Humanoid llegara
+--- tarde (por ejemplo, el mismo frame en que acaba la ronda), el registro
+--- ya no esta en `_monsters` y no puede pagar nada.
 --- @param monsterId number
 local function despawnMonster(monsterId: number)
 	local record = Service._monsters[monsterId]
@@ -229,11 +245,21 @@ local function despawnMonster(monsterId: number)
 	end
 
 	Service._monsters[monsterId] = nil
+	record.Dead = true
+	record.DeathState = MonsterDeathRules.States.Dying
+	record.Rewarded = true
 
 	if record.Model and record.Model.Parent then
 		record.Model:Destroy()
 	end
 end
+
+--- Tiempo maximo que un cadaver puede quedarse en el mapa, en segundos.
+---
+-- La animacion de muerte dura ~0.2 s. El plazo es cuatro veces eso: da
+-- margen a un frame lento sin dejar un enemigo muerto visible ni un solo
+-- frame mas de la cuenta.
+local DEATH_CLEANUP_DEADLINE = 0.8
 
 --- Muerte VISIBLE de un monstruo: se encoge y estalla en luz.
 ---
@@ -248,6 +274,23 @@ local function playDeathVfx(record: { [string]: any })
 	if not model or not model.Parent then
 		return
 	end
+
+	-- PLAZO MAXIMO DE VIDA DEL CADAVER.
+	--
+	-- Es la garantia dura de que ningun enemigo muerto queda en el mapa.
+	-- La animacion dura ~0.2 s; si no ha terminado para entonces (porque
+	-- el modelo desaparecio a medias, porque `Body` no existe, o porque
+	-- el hilo se atoro), el modelo se destruye igual.
+	--
+	-- Sin este `task.delay`, un enemigo que no puede morir VISIBLE se
+	-- quedaba para siempre en el Workspace: es exactamente el sintoma
+	-- "muere pero no desaparece", con el agravante de que ya no estaba en
+	-- `_monsters`, asi que nada lo volvia a mirar.
+	task.delay(DEATH_CLEANUP_DEADLINE, function()
+		if model.Parent then
+			model:Destroy()
+		end
+	end)
 
 	local light = Instance.new("PointLight")
 	light.Color = model:GetAttribute("AccentR")
@@ -294,6 +337,121 @@ local function playDeathVfx(record: { [string]: any })
 		end
 	end)
 end
+-- ---------------------------------------------------------------------------
+-- BOSS: barra de vida del HUD y FASES
+--
+-- MEDIDO EN AUDITORIA: el HUD ya tenia panel de boss y lo leia de tres
+-- atributos (`BossName`, `BossHealth`, `BossMaxHealth`), pero NINGUN punto del
+-- servidor los escribia. El panel existia, era correcto, y no se encendia
+-- nunca porque no habia boss. Un panel que nunca aparece es indistinguible de
+-- un panel roto, asi que la escritura va AQUI, que es donde vive la verdad.
+--
+-- La barra se publica SOLO a los jugadores que estan en el mundo del boss.
+-- Publicarla a todos haria que un jugador en Forest viera la vida del Cyber
+-- Core mientras pelea con slimes.
+-- ---------------------------------------------------------------------------
+
+--- Boss vivo por mundo: worldId -> monsterId.
+Service._bossesByWorld = {}
+
+--- Fase actual de un boss y el multiplicador que aplica.
+--
+-- FASES, y por que existen: un boss con una sola fase es un monstruo grande.
+-- Al bajar del 60 % y del 30 % de vida sube la presion: mas dano, mas
+-- velocidad de persecucion y menos recuperacion. El jugador ve que el duelo
+-- ha cambiado sin que nadie le avise, que es la forma en que se comunica
+-- "ahora hace falta mas que una bomba".
+local BOSS_PHASES = {
+	{ At = 1.0, Damage = 1.0, Speed = 1.0, Recovery = 1.0, Name = "" },
+	{ At = 0.6, Damage = 1.25, Speed = 1.15, Recovery = 0.85, Name = "FURIA" },
+	{ At = 0.3, Damage = 1.5, Speed = 1.3, Recovery = 0.7, Name = "FURIA" },
+}
+
+--- Fase que corresponde a una fraccion de vida.
+--- @param ratio number 0..1
+--- @return number indice de fase (1..#BOSS_PHASES)
+local function phaseFor(ratio: number): number
+	local index = 1
+
+	for i, phase in ipairs(BOSS_PHASES) do
+		if ratio <= phase.At then
+			index = i
+		end
+	end
+
+	return index
+end
+
+--- Publica (o retira) la barra de vida del boss de un mundo.
+---
+--- Se recorre SIEMPRE a todos los jugadores, tambien a los que no estan en el
+--- mundo del boss: son ellos los que necesitan que la barra se APAGUE. Un
+--- `continue` antes de limpiar dejaria la barra encendida en el HUD de quien
+--- salio del mundo, que es la clase de estado fantasma que el jugador
+--- reporta como "el juego va raro".
+--- @param worldId string
+--- @param record table? nil retira la barra
+local function publishBossBar(worldId: string, record: { [string]: any }?)
+	local humanoid = record and record.Humanoid
+
+	for _, player in ipairs(Players:GetPlayers()) do
+		-- El atributo `World` lo escribe `MatchService.MovePlayer` en cada
+		-- traslado, asi que es la verdad de "donde estoy" sin preguntas.
+		local isHere = humanoid ~= nil and player:GetAttribute("World") == worldId
+
+		if not isHere then
+			player:SetAttribute("BossName", nil)
+			player:SetAttribute("BossHealth", nil)
+			player:SetAttribute("BossMaxHealth", nil)
+			continue
+		end
+
+		player:SetAttribute("BossName", record.Def.Name)
+		player:SetAttribute("BossHealth", humanoid.Health)
+		player:SetAttribute("BossMaxHealth", humanoid.MaxHealth)
+	end
+end
+
+--- Refresca la barra del boss: vida Y fase.
+---
+--- Se llama desde el impacto de la bomba y desde el latido, porque la vida
+--- tambien baja por cosas que no son una bomba (la quemadura del Magma Lord,
+--- un bloque que el boss rompe). Publicar solo en el impacto dejaba la barra
+--- congelada cuando el dano venia de otro sitio.
+--- @param record table
+local function syncBossBar(record: { [string]: any })
+	if not record.IsBoss then
+		return
+	end
+
+	local humanoid = record.Humanoid
+
+	if not humanoid or not record.WorldId then
+		return
+	end
+
+	local max = if humanoid.MaxHealth > 0 then humanoid.MaxHealth else 1
+	local ratio = math.clamp(humanoid.Health / max, 0, 1)
+	local phase = phaseFor(ratio)
+
+	if record.Phase ~= phase then
+		record.Phase = phase
+
+		-- El nombre de la fase viaja en el MISMO atributo que el nombre del
+		-- boss: el HUD ya lo sabe pintar y no hace falta un panel nuevo. Es lo
+		-- que hace que el jugador lea "FURIA" sin instrucciones.
+		local suffix = BOSS_PHASES[phase].Name
+		record.DisplayName = if suffix ~= "" then ("%s - %s"):format(record.Def.Name, suffix) else record.Def.Name
+
+		if humanoid.DisplayName ~= record.DisplayName then
+			humanoid.DisplayName = record.DisplayName
+		end
+
+		Logger.Info(("boss %s en fase %d (%s)"):format(record.Def.Id, phase, record.DisplayName))
+	end
+
+	publishBossBar(record.WorldId, record)
+end
 
 --- Elimina TODOS los monstruos vivos (fin de ronda, cambio de mundo).
 ---
@@ -303,11 +461,42 @@ end
 function Service.ClearAll(): number
 	local removed = Service.GetAliveCount()
 
+	-- MEDIDO EN AUDITORIA: `ClearAll` borraba los monstruos pero no apagaba
+	-- la barra del boss. Volviendo al lobby con el boss de Cyber a media vida
+	-- en el HUD, el panel se quedaba encendido para siempre.
+	Service._bossesByWorld = {}
+
+	for worldId in pairs(MonsterScaleRules.BossByWorld) do
+		publishBossBar(worldId, nil)
+	end
+
 	for monsterId in pairs(Service._monsters) do
 		despawnMonster(monsterId)
 	end
 
 	return removed
+end
+
+--- Boss vivo de un mundo, o nil si todavia no ha aparecido.
+---
+--- Lo consultan `MatchService` (para no generar dos) y las sondas de QA.
+--- @param worldId string
+--- @return number? monsterId
+function Service.GetBossId(worldId: string): number?
+	return Service._bossesByWorld[worldId]
+end
+
+--- Registro completo del boss de un mundo. Solo para diagnostico.
+--- @param worldId string
+--- @return { [string]: any }?
+function Service.GetBoss(worldId: string): { [string]: any }?
+	local monsterId = Service._bossesByWorld[worldId]
+
+	if not monsterId then
+		return nil
+	end
+
+	return Service._monsters[monsterId]
 end
 
 --- Coloca un monstruo en la arena y lo registra.
@@ -417,6 +606,12 @@ function Service.Spawn(definitionId: string, position: Vector3, worldId: string?
 		Humanoid = humanoid,
 		RootPart = root,
 		Dead = false,
+		-- Mascara de muerte. `Alive` es el unico estado en el que el
+		-- enemigo actua, recibe dano y puede cobrar recompensa. `Dead`
+		-- se conserva como espejo por compatibilidad con las sondas de QA
+		-- y los verificadores, que han leido siempre ese campo.
+		DeathState = MonsterDeathRules.States.Alive,
+		Rewarded = false,
 		NextAttackAt = 0,
 		State = AIService.States.Patrol,
 		TimeInState = 0,
@@ -424,12 +619,31 @@ function Service.Spawn(definitionId: string, position: Vector3, worldId: string?
 		PatrolTarget = nil,
 		PatrolIndex = 0,
 		PatrolRetargetAt = 0,
+
+		-- Boss. `IsBoss` NO se deduce del tamano: lo declara la definicion.
+		-- `WorldId` se guarda porque la barra del HUD se publica por mundo, y
+		-- `Phase` arranca en 1 (la calma) para que el primer impacto ya
+		-- compruebe si hay que cambiar de fase.
+		IsBoss = def.IsBoss == true,
+		WorldId = worldId or def.World,
+		Phase = 1,
+		DisplayName = def.Name,
 	}
+
+	local record = Service._monsters[monsterId]
+
+	if record.IsBoss and record.WorldId then
+		Service._bossesByWorld[record.WorldId] = monsterId
+		-- El atributo `IsBoss` lo leen las sondas de QA y las herramientas de
+		-- diagnostico para no contar un jefe como fauna.
+		model:SetAttribute("IsBoss", true)
+		syncBossBar(record)
+	end
 
 	model:SetAttribute("AIState", AIService.States.Patrol)
 
 	Service._spawned += 1
-	syncMonsterHealthTag(Service._monsters[monsterId])
+	syncMonsterHealthTag(record)
 
 	-- EFECTO DE APARICION: el monstruo entra escalandose desde 0.4 y con un
 	-- leve giro. Sin esto aparecia de golpe en el aire, y el jugador no lo
@@ -476,66 +690,179 @@ function Service.Spawn(definitionId: string, position: Vector3, worldId: string?
 end
 --- Procesa la muerte de un monstruo y paga UNA vez.
 ---
---- El registro se marca `Dead` y se borra de `_monsters` ANTES de pagar:
---- una explosion en cadena puede volver a disparar `Died` sobre el mismo
---- Humanoid, y sin esa marca el XP se cobraria dos veces.
+--- BUG CORREGIDO (auditoria global de gameplay: "Health = 0 pero el
+--- monstruo sigue vivo, persiguiendo y golpeando").
+---
+--- La causa NO era el dano: era que la muerte no tenia ESTADO. Habia un
+--- unico `record.Dead`, que se ponia a true DENTRO del manejador de
+--- `Humanoid.Died` y en ningun otro sitio. De ahi salian tres fallos:
+---
+---  1. Si `Died` no se disparaba, nadie lo comprobaba. Ahora la funcion
+---     es publica y hay un BARRIDO (`SweepDead`) que la llama cada latido
+---     sobre cualquier enemigo con `Health <= 0`: la muerte vive en el
+---     servicio, no en manos de un unico evento.
+---  2. `LastDamageSource` se escribia DESPUES de `TakeDamage`, y
+---     `TakeDamage` dispara `Died` de forma sincrona: el manejador leia
+---     al asesino ANTERIOR. La muerte se procesaba sin paga, o con el
+---     premio de otro jugador. Corregido en `ApplyDamageToMonster`.
+---  3. Si la animacion de muerte fallaba, el modelo se quedaba en el
+---     mapa para siempre. Ahora el cleanup tiene un PLAZO MAXIMO: un
+---     enemigo que no puede morir visible desaparece igualmente.
+---
+--- El estado vive en `MonsterDeathRules` (Alive -> Dying -> Dead ->
+--- Cleaned), que es logica pura y se prueba sin motor.
+---
 --- @param monsterId number
-function Service.OnMonsterDied(monsterId: number)
+--- @return boolean died true si ESTA llamada proceso la muerte
+function Service.OnMonsterDied(monsterId: number): boolean
 	local record = Service._monsters[monsterId]
 
-	if not record or record.Dead then
-		return
+	if not record then
+		return false
 	end
 
+	-- ATOMICIDAD. `EnterDying` concede el derecho a pagar UNA sola vez.
+	-- Dos golpes simultaneos (una bomba y un bloque reventado en el
+	-- mismo frame) llegan los dos aqui: solo el primero obtiene `Dying`.
+	if not MonsterDeathRules.EnterDying(record.DeathState) then
+		return false
+	end
+
+	record.DeathState = MonsterDeathRules.States.Dying
 	record.Dead = true
 	Service._killed += 1
 
+	-- CONGELACION INMEDIATA, antes de pagar y antes de animar.
+	--
+	-- En el frame en que un enemigo muere le queda todavia un latido de
+	-- `Heartbeat` por delante. Sin esto, un monstruo al que una cadena de
+	-- bombas mata durante su propio `Attack` puede completar el golpe y
+	-- mover el modelo antes de desaparecer.
+	if record.Humanoid then
+		record.Humanoid.WalkSpeed = 0
+		record.Humanoid.JumpPower = 0
+		record.Humanoid.AutoRotate = false
+		pcall(function()
+			record.Humanoid:ChangeState(Enum.HumanoidStateType.Physics)
+		end)
+	end
+
+	-- Se anula el objetivo y el punto de patrulla: un enemigo en `Dying`
+	-- no puede recordar a nadie ni volver a su sitio.
+	record.State = AIService.States.Recovery
+	record.TimeInState = 0
+	record.PatrolTarget = nil
+	record.NextAttackAt = math.huge
+
 	-- Quien lo mato lo decide el Humanoid, igual que entre jugadores. Un
 	-- monstruo que muere por su propia explosion no se atribuye a nadie.
-	local sourceId = record.Humanoid:GetAttribute("LastDamageSource")
+	local sourceId = record.Humanoid and record.Humanoid:GetAttribute("LastDamageSource")
 	local killer = if type(sourceId) == "number" then Players:GetPlayerByUserId(sourceId) else nil
 	local def = record.Def
 
-	-- La muerte se ANIMA y se destruye sola. Antes se llamaba aqui a
-	-- `despawnMonster`, que hacia `Model:Destroy()` en el mismo frame: el
-	-- enemigo desaparecia de un salto y el jugador no llegaba a ver que lo ha
-	-- matado. El registro se borra YA (para que la cadena de explosiones no
-	-- le pague dos veces) y el modelo se queda 0.2 s mas, muriendo delante.
+	-- El registro se borra ANTES de pagar: para que la cadena de explosiones
+	-- no lo encuentre, y para que `StepAI` deje de moverlo ya.
 	Service._monsters[monsterId] = nil
+
+	-- La barra del boss se APAGA aqui, antes de pagar y antes de la
+	-- animacion: el jugador mataba al boss, cobraba, y volvia al lobby con
+	-- una barra de jefe al 4 % pegada en la pantalla.
+	if record.IsBoss and record.WorldId then
+		if Service._bossesByWorld[record.WorldId] == monsterId then
+			Service._bossesByWorld[record.WorldId] = nil
+		end
+
+		publishBossBar(record.WorldId, nil)
+	end
+
+	record.DeathState = MonsterDeathRules.States.Dead
+
+	-- La muerte se ANIMA y se destruye sola, con un PLAZO MAXIMO.
+	--
+	-- El plazo no es estetico: es la garantia de que ningun enemigo queda
+	-- en el mapa. Si el modelo desaparece antes, el cleanup no hace nada;
+	-- si la animacion se atasca, `task.delay` lo elimina igualmente.
 	playDeathVfx(record)
 
-	if killer and Service._playerService then
-		Service._playerService.AddRewards(killer, def.XP, def.Coins)
-		Logger.Debug(("%s mato a %s: +%d XP +%d monedas"):format(
-			killer.Name,
-			def.Id,
-			def.XP,
-			def.Coins
-		))
+	-- La recompensa se cobra UNA vez. `ClaimReward` es la segunda mitad de
+	-- la atomicidad: aunque `OnMonsterDied` se llamara dos veces por un
+	-- error de alguien, el XP no se paga dos veces.
+	if MonsterDeathRules.ClaimReward(record.Rewarded) then
+		record.Rewarded = true
+
+		if killer and Service._playerService then
+			Service._playerService.AddRewards(killer, def.XP, def.Coins)
+			Logger.Debug(("%s mato a %s: +%d XP +%d monedas"):format(
+				killer.Name,
+				def.Id,
+				def.XP,
+				def.Coins
+			))
+		end
+
+		-- El progreso de mision va DENTRO del bloque del asesino, y no
+		-- aparte con un segundo `if killer`: un monstruo que muere por su
+		-- propia explosion intentaria progresar con `killer = nil`, que es
+		-- justo el caso que NO debe contar.
+		--
+		-- Y va DESPUES de pagar: si el pago falla, el monstruo esta muerto
+		-- y la ronda continua.
+		if killer and Service._questService ~= nil then
+			Service._questService.RecordMetric(killer, "MonsterDefeated", 1)
+		end
 	end
 
-	-- El progreso de mision va DENTRO del bloque del asesino, y no aparte
-	-- con un segundo `if killer`: si se escribiera fuera, un monstruo que
-	-- muere por su propia explosion intentaria progresar la mision con
-	-- `killer = nil`, que es justo el caso que NO debe contar.
-	--
-	-- Y va DESPUES de pagar: si el pago falla, el monstruo esta muerto y la
-	-- ronda continua. Al reves, una mision que no avanza seria un fallo mas
-	-- dificil de ver que uno registrado de mas.
-	if killer and Service._questService ~= nil then
-		Service._questService.RecordMetric(killer, "MonsterDefeated", 1)
-	end
+	-- Liberacion de referencias. Un registro de muerte que conserve el
+	-- Humanoid y el modelo es una fuga por cada enemigo muerto en la ronda.
+	record.Humanoid = nil
+	record.RootPart = nil
+	record.DeathState = MonsterDeathRules.States.Cleaned
 
 	Logger.Debug(("monstruo %d (%s) eliminado"):format(monsterId, def.Id))
+	return true
 end
 
+--- Detecta enemigos con `Health <= 0` a los que la muerte NO ha llegado.
+---
+--- Es la RED DE SEGURIDAD del bug "0 de vida y vivo". `Humanoid.Died` es
+--- un evento: si no se dispara, no hay nadie que reaccione. Este barrido
+--- corre en CADA latido y es idempotente, asi que un `Died` perdido se
+--- recupera en cuanto se nota, y un `Died` duplicado no hace nada.
+---
+--- @return number swept enemigos cuya muerte se ha procesado aqui
+function Service.SweepDead(): number
+	local swept = 0
+
+	for monsterId, record in pairs(Service._monsters) do
+		if MonsterDeathRules.CanAct(record.DeathState) then
+			local humanoid = record.Humanoid
+			local health = if humanoid then humanoid.Health else 0
+
+			-- Tres senales de "este enemigo deberia estar muerto": vida
+			-- cero, sin Humanoid o sin modelo. Las tres son el mismo
+			-- contrato: `Alive` sin nada que lo justifique.
+			local broken = health <= 0
+				or humanoid == nil
+				or record.Model == nil
+				or not record.Model.Parent
+
+			if broken and Service.OnMonsterDied(monsterId) then
+				swept += 1
+				Logger.Debug(("barrido: monstruo %d figuraba vivo con %.0f de vida; muerte forzada")
+					:format(monsterId, health))
+			end
+		end
+	end
+
+	return swept
+end
 
 --- ?Este Humanoid es un monstruo de este servicio?
 --- @param humanoid Humanoid
 --- @return boolean
 function Service.IsMonsterHumanoid(humanoid: Humanoid): boolean
 	for _, record in pairs(Service._monsters) do
-		if record.Humanoid == humanoid then
+		if record.Humanoid == humanoid and MonsterDeathRules.CanAct(record.DeathState) then
 			return true
 		end
 	end
@@ -557,18 +884,49 @@ function Service.ApplyDamageToMonster(
 	amount: number,
 	sourceUserId: number?
 ): boolean
-	for _, record in pairs(Service._monsters) do
-		if record.Humanoid == humanoid and not record.Dead then
-			humanoid:TakeDamage(amount)
+	-- Un dano que no es un numero positivo no es dano. Antes pasaba al
+	-- `TakeDamage` y devolvia `true`, y el llamante contaba una victima mas
+	-- de las que habia.
+	if type(amount) ~= "number" or amount <= 0 or amount ~= amount then
+		return false
+	end
 
+	for _, record in pairs(Service._monsters) do
+		if record.Humanoid == humanoid
+			and MonsterDeathRules.CanAct(record.DeathState)
+		then
+			-- ATRIBUCION ANTES DEL DANO.
+			--
+			-- `TakeDamage` dispara `Died` de forma SINCRONA cuando baja la
+			-- vida a cero, y `Died` es quien decide a quien se paga. Si el
+			-- atributo se escribiera despues (que era lo que hacia), en el
+			-- GOLPE MORTAL el manejador leeria al asesino ANTERIOR: la
+			-- muerte se procesaba sin paga, o con el premio de otro jugador.
+			--
+			-- Es un fallo invisible: el enemigo moria igual, el contador de
+			-- bajas subia, y el XP no llegaba.
 			if sourceUserId then
 				humanoid:SetAttribute("LastDamageSource", sourceUserId)
 			end
+
+			humanoid:TakeDamage(amount)
 
 			-- El jugador tiene que ver que su bomba ha HIGIDO. Sin destello
 			-- y sin barra que baje, acertar y fallar se ven igual.
 			flashMonster(record)
 			syncMonsterHealthTag(record)
+			-- La barra del boss se refresca AQUI, en el impacto, y no solo en
+			-- el latido: el efecto de "mi bomba ha pegado en el jefe" tiene que
+			-- verse en el MISMO instante de la explosion.
+			syncBossBar(record)
+
+			-- RED DE SEGURIDAD: si el Humanoid llegara a 0 y `Died` no se
+			-- hubiera disparado todavia, la muerte se procesa aqui mismo en
+			-- lugar de esperar al siguiente latido. Es idempotente, asi que
+			-- cuando `Died` llegue un instante despues no hara nada.
+			if humanoid.Health <= 0 then
+				Service.OnMonsterDied(record.Id)
+			end
 
 			return true
 		end
@@ -790,7 +1148,19 @@ local function applyMonsterHit(record: { [string]: any }, targetHumanoid: Humano
 		return
 	end
 
-	combat.ApplyDamage(targetHumanoid, def.Damage)
+	-- El danio de la FASE. Un boss golpea mas fuerte cuanto mas le queda
+	-- poco, y eso se aplica aqui, en el unico punto por el que pasa TODO el
+	-- dano de un monstruo: si se multiplicase en `Spawn`, la fase nunca
+	-- tendria efecto porque el multiplicador se calcula al generar.
+	--
+	-- Con `record.Phase` ya resuelto por `syncBossBar`, el cambio de fase y
+	-- el golpe que lo dispara son el MISMO frame: el jugador ve "FURIA" y
+	-- recibe el golpe mas fuerte a la vez, que es lo que hace que la fase
+	-- se entienda sin instrucciones.
+	local phase = BOSS_PHASES[if record.Phase then record.Phase else 1]
+	local damage = if record.IsBoss then def.Damage * phase.Damage else def.Damage
+
+	combat.ApplyDamage(targetHumanoid, damage)
 
 	if not record.Model or not record.Model.Parent then
 		return
@@ -880,14 +1250,28 @@ end
 --- `Wait()` dentro de la conexion bloquearia a los demas.
 --- @param dt number
 function Service.StepAI(dt: number)
-if not Service._roundService or not Service._roundService.IsPlaying() then
+	-- EL BARRIDO DE MUERTE corre PRIMERO y FUERA del filtro de ronda.
+	--
+	-- Que este antes no es estetico: es la garantia de que un enemigo con
+	-- 0 de vida deja de actuar en el MISMO latido en que se le vacia la
+	-- vida, y no "en cuanto vuelva a haber ronda".
+	--
+	-- Que este fuera del filtro tampoco: un enemigo que muere en el
+	-- ultimo instante de la ronda tiene que limpiarse igual, o se queda
+	-- congelado en el mapa hasta la siguiente.
+	Service.SweepDead()
+
+	if not Service._roundService or not Service._roundService.IsPlaying() then
 		return
 	end
 
 	local now = os.clock()
 
 	for _, record in pairs(Service._monsters) do
-		if not record.Dead and record.RootPart and record.RootPart.Parent then
+		if MonsterDeathRules.CanAct(record.DeathState)
+			and record.RootPart
+			and record.RootPart.Parent
+		then
 			local def = record.Def
 			local origin = record.RootPart.Position
 
@@ -991,6 +1375,19 @@ if not Service._roundService or not Service._roundService.IsPlaying() then
 
 			-- 5. PERSONALIDAD con efecto de tiempo.
 			tickPersonality(record, def, hasTarget, now, dt)
+
+			-- 6. BARRA DEL BOSS.
+			--
+			-- Se refresca en el LATIDO y no solo en el impacto de la bomba
+			-- porque el boss tambien pierde vida por otras vias (la quemadura
+			-- del Magma Lord, el hielo del Frost King, un bloque que le
+			-- revienta encima). Con la barra congelada, el jugador ve un 100 %
+			-- permanente y concluye que su bomba no hace nada: el sintoma
+			-- "las bombas no funcionan contra el boss" sin que las bombas
+			-- estuvieran rotas.
+			if record.IsBoss then
+				syncBossBar(record)
+			end
 		end
 	end
 end
@@ -1010,9 +1407,35 @@ function Service.GetMonster(monsterId: number): any?
 	return {
 		Id = record.Id,
 		DefinitionId = record.Def.Id,
-		Health = record.Humanoid.Health,
-		Position = record.RootPart.Position,
+		Health = record.Humanoid and record.Humanoid.Health or 0,
+		DeathState = record.DeathState,
+		Position = record.RootPart and record.RootPart.Position or Vector3.zero,
 	}
+end
+
+--- Informe de la mascara de muerte. Diagnostico para QA.
+---
+--- La pregunta que responde es "deberia haber enemigos vivos aqui?", y la
+--- respuesta tiene que poder contarse sin abrir el Workspace a mano.
+--- @return { alive: number, dying: number, dead: number, cleaned: number }
+function Service.GetDeathReport()
+	local report = { alive = 0, dying = 0, dead = 0, cleaned = 0 }
+
+	for _, record in pairs(Service._monsters) do
+		local state = record.DeathState
+
+		if state == MonsterDeathRules.States.Alive then
+			report.alive += 1
+		elseif state == MonsterDeathRules.States.Dying then
+			report.dying += 1
+		elseif state == MonsterDeathRules.States.Dead then
+			report.dead += 1
+		elseif state == MonsterDeathRules.States.Cleaned then
+			report.cleaned += 1
+		end
+	end
+
+	return report
 end
 
 --- Identificadores de los monstruos vivos.
@@ -1035,6 +1458,7 @@ function Service.Init(maid: any?): boolean
 
 	MaidRef = maid
 	Service._monsters = {}
+	Service._bossesByWorld = {}
 	Service._nextMonsterId = 0
 	Service._spawned = 0
 	Service._killed = 0
@@ -1107,6 +1531,7 @@ function Service.Destroy(): boolean
 
 	Service._folder = nil
 	Service._monsters = {}
+	Service._bossesByWorld = {}
 	Service._roundService = nil
 	Service._combatService = nil
 	Service._playerService = nil

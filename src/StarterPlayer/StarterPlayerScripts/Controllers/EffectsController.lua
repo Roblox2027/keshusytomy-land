@@ -629,8 +629,14 @@ function Controller.Start(maid: any?): boolean
 		return false
 	end
 
-	_numbers = _gui:FindFirstChild("DamageNumbers")
-	_vignette = _gui:FindFirstChild("DamageVignette")
+	-- Las rutas son el CONTRATO con `tools/hud.js`. Un `FindFirstChild` de un
+	-- solo nivel ya no las encuentra: el HUD es un arbol de ZONAS.
+	_numbers = _gui:FindFirstChild("Root")
+		:FindFirstChild("CenterFeedback")
+		:FindFirstChild("DamageNumbers")
+	_vignette = _gui:FindFirstChild("Root")
+		:FindFirstChild("Overlays")
+		:FindFirstChild("DamageVignette")
 
 	if not _numbers then
 		Logger.Error("EffectsController: el HUD no tiene el panel DamageNumbers.")

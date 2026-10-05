@@ -80,12 +80,53 @@ local function describeMonsterScale()
 			expect.toBe(#problems, 0)
 		end)
 
-		Harness.it("los nueve bichos del juego estan declarados", function()
+		Harness.it("los bichos del juego estan declarados, y son 9 de fauna y 5 de boss", function()
 			-- Si alguien anade un monstruo nuevo y olvida la escala, el
 			-- jugador veria una caja del tamano de un jugador otra vez.
+			--
+			-- El numero es EXACTO y no un minimo a proposito: la fauna son
+			-- nueve arquetipos (Slime, BombBug, Shadow, Hunter, Guardian,
+			-- IceBeast, FireBeast, Bomber, CyberStalker) y hay uno por
+			-- mundo en los cinco ultimos. Lo que la cifra protege es que
+			-- nadie declare un bicho sin escala y que el reparto de fauna
+			-- por mundo no se desmonte en silencio.
 			local ids = allIds()
 
-			expect.toBe(#ids, 9)
+			expect.toBe(#ids, 14)
+
+			-- Y el reparto tiene que seguir siendo el de la especificacion:
+			-- cinco bosses, uno por mundo, y ninguno compartido.
+			local bosses = 0
+			local worlds = {}
+
+			for _, id in ipairs(ids) do
+				local def = Monsters.Get(id)
+
+				if def and def.IsBoss == true then
+					bosses += 1
+					expect.toBe(type(def.World) == "string", true, id .. " no declara su mundo")
+					expect.toBe(worlds[def.World :: string] == nil, true, ("dos bosses en %s"):format(def.World))
+					worlds[def.World :: string] = id
+				end
+			end
+
+			expect.toBe(bosses, 5)
+
+			-- Cada mundo jugable tiene SU boss, y se resuelve por el MISMO
+			-- mapa que usa `MatchService`. Si las dos tablas se separan,
+			-- el portal deja a un jugador en un mundo sin jefe.
+			for _, worldId in ipairs({ "Forest", "Desert", "Ice", "Volcano", "Cyber" }) do
+				local bossId = Scale.GetBossId(worldId)
+				local boss = if type(bossId) == "string" then Monsters.Get(bossId) else nil
+
+				expect.toBe(bossId ~= nil, true, worldId .. " no tiene boss")
+				expect.toBe(boss ~= nil, true, ("%s apunta a un boss inexistente: %s"):format(worldId, tostring(bossId)))
+				expect.toBe(
+					boss ~= nil and boss.World == worldId,
+					true,
+					("%s: el boss declara otro mundo"):format(worldId)
+				)
+			end
 		end)
 
 		Harness.it("un monstruo desconocido usa una escala mayor que el jugador", function()
@@ -204,6 +245,72 @@ Harness.describe("MonsterScaleRules: la hitbox va por separado", function()
 
 			expect.toBe(modelSize.Y * ratio < modelSize.Y, true)
 			expect.toBe(modelSize.Y * ratio > 0, true)
+		end)
+	end)
+
+	Harness.describe("MonsterScaleRules: el cuerpo se mide contra el JUGADOR", function()
+		Harness.it("la altura del cuerpo sale de la escala y del jugador", function()
+			-- Esta es la prueba que faltaba y que hacia falta. Las de arriba
+			-- comparan 1.4 contra 1.0, y ambas cifras son del mismo mundo de
+			-- fantasy: no aplican la escala a nada, asi que no pueden detectar
+			-- que la escala se estuviera aplicando a la FORMA en vez de al
+			-- JUGADOR. Un Slime salia a 4.2 studs con un jugador de 5.5 y las
+			-- pruebas seguian en verde.
+			for _, id in ipairs(allIds()) do
+				local size = Scale.BodySize({ X = 3, Y = 3, Z = 3 }, Scale.GetVisualScale(id))
+
+				expect.toBe(size.Y, Scale.PlayerHeightStuds * Scale.GetVisualScale(id))
+			end
+		end)
+
+		Harness.it("TODO bicho sale MAS ALTO que el jugador de verdad", function()
+			-- El contrato de diseno, medido en la misma unidad que el jugador
+			-- que lo va a ver. Es la version que habria reprobado el Slime.
+			for _, id in ipairs(allIds()) do
+				local size = Scale.BodySize({ X = 3, Y = 3, Z = 3 }, Scale.GetVisualScale(id))
+
+				expect.toBe(size.Y > Scale.PlayerHeightStuds, true)
+			end
+		end)
+
+		Harness.it("tambien con el mundo mas desfavorable", function()
+			-- El Forest (0.95) es el que mas encoge a los bichos: si el
+			-- contrato se cumpliera aqui, se cumpliria en los cinco.
+			for _, id in ipairs(allIds()) do
+				local size = Scale.BodySize({ X = 3, Y = 3, Z = 3 }, Scale.Resolve(id, "Forest"))
+
+				expect.toBe(size.Y > Scale.PlayerHeightStuds, true)
+			end
+		end)
+
+		Harness.it("cambiar la escala NO cambia la silueta", function()
+			-- El Guardian tiene que seguir siendo un bloque y el Slime una
+			-- esfera. Si al agrandar un bicho se estirase tambien de ancho,
+			-- estarian todos tending a cubos y el jugador perderia la
+			-- referencia visual de cual es cual.
+			local block = Scale.BodySize({ X = 4, Y = 3, Z = 4 }, 2.1)
+			local sphere = Scale.BodySize({ X = 3, Y = 3, Z = 3 }, 1.4)
+
+			expect.toBe(block.X / block.Y, 4 / 3)
+			expect.toBe(block.Z / block.Y, 4 / 3)
+			expect.toBe(sphere.X / sphere.Y, 1)
+		end)
+
+		Harness.it("un Guardian es claramente mas alto que un Slime", function()
+			-- La jerarquia se tiene que notar. Si `BodySize` no distinguiera
+			-- entre escalas, todos los bichos saldrian del mismo tamano.
+			local guardian = Scale.BodySize({ X = 4, Y = 3, Z = 4 }, Scale.GetVisualScale("Guardian"))
+			local slime = Scale.BodySize({ X = 3, Y = 3, Z = 3 }, Scale.GetVisualScale("Slime"))
+
+			expect.toBe(guardian.Y > slime.Y, true)
+		end)
+
+		Harness.it("una forma de altura CERO no revienta", function()
+			-- Divisiones por cero en la construccion de un bicho que no ha
+			-- appearing en pantalla, con el jugador mirando.
+			local size = Scale.BodySize({ X = 3, Y = 0, Z = 3 }, 1.4)
+
+			expect.toBe(size.Y > 0, true)
 		end)
 	end)
 

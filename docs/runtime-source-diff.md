@@ -1,15 +1,19 @@
 # SOURCE <-> RUNTIME
 
-SOURCE (rojo build) : 8195 instancias
-RUNTIME (Studio MCP): 10788 instancias
+SOURCE (rojo build) : 8219 instancias
+RUNTIME (Studio MCP): 10816 instancias
 
 FALTAN EN STUDIO (en source, no en runtime): 0
-SOBRAN EN STUDIO (en runtime, no en source): 2379
+SOBRAN EN STUDIO (en runtime, no en source): 2383
 CLASE DISTINTA                          : 0
 CLASE EQUIVALENTE (motor)               : 1
 
 ## Sobran en Studio
 
+- StarterGui.KeshusyHUD.Root.BottomBar.BombAction.Caption [Frame]
+- StarterGui.KeshusyHUD.Root.BottomBar.BombAction.Caption.UICorner [UICorner]
+- StarterGui.KeshusyHUD.Root.BottomBar.BombAction.Caption.UIStroke [UIStroke]
+- StarterGui.__probe [Folder]
 - Workspace.Worlds.Cyber.ArenaWall_E [Part]
 - Workspace.Worlds.Cyber.ArenaWall_N [Part]
 - Workspace.Worlds.Cyber.ArenaWall_S [Part]
