@@ -3,7 +3,7 @@
     "phase": "FASE-2-CONSOLIDATION",
     "subphase": "completada",
     "branch": "main",
-    "task": "FASE 2: consolidar y proteger todo el trabajo existente. Bloques 1-4 ya estaban commited en HEAD 06727a7 (=origin/main). Bloque 5 (PuzzleService) estaba en el arbol sin commit. Se comitio Bloque 5 + FASE 1 RE-AUDIT docs, push a origin/main. HEAD real ahora = origin/main = 41a2a94. STATE sincerado. 09007f3 no es phantom: es un commit real de FASE 0+1, 5 commits detras de HEAD.",
+    "task": "FASE 2: consolidar y proteger todo el trabajo existente. Bloques 1-4 ya estaban commited en HEAD 06727a7 (=origin/main). Bloque 5 (PuzzleService) estaba en el arbol sin commit. Se comitio Bloque 5 (7941e83) + FASE 1 RE-AUDIT docs (41a2a94) y continuidad FASE 2 (6545120), push a origin/main. HEAD real = origin/main = 6545120 (commit de continuidad FASE 2 COMPLETED; source idéntico a 41a2a94). STATE sincerado. 09007f3 no es phantom: es un commit real de FASE 0+1, detras de HEAD.",
     "done": true,
     "fases_completadas": [
         "FASE 0 - Continuidad (commit 09007f3)",
@@ -14,7 +14,7 @@
         "BLOQUE 4 - Contenido: B2 cinco misiones nuevas + B5 terminales de arena/hordas con HUD + B3 equipo con stats reales (commit 06727a7)",
         "BLOQUE 5 - Social/profundidad (acotado): PuzzleService doble interruptor por mundo (cooperativo justo: 2 jugadores facil, 1 posible) + UI de avisos de puzzle (commit 7941e83)",
         "FASE 1 RE-AUDIT - GAMEPLAY_AUDIT.md con estado de resolucion, verificacion de base e inventario (commit 41a2a94)",
-        "FASE 2 - Consolidacion de estado, git y continuidad: commit por bloque + push + sincerar STATE (commit 41a2a94)"
+        "FASE 2 - Consolidacion de estado, git y continuidad: commit por bloque + push + sincerar STATE (commit 6545120)"
     ],
     "bloque1_detalle": {
         "A2_eventos": "EventRules.Bodies (Hunt/Boss/Survive/Reward) + WorldInvasion; EventService spawnea enemigos por zona, cuenta bajas via MonsterService, completa por objetivo (no por reloj), limpia siempre; HUD muestra etiqueta+objetivo+cuenta atras en panel Objective y Notify al abrir",
@@ -44,29 +44,35 @@
         "verify-wiring PASS (34 servicios, 23 conexiones, 48 llamadas)",
         "rojo build PASS",
         "verify PASS (cadena completa, exit 0)",
-        "PLAYTEST REAL: playtest reiniciado con build actual; sondas server en vivo: HazardService/LootService/AchievementService/BestiaryService/PuzzleService initialized=true, CombatAction presente, evento de caza forzado genero 4 enemigos con objetivo publicado y cleanup completo, 4 zonas de hazard construidas en Forest, combate con gate de ronda correcto"
+        "PLAYTEST REAL (mision V2, sesion previa): playtest reiniciado con build actual sobre la instancia Studio activa; sondas server en vivo: HazardService/LootService/AchievementService/BestiaryService/PuzzleService initialized=true, CombatAction presente, evento de caza forzado genero 4 enemigos con objetivo publicado y cleanup completo, 4 zonas de hazard construidas en Forest, combate con gate de ronda correcto"
     ],
     "failures": [
         "analyze.js: FAIL PREEXISTENTE de baseline (documentado en BLOCKED.md); no introducido por esta fase"
     ],
     "repairs": [],
     "playtests": [
-        "REAL (mision V2): playtest reiniciado con build actual sobre la instancia Studio activa; sonda server-runtime confirmo los 5 servicios nuevos inicializados; sonda funcional: entrada real a Forest (Arena_Forest), evento ForestSwarm forzado con 4 spawns y objetivo 'Derrota: 0/8' publicado, cleanup completo al cerrar, 4 zonas de emboscada construidas, TryMelee/TryDash rechazados sin ronda (gate correcto), invulnerabilidad de entrada intacta"
+        "REAL (mision V2, sesion previa): playtest reiniciado con build actual sobre la instancia Studio activa; sonda server-runtime confirmo los 5 servicios nuevos inicializados; sonda funcional: entrada real a Forest (Arena_Forest), evento ForestSwarm forzado con 4 spawns y objetivo 'Derrota: 0/8' publicado, cleanup completo al cerrar, 4 zonas de emboscada construidas, TryMelee/TryDash rechazados sin ronda (gate correcto), invulnerabilidad de entrada intacta. (Evidencia de sesion previa de FASE 2; NO se ejecuto playtest nuevo en esta sesion de cierre.)"
     ],
     "blockers": [
         "AUDIO ASSETS: BLOCKED_EXTERNAL - sin IDs reales; no se inventan",
         "analyze.js: FAIL PREEXISTENTE de baseline (no introducido por esta fase, documentado)",
-        "STUDIO/PLAYTEST V2: pendiente; se ejecutara al cierre de cada bloque via MCP si la sesion de Studio esta disponible"
+        "STUDIO/MCP: CONECTADO (verify:env, esta sesion). PLAYTEST en vivo: no ejecutado esta sesion (pendiente de MCP real para certificacion en vivo)."
     ],
     "brainrot_visual_followup": [],
-    "checkpoint": "Bloques 1-5 completados, verificados localmente y validados con playtest real en Studio. FASE 2: todo commited y push a origin/main. HEAD = origin/main = 41a2a94. Arbol limpio.",
-    "last_action": "FASE 2 completada: commit Bloque 5 (7941e83) + FASE 1 RE-AUDIT docs (41a2a94), push a origin/main, sincerado STATE.json con HEAD real 41a2a94, arbol limpio verificado",
+    "checkpoint": "Bloques 1-5 completados, verificados localmente (973/973 PASS) y validados con playtest real en Studio (sesion previa). FASE 2: commited y push a origin/main. HEAD = origin/main = 6545120 (último estado verificado). Arbol limpio. (Nota: el commit de continuidad que corrige la desincronizacion 41a2a94->6545120 es el commit que contiene este archivo; STATE.json conserva 6545120 como referencia inmediata por convencion de no-autorreferencia.)",
+    "last_action": "FASE 2: commited Bloque 5 (7941e83) + FASE 1 RE-AUDIT docs (41a2a94) y continuidad FASE 2 (6545120), push a origin/main; sincerado STATE.json/continuidad a HEAD 6545120. Correccion posterior: este commit (sobre 6545120) actualiza los archivos .cline que aun referenciaban 41a2a94 como HEAD actual.",
     "next_action": "FASE 3 - IMPLEMENTACION DEL GAMEPLAY V2: Panel World Completion (FASE 44), cadenas de misiones (FASE 41), cofres fisicos (FASE 24), ritual boss completo, secundario por mundo, party real, audio real (externo). Las modificaciones V2 existentes en el arbol fueron consolidadas antes de continuar.",
     "fase_actual": "FASE 2 - Consolidacion de estado, git y continuidad",
     "fase_completada": "FASE 2 - Consolidacion de estado, git y continuidad (PASS)",
     "fase_siguiente": "FASE 3 - IMPLEMENTACION DEL GAMEPLAY V2",
-    "commit": "41a2a94",
-    "head": "41a2a94",
-    "origin": "41a2a94",
-    "tree": "CLEAN"
+    "commit": "6545120",
+    "head": "6545120",
+    "origin": "6545120",
+    "tree": "CLEAN",
+    "continuidad": {
+        "ultimo_estado_verificado": "6545120",
+        "ultima_fuente_verificada": "41a2a94",
+        "ultima_fuente_label": "FASE 1 RE-AUDIT (source idéntico a 6545120; 973/973 PASS, verify PASS, rojo build PASS, analyze.js FAIL baseline, Studio/MCP CONECTADO)",
+        "convencion": "Este STATE.json se comitea dentro del commit de correccion de continuidad (HEAD actual = `git rev-parse HEAD`). Los campos head/origin/commit conservan 6545120, el HEAD inmediatamente anterior y ultimo estado verificado, por la convencion de continuidad del proyecto (no autorreferencia). 41a2a94 es el commit FASE 1 RE-AUDIT, fuente idéntica a 6545120. Ver `git log --oneline -2`."
+    }
 }

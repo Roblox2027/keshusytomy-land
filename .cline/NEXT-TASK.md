@@ -3,9 +3,15 @@
 ## PROXIMA FASE: FASE 3 — IMPLEMENTACION DEL GAMEPLAY V2
 
 ## Estado de FASE 2 (completada)
-- HEAD real `41a2a94` = origin/main.
+- HEAD real `6545120` = origin/main. (`41a2a94` = FASE 1 RE-AUDIT; source idéntico
+  a 6545120. `6545120` = commit de continuidad FASE 2 COMPLETED y último estado
+  verificado con 973/973 PASS. El HEAD actual tras el commit de corrección que
+  contiene este archivo es sucesor de 6545120; STATE.json lo referencia por
+  convención de no-autorreferencia.)
 - Bloques 1-4 estaban ya commited en `06727a7`. Bloque 5 (PuzzleService) estaba sin commit.
-- FASE 2: commit de Bloque 5 (`7941e83`) + FASE 1 RE-AUDIT docs (`41a2a94`), push a origin/main, sincerado STATE.json, arbol LIMPIO.
+- FASE 2: commited Bloque 5 (`7941e83`) + FASE 1 RE-AUDIT docs (`41a2a94`) y
+  continuidad FASE 2 (`6545120`), push a origin/main, sincerado STATE.json a
+  HEAD `6545120`, arbol LIMPIO.
 - Las modificaciones V2 existentes en el arbol fueron consolidadas antes de continuar.
 - Verificaciones: npm test PASS (973/973), npm run verify PASS (exit 0), analyze.js FAIL baseline (documentado).
 - Brainrot visual intacto. AUDIO ASSETS BLOCKED_EXTERNAL (sin IDs reales).
@@ -20,6 +26,7 @@
 
 ## Estado real
 - FASE 0+1+2: PASS. Bloques 1-5 commited y push a origin/main. Arbol limpio.
+- Entorno (verify:env, esta sesion): Studio/MCP CONECTADO; analyze.js FAIL baseline preexistente; rojo build PASS; npm test 973/973 PASS; npm run verify PASS.
 - `GAMEPLAY_AUDIT.md` actualizado con estado de resolucion por hallazgo.
 
 ## Siguiente iteracion (FASE 3, pendientes reales, por prioridad)

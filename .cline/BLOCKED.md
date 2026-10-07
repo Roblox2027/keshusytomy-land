@@ -1,6 +1,6 @@
 ## FASE 2 CONSOLIDACION COMPLETED (2026-10-07): PASS
-- Estado consolidado: Bloques 1-4 commited en `06727a7`, Bloque 5 + FASE 1 RE-AUDIT commited y push en `41a2a94` (=origin/main). Arbol limpio.
-- STATE.json sincerado: HEAD `41a2a94` = origin/main `41a2a94`. `09007f3` confirmado como commit real (FASE 0+1), no phantom.
+- Estado consolidado: Bloques 1-4 commited en `06727a7` (=origin/main en ese momento), Bloque 5 (`7941e83`) + FASE 1 RE-AUDIT docs (`41a2a94`) commited y push, continuidad FASE 2 (`6545120`) = origin/main. Arbol limpio.
+- STATE.json sincerado: HEAD `6545120` = origin/main `6545120` (último estado verificado; `41a2a94` = FASE 1 RE-AUDIT, source idéntico). `09007f3` confirmado como commit real (FASE 0+1), no phantom.
 - 12 archivos con diferencias CRLF solamente: NO contenian cambios de contenido, restaurados.
 
 ## FASE 1 RE-AUDIT (2026-10-07)
@@ -12,9 +12,9 @@
 # BLOCKED
 
 ## MASTER MISSION V2
-- FASE 0-2: PASS (continuidad, auditoria, consolidacion commit+push). HEAD = origin/main = `41a2a94`. Arbol limpio.
+- FASE 0-2: PASS (continuidad, auditoria, consolidacion commit+push). HEAD = origin/main = `6545120` (último estado verificado; 41a2a94 = FASE 1 RE-AUDIT, source idéntico). Arbol limpio.
 - AUDIO ASSETS: BLOCKED_EXTERNAL (heredado) — sin IDs reales; el mixer espera IDs en `AudioConfig`.
-- STUDIO/PLAYTEST V2: pendiente; se ejecutara al cierre de cada bloque via MCP si la sesion de Studio esta disponible.
+- STUDIO/MCP: CONECTADO (verify:env, esta sesión). PLAYTEST V2 en vivo: no ejecutado esta sesión de cierre (pendiente de MCP real para certificación).
 - BRAINROT_VISUAL_FOLLOWUP: vacio (sin hallazgos visuales registrados).
 - SIGUIENTE FASE: FASE 3 — IMPLEMENTACION DEL GAMEPLAY V2.
 
@@ -35,7 +35,7 @@
 - Desbloqueo: subir pistas reales al Creator Dashboard y pegar los IDs en `AudioConfig`.
 
 ## ANALYZE BASELINE: PREEXISTENTE
-- `node tools/analyze.js` reporta 1444 diagnosticos de baseline (incluye falsos positivos del entorno de pruebas); no fue introducido por esta fase y no bloquea `npm run verify`.
+- `node tools/analyze.js`: FAIL PREEXISTENTE de baseline (diagnosticos de baseline, incluye falsos positivos del entorno de pruebas; la cuenta varía entre sesiones). No fue introducido por esta fase y no bloquea `npm run verify`.
 
 ## GIT PUSH
-- Push de FASE 2: DONE. HEAD `41a2a94` = origin/main `41a2a94`.
+- Push de FASE 2: DONE. HEAD `6545120` = origin/main `6545120` (commit de corrección de continuidad = sucesor de `6545120`).

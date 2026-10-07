@@ -1,11 +1,16 @@
 ## FASE 2 CONSOLIDACION (2026-10-07): PASS
-- HEAD real `41a2a94` = origin/main; arbol LIMPIO.
+- HEAD real `6545120` = origin/main; arbol LIMPIO. (`41a2a94` = FASE 1 RE-AUDIT,
+  source idéntico a 6545120; `6545120` es el commit de continuidad FASE 2
+  COMPLETED y HEAD inmediatamente anterior al commit de corrección que contiene
+  estos archivos. Convención: STATE.json conserva el HEAD inmediatamente
+  anterior en lugar de autorreferenciar su propio hash.)
 - Bloques 1-4 ya estaban commited en HEAD `06727a7` (=origin/main). Bloque 5 estaba sin commit en el arbol.
 - `09007f3` es un commit REAL (FASE 0+1), 5 commits detras de HEAD — NO es phantom. STATE.json lo declaraba desactualizado.
 - Commits creados durante FASE 2:
   - `7941e83` Bloque 5 Social/profundidad: PuzzleService doble interruptor cooperativo + wiring + UI + tests
   - `41a2a94` FASE 1 RE-AUDIT: GAMEPLAY_AUDIT.md con estado de resolucion, sincerar .cline continuity files, documentar Bloques 1-5 verificados localmente y playtest real
-- Push: PASS a `origin/main`. HEAD = origin/main = `41a2a94`.
+  - `6545120` FASE 2 COMPLETED: consolidacion estado/git/continuidad (commit de continuidad sobre 41a2a94; source idéntico a 41a2a94, 973/973 PASS verificado)
+- Push: PASS a `origin/main`. HEAD = origin/main = `6545120`.
 - Verificaciones: npm test PASS (973/973, 55 suites); npm run verify PASS (cadena completa exit 0); verify-structure PASS (43 servicios); verify-wiring PASS (34 servicios, 23 conexiones, 48 llamadas); rojo:build PASS. analyze.js FAIL baseline preexistente (documentado, no introducido por esta fase).
 - Brainrot visual: intacto (sin cambios). `BRAINROT_VISUAL_FOLLOWUP`: vacio.
 - Estado previo (FASE 1 RE-AUDIT) queda registrado abajo.
