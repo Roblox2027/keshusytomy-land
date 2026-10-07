@@ -150,6 +150,9 @@ local progressionService = nil
 local shopService = nil
 local codeService = nil
 local questService = nil
+-- ActivityService (exploracion, FASE 3). Comparte pareja economica con
+-- QuestService: lee el perfil y paga con la economia.
+local activityService = nil
 
 -- AntiExploitService. Es el UNICO modulo de este archivo que se consulta
 -- DENTRO de un handler de remoto, asi que necesita una referencia de
@@ -292,6 +295,16 @@ local SERVICES = {
 		name = "QuestService",
 		module = SERVER.Services.QuestService,
 		dependencies = { "ProfileService", "EconomyService" },
+	},
+
+	-- ActivityService: exploracion y recompensas por actividades (FASE 3).
+	-- Comparte la columna economica con QuestService, asi que depende de las
+	-- mismas bases; `PlayerService` y `WorldService` se inyectan con setters
+	-- para resolver el mundo del jugador y comprobar proximidad.
+	{
+		name = "ActivityService",
+		module = SERVER.Services.ActivityService,
+		dependencies = { "ProfileService", "EconomyService", "PlayerService", "WorldService" },
 	},
 
 	{ name = "WorldService", module = SERVER.Services.WorldService, dependencies = {} },
@@ -586,6 +599,7 @@ local function wireDependencies(registry: any): { string }
 	-- nada mas lo delatara.
 	local codeService = registry:Get("CodeService")
 	local questService = registry:Get("QuestService")
+	local activityService = registry:Get("ActivityService")
 
 	-- Declara una conexion y verifica que se pudo hacer de verdad.
 	-- @param label string
@@ -690,6 +704,20 @@ local function wireDependencies(registry: any): { string }
 		{ "ProfileService", "EconomyService" },
 		function(service: any)
 			service.SetDependencies(profileService, economyService)
+		end
+	)
+
+	-- ActivityService comparte la columna economica con QuestService y
+	-- ademas necesita saber en que mundo esta el jugador (oferta) y el
+	-- servicio de mundos (default). Se inyecta en un solo connect: las
+	-- dependencias declaradas garantizan que los cuatro servicios existen.
+	connect(
+		"ActivityService",
+		activityService,
+		{ "ProfileService", "EconomyService", "InventoryService", "PlayerService", "WorldService" },
+		function(service: any)
+			service.SetDependencies(profileService, economyService, inventoryService)
+			service.SetPlayerService(playerService, worldService)
 		end
 	)
 
@@ -1060,6 +1088,23 @@ local function wireDependencies(registry: any): { string }
 		end
 	end
 
+	-- ActivityService (exploracion, FASE 3): MonsterService avanza las
+	-- actividades de caza al notificar muertes. El push usa `pcall` por
+	-- servicio, como el de QuestService: un servicio sin `SetActivityService`
+	-- (Destruction/Secret/Event, en FASE 3 follow-up) se salta sin error.
+	if activityService then
+		if monsterService then
+			pcall(function()
+				if monsterService.SetActivityService then
+					monsterService.SetActivityService(activityService)
+				end
+			end)
+			table.insert(report, "[WIRING OK] MonsterService -> ActivityService (Hunt)")
+		else
+			table.insert(report, "[WIRING SKIP] MonsterService -> ActivityService (no MonsterService)")
+		end
+	end
+
 	-- MatchService necesita conocer el mundo por defecto para validar
 	-- a quien puede entrar en el (FASE 18 lo hara con portales).
 	if worldService then
@@ -1261,6 +1306,43 @@ local REMOTE_CHANNELS = {
 			end
 
 			questService.TryClaimDaily(player)
+		end,
+	},
+
+	-- Exploracion (FASE 3). El cliente pide la oferta, interactua con un
+	-- punto de interes o reclama; el servidor resuelve el mundo del jugador,
+	-- comprueba proximidad y decide el progreso y la recompensa. La respuesta
+	-- va por atributos: `ActivityOffer`, `ActivityProgress`,
+	-- `ActivityClaimOutcome`.
+	[GameConstants.RemoteAction.Explore] = {
+		RequestOffer = function(player: Player, payload: any)
+			if not activityService then
+				Logger.Warn("ExploreAction.RequestOffer recibido sin ActivityService")
+				return
+			end
+
+			-- El `size` (numero) lo pide el cliente como maximo; el servidor lo
+			-- acota al catalogo del mundo. El mundo NO viene del cliente: lo
+			-- resuelve el servicio a partir de la sesion del jugador.
+			activityService.TryRequestOffer(player, payload)
+		end,
+
+		Interact = function(player: Player, payload: any)
+			if not activityService then
+				Logger.Warn("ExploreAction.Interact recibido sin ActivityService")
+				return
+			end
+
+			activityService.TryInteract(player, payload)
+		end,
+
+		Claim = function(player: Player, payload: any)
+			if not activityService then
+				Logger.Warn("ExploreAction.Claim recibido sin ActivityService")
+				return
+			end
+
+			activityService.TryClaim(player, payload)
 		end,
 	},
 
@@ -1496,6 +1578,7 @@ function ServerMain.Start(): boolean
 	-- quedo documentado para los seis de la columna economica.
 	codeService = registry:Get("CodeService")
 	questService = registry:Get("QuestService")
+	activityService = registry:Get("ActivityService")
 	antiExploitService = registry:Get("AntiExploitService")
 
 	for _, name in ipairs({

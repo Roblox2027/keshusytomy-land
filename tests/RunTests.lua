@@ -72,6 +72,8 @@ local SUITES = {
 	{ name = "MiniBoss", path = "./shared/MiniBoss.spec" },
 	{ name = "SecretRules", path = "./shared/SecretRules.spec" },
 	{ name = "ZonePopulation", path = "./shared/ZonePopulation.spec" },
+	{ name = "ActivitiesRules", path = "./shared/ActivitiesRules.spec" },
+	{ name = "ActivityCatalog", path = "./shared/ActivityCatalog.spec" },
 }
 
 local loadedSuites = 0

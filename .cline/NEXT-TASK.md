@@ -1,6 +1,13 @@
-# NEXT TASK — FASE 2 COMPLETED (2026-10-07)
+# NEXT TASK — FASE 3 COMPLETED (2026-10-07)
 
-## PROXIMA FASE: FASE 3 — IMPLEMENTACION DEL GAMEPLAY V2
+## PROXIMA FASE: FASE 4 — Expansión y refuerzo de gameplay V2
+
+## Estado de FASE 3 (completada)
+- Implementada, verificada localmente (1014/1014 PASS, verify:structure/wiring PASS, rojo:build PASS) y playtesteada en Studio/MCP (CONECTADO).
+- BUG FIX: material rewards (Mat_*) ahora se entregan via InventoryService.AddItem en lugar de GrantCurrency.
+- Playtest resultados: Offer/Interact/Claim/RecordMetric/duplicates/rejections/concurrency todos PASS.
+- Estado git: arbol DIRTY (pendiente commit + push de FASE 3).
+- Studio/MCP: CONECTADO y playtesteado.
 
 ## Estado de FASE 2 (completada)
 - HEAD real `6545120` = origin/main. (`41a2a94` = FASE 1 RE-AUDIT; source idéntico
@@ -25,23 +32,24 @@
 - Verificacion por bloque: suite Luau + verify:structure + verify:wiring + rojo build + tests nuevos; y sonda runtime en Studio cuando la sesion este disponible.
 
 ## Estado real
-- FASE 0+1+2: PASS. Bloques 1-5 commited y push a origin/main. Arbol limpio.
-- Entorno (verify:env, esta sesion): Studio/MCP CONECTADO; analyze.js FAIL baseline preexistente; rojo build PASS; npm test 973/973 PASS; npm run verify PASS.
+- FASE 0-3: PASS. Bloques 1-5 commited y push a origin/main. FASE 3 implementada + playtesteada. Studio/MCP CONECTADO y playtesteado.
+- Entorno (verify:env, esta sesion): Studio/MCP CONECTADO; analyze.js FAIL baseline preexistente; rojo build PASS; npm test 1014/1014 PASS; npm run verify PASS.
 - `GAMEPLAY_AUDIT.md` actualizado con estado de resolucion por hallazgo.
 
 ## Siguiente iteracion (FASE 3, pendientes reales, por prioridad)
 
-1. **Panel World Completion** (FASE 44): los datos ya se publican por atributos (SecretsFound, BestiaryCount/Total, AchievementsCount); falta el panel en `tools/hud.js` + su test de contrato.
-2. **Cadenas de misiones** (FASE 41): `QuestRules` no soporta prerrequisitos; ampliar con `RequiresQuestId` y quests encadenadas por mundo.
+1. **Panel World Completion** (FASE 44): los datos ya se publican por atributos; falta el panel en UI + test de contrato.
+2. **Cadenas de misiones** (FASE 41): `QuestRules` no soporta prerrequisitos; ampliar con `RequiresQuestId`.
 3. **Cofres fisicos** (FASE 24): categorias, apertura con animacion/sonido/VFX y drop via `LootRules`.
-4. **Companeros Brainrot** (FASE 22): evaluar sobre el bestiario; NUNCA auto-play. Disenios visuales intactos (restriccion absoluta).
-5. **Player home / vehiculos / NPC dinamicos / reputacion** (FASES 30/31/39/42): evaluar una por una.
-6. **Party/Matchmaking** (FASES 19/20): los stubs siguen sin implementar.
+4. **Companeros Brainrot** (FASE 22): evaluar sobre el bestiario; NUNCA auto-play. Disenios visuales intactos.
+5. **Player home / vehiculos / NPC dinamicos / reputacion** (FASES 30/31/39/42).
+6. **Party/Matchmaking** (FASES 19/20): stubs.
 7. **Audio real** (externo): subir IDs reales al Creator Dashboard.
+8. **FASE 3 follow-up**: inyectar puntos de Discovery/Rescue/Mechanic (RegisterPoints) desde loader de mundo; forward de Destruction/Secret/Event a RecordMetric.
 
-## Orden de ataque propuesto (FASE 3 en adelante)
-1. Commit+push Bloques 1-5 + sincerar STATE (FASE 2, HECHO).
-2. Panel World Completion + cadenas + cofres.
+## Orden de ataque propuesto (FASE 4 en adelante)
+1. Commit+push FASE 3 (Activities + bugfix material rewards).
+2. Panel World Completion + cadenas de misiones + cofres fisicos.
 3. Ritual boss completo.
 4. Secundario por mundo (2.º secreto, coleccionables, eventos propios).
 5. Party real sin bloquear solitario.

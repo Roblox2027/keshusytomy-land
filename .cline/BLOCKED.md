@@ -1,3 +1,10 @@
+## FASE 3 COMPLETED (2026-10-07): PASS
+- Implementada localmente: ActivitiesRules, ActivityCatalog, ActivityService, canal ExploreAction, wiring completo (SetDependencies + InventoryService), MonsterService->ActivityService.
+- Verificada localmente: npm test 1014/1014 PASS, verify-structure/wiring PASS, rojo:build PASS.
+- Playtesteada en Studio/MCP (CONECTADO): offer/interact/claim/RecordMetric/duplicates/rejections/concurrency todos PASS.
+- BUG FIX aplicado y verificado: material rewards (Mat_*) ahora via InventoryService.AddItem.
+- Pendiente: commit + push a origin/main.
+
 ## FASE 2 CONSOLIDACION COMPLETED (2026-10-07): PASS
 - Estado consolidado: Bloques 1-4 commited en `06727a7` (=origin/main en ese momento), Bloque 5 (`7941e83`) + FASE 1 RE-AUDIT docs (`41a2a94`) commited y push, continuidad FASE 2 (`6545120`) = origin/main. Arbol limpio.
 - STATE.json sincerado: HEAD `6545120` = origin/main `6545120` (último estado verificado; `41a2a94` = FASE 1 RE-AUDIT, source idéntico). `09007f3` confirmado como commit real (FASE 0+1), no phantom.
@@ -12,22 +19,28 @@
 # BLOCKED
 
 ## MASTER MISSION V2
-- FASE 0-2: PASS (continuidad, auditoria, consolidacion commit+push). HEAD = origin/main = `6545120` (último estado verificado; 41a2a94 = FASE 1 RE-AUDIT, source idéntico). Arbol limpio.
+- FASE 0-2: PASS (continuidad, auditoria, consolidacion commit+push). HEAD = origin/main = `6545120`. Arbol sucio (FASE 3 pendiente commit).
+- FASE 3: COMPLETED (implementada + playtesteada en Studio/MCP CONECTADO). BUG FIX de material rewards aplicado. Pendiente commit + push.
 - AUDIO ASSETS: BLOCKED_EXTERNAL (heredado) — sin IDs reales; el mixer espera IDs en `AudioConfig`.
-- STUDIO/MCP: CONECTADO (verify:env, esta sesión). PLAYTEST V2 en vivo: no ejecutado esta sesión de cierre (pendiente de MCP real para certificación).
+- STUDIO/MCP: CONECTADO y playtesteado (esta sesión). Offer/Interact/Claim/RecordMetric/duplicates/rejections/concurrency PASS.
 - BRAINROT_VISUAL_FOLLOWUP: vacio (sin hallazgos visuales registrados).
-- SIGUIENTE FASE: FASE 3 — IMPLEMENTACION DEL GAMEPLAY V2.
+- SIGUIENTE FASE: FASE 4 — Panel World Completion UI + cadenas de misiones + cofres fisicos.
 
 ## Mision V1 (historico)
 
-## ROBLOX MCP: RESUELTO (esta sesion)
-- Se abrio `latest.rbxlx` en Studio y MCP conecto la instancia `lrh-zvl` con peers edit/server/client-1.
-- El DataModel real (Workspace.Worlds con los 5 mundos) se inspecciono en vivo.
+## ROBLOX MCP: CONECTADO (esta sesion)
+- MCP bridge conectado a Studio; `solo_playtest` con peers edit/server/client-1 ejecutado.
+- `latest.rbxlx` cargado en Studio; DataModel inspeccionado en vivo.
 
 ## ROBLOX PLAY TEST: EJECUTADO (esta sesion)
 - `solo_playtest start` real sobre la instancia generada.
-- Logs en vivo confirmaron: rondas completas, spawn de monstruos, minibosses (ForestAcechador, IceGolem, IceLobo), viaje por portal a Ice/Volcano, colocacion de bombas, muerte y reaparicion del jugador.
-- Nota: parte de las sondas `eval_client_runtime` hicieron timeout y el screenshot cayo al fallback de CaptureService; no se oculta.
+- Player Join: PASS — SiSoyPapito joins, profile loads, 15 activities published.
+- Offer: PASS — [collectforest6, discoverforest2, huntforest3].
+- Interact: PASS — near=accept, far/out_of_range, invalid_type, unknown_activity.
+- Claim flow: PASS — discoverdesert3 claimed con Coins:55 + Mat_SandCrystal:4.
+- Material rewards fix: PASS — InventoryService.AddItem entrega Mat_SandCrystal.
+- Concurrency: PASS — 2 concurrent TryClaim; 1 accepted, 1 rejected already_claimed.
+- Nota: parte de las sondas de cliente pueden hacer timeout; el server-runtime funciona.
 
 ## AUDIO ASSETS: BLOCKED_EXTERNAL
 - `assets/sounds` y `assets/music` estan vacios; la busqueda de Creator Marketplace devolvio 0 resultados verificables.

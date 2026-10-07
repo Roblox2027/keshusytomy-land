@@ -1,12 +1,20 @@
-## FASE 2 CONSOLIDACION (2026-10-07): PASS
-- Git: HEAD `6545120` = origin/main `6545120` — commited y push. (FASE 1 RE-AUDIT docs = `41a2a94`; Bloque 5 = `7941e83`. `6545120` = commit de continuidad FASE 2 COMPLETED y último estado verificado; HEAD actual tras esta corrección de continuidad = sucesor de `6545120`.)`
-- diff check `--check`: PASS (sin whitespace errors). 12 archivos con diferencias CRLF solamente: NO contenian cambios de contenido, restaurados con `git checkout --` a su estado commited.
-- tests: `npm test` PASS (973/973, 55 suites). `npm run verify` PASS (cadena completa exit 0). verify-structure PASS (43/43). verify-wiring PASS (34/23/48). rojo:build PASS.
+## FASE 3 CONSOLIDACION (2026-10-07): COMPLETED
+- Git: HEAD `6545120` = origin/main `6545120`. Arbol sucio (FASE 3 pendiente commit/push).
+- diff check `--check`: PASS.
+- tests: `npm test` PASS (1014/1014, 57 suites). `npm run verify` PASS (cadena completa exit 0). verify-structure PASS (44/44). verify-wiring PASS (35 servicios, 24 conexiones, 50 llamadas). rojo:build PASS.
 - analyze.js: FAIL baseline preexistente (no introducido por esta fase; documentado).
-- HEAD: `6545120`. origin/main: `6545120`. Worktree: CLEAN. (Último estado verificado; HEAD actual = sucesor de `6545120` tras el commit de corrección de continuidad.)
-- Commits creados durante FASE 2: `7941e83` (Bloque 5), `41a2a94` (FASE 1 RE-AUDIT docs), `6545120` (FASE 2 COMPLETED / consolidación de continuidad). HEAD actual tras esta corrección = sucesor de `6545120`.
-- Push: PASS.
-- Brainrot visual: intacto. AUDIO ASSETS: BLOCKED_EXTERNAL.
+- **Playtest Studio/MCP (CONECTADO)**:
+  - [A] Player Join: PASS — SiSoyPapito joins, profile loads, 15 activities published.
+  - [B] Offer: PASS — valid offer [collectforest6, discoverforest2, huntforest3].
+  - [C] Interact: PASS — near=accept, far/out_of_range, invalid_type, unknown_activity.
+  - [D] Duplicate: PASS — already_claimed rejected.
+  - [E] Claim flow: PASS — discoverdesert3 claimed; granted={Mat_SandCrystal:4, Coins:55}.
+  - [F] BUG FIX: material rewards now delivered via InventoryService.AddItem.
+  - [G] Persistence: PASS (profile persists via DataStore structure).
+  - [H] Kill→Hunt: PASS — RecordMetric("Hunt") advances Hunt activities.
+  - [I] Rejection tests: PASS — invalid_activity_id, unknown_activity, not_complete, already_claimed.
+  - [J] Concurrency: PASS — 2 concurrent TryClaim; 1 accepted, 1 rejected already_claimed.
+- Push: PENDIENTE (commit + push después de actualizar estado).
 
 ## FASE 1 RE-AUDIT (2026-10-07): PASS — structure/wiring/tests/rojo/mundos/navegacion/spawn/edge/monstruos/powerups/bombas PASS; GAMEPLAY_AUDIT.md con seccion RE-AUDIT; arbol sucio pendiente de commit (CRITICAL proceso); audio BLOCKED_EXTERNAL; Brainrot visual intacto.
 

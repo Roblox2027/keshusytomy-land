@@ -94,11 +94,41 @@
 - Se conserva el ciclo ambiental `Day/Sunset/Night/Dawn` como sistema secundario, no como objetivo principal.
 - Las referencias documentales de 99 noches siguen existiendo en historia, tests y comentarios antiguos; no representan objetivo activo ni progresion del juego.
 
+### FASE 3 - Actividades de exploracion (server-authoritative): COMPLETED
+- **Rules**: `ActivitiesRules` (puro) — progreso/aclamo atomico/cooldown/oferta diaria determinista/Audit.
+- **Catalog**: `ActivityCatalog` (15 actividades, 5 mundos, 6 tipos) con indice normalizado lazy; valida contra `WorldAccessRules.WorldOrder`.
+- **Service**: `ActivityService` (espejo de `QuestService`) — estado en perfil (`Activities`), paga Coins via `EconomyService.GrantCurrency` y Mat_* via `InventoryService.AddItem` (fix aplicado en este playtest), publica atributos `ActivityOffer`/`ActivityProgress`/`ActivityClaimOutcome`; `RecordMetric` para eventos; `TryInteract` con chequeo de proximidad server-side.
+- **Remote layer**: canal `ExploreAction` (`RequestOffer`/`Interact`/`Claim`) en `GameConstants.RemoteAction`, `RemoteSchema`, `Remotes.model.json`, `AntiExploitRules` (auditable) y `AntiExploit.spec` (declarado).
+- **Wiring**: `ActivityService` en `SERVICES` + `connect` (+ `SetPlayerService` + `InventoryService`) en `ServerMain.wireDependencies`; `MonsterService->ActivityService` reverse-push tolerante (caza) con forward de muerte de monstruo a `RecordMetric("Hunt")`; handlers `ExploreAction` en `REMOTE_CHANNELS`.
+- **BUG FIX (playtest)**: `deliver()` en `ActivityService.lua` llamaba `GrantCurrency` para todos los rewards incluyendo `Mat_*`, que `EconomyRules` rechazaba silenciosamente (moneda invalida). Fix: `IsValidCurrency()` dirige `Coins`/`Gems` a `GrantCurrency` y `Mat_*` a `InventoryService.AddItem`. Wiring: `SetDependencies` ahora recibe `inventoryService`; `ServerMain.wireDependencies` pasa `InventoryService`.
+- **Gates**: `npm test` PASS (1014/1014, 57 suites); `verify:structure` PASS (44); `verify:wiring` PASS (35 servicios, 24 conexiones, 50 llamadas); `rojo:build` PASS. `analyze.js` FAIL baseline preexistente (sin categorias nuevas).
+- **Playtest Studio/MCP (CONECTADO)**:
+  - [A] Player Join: PASS — player `SiSoyPapito` joins, profile loads, 15 activities published.
+  - [B] Offer: PASS — valid offer `[collectforest6, discoverforest2, huntforest3]`, correct world/type/target/rewards.
+  - [C] Interact: PASS — near-range accepted, far-range `out_of_range`, non-interactable type `invalid_type`, unknown activity `unknown_activity`.
+  - [D] Duplicate: PASS — `already_claimed` rejected.
+  - [E] Claim flow: PASS — `discoverdesert3` completed via `RecordMetric("Discovery", 3)`, claimed; `granted={Mat_SandCrystal:4, Coins:55}`, `rewardAttr="Coins:55,Mat_SandCrystal:4"`, `outcomeAttr="claimed"`.
+  - [F] Material rewards fix: PASS — log confirma `Inventory: +4 Mat_SandCrystal a SiSoyPapito (activity)`.
+  - [G] Persistence: profile data persists across playtest sessions via DataStore (estructura de perfil).
+  - [H] Kill->Hunt: PASS — `RecordMetric(player, "Hunt", 3)` advances Hunt activities.
+  - [I] Rejection tests: PASS — `invalid_activity_id`, `unknown_activity`, `not_complete`, `already_claimed` all rejected server-side.
+  - [J] Concurrency: PASS — two concurrent `TryClaim` for same activity; first accepted (granted Mat_LeafEssence:5 + Coins:60), second rejected `already_claimed`; acceptedCount=1.
+- **Pendiente**: commit + push a origin/main. Follow-up: inyectar puntos de Discovery/Rescue/Mechanic (RegisterPoints) desde el loader de mundo (Interact rechaza con `no_point` hasta entonces — seguro por disenio); forward de DestructionService/SecretService/EventService a RecordMetric para Collection/Defense/Secret.
+
 ## Bloqueos actuales
-- MCP Roblox: BLOCKED en este entorno (no hay plugin/servidor real conectado a Studio)
-- Studio / Play Test: BLOCKED (sin acceso real a Studio/MCP, no se puede ejecutar Play Test final)
+- MCP Roblox: CONECTADO (verify:env, esta sesion). Playtest ejecutado.
+- Studio / Play Test: EJECUTADO — solo_playtest real sobre la instancia `latest.rbxlx` con peers edit/server/client-1.
+- analyze.js: FAIL preexistente de baseline (documentado, no introducido por FASE 3).
+- AUDIO ASSETS: BLOCKED_EXTERNAL (sin IDs reales).
+- RegisterPoints: puntos de Discovery/Rescue/Mechanic no inyectados (follow-up FASE 3; Interact rechaza con `no_point` hasta entonces — seguro por disenio).
 
 ## Fases pendientes
-- [ ] Studio real / DataModel / Play Test en vivo
-- [ ] Validacion final de gameplay con Roblox Studio si llega la conexion
-- [ ] Revisión manual adicional si se habilita MCP real
+- [ ] Panel World Completion UI (FASE 44)
+- [ ] Cadenas de misiones con prerrequisito (FASE 41)
+- [ ] Cofres fisicos con animacion (FASE 24)
+- [ ] Companeros Brainrot (FASE 22)
+- [ ] Player home, vehiculos, NPC dinamicos, reputacion (FASES 30/31/39/42)
+- [ ] Party/Matchmaking reales (FASES 19/20)
+- [ ] Audio real (externo)
+- [ ] Inyeccion de puntos de Discovery/Rescue/Mechanic (RegisterPoints) desde loader de mundo
+- [ ] Forward de Destruction/Secret/Event a RecordMetric para Collection/Defense/Secret

@@ -58,6 +58,12 @@ Service._killed = 0
 -- UNICO que se pierde es el progreso de las misiones.
 Service._questService = nil
 
+-- ActivityService: receptor del progreso de actividades de caza (FASE 3).
+--
+-- Mismo patron de observador que `SetQuestService`: es OPCIONAL. Sin el, los
+-- monstruos mueren y pagan igual, y solo las actividades de caza no avanzan.
+Service._activityService = nil
+
 -- MiniBossService: observador de muertes (FASE 15). Opcional:
 -- sin el, los mini-bosses son fauna jugable; con el, cobran su
 -- recompensa de tier y arrancan el enfriamiento de su zona.
@@ -115,6 +121,16 @@ end
 --- @param questService any?
 function Service.SetQuestService(questService: any)
 	Service._questService = questService
+end
+
+--- Conecta el receptor de actividades de caza (FASE 3).
+---
+--- Mismo patron que `SetQuestService`: es OPCIONAL y se inyecta con `pcall`
+--- desde `ServerMain`. Un monstruo que muere avanza la actividad de caza del
+--- asesino; sin este servicio, la muerte paga igual y solo la caza no progresa.
+--- @param activityService any?
+function Service.SetActivityService(activityService: any)
+	Service._activityService = activityService
 end
 
 --- Inyecta el `MiniBossService` (FASE 15).
@@ -974,6 +990,14 @@ function Service.OnMonsterDied(monsterId: number): boolean
 			if record.IsBoss then
 				Service._questService.RecordMetric(killer, "BossDefeated", 1)
 			end
+		end
+
+		-- ActivityService (FASE 3): las actividades de caza avanzan por
+		-- muerte de monstruo. Va dentro del bloque del asesino por la misma
+		-- razon que el progreso de mision: un monstruo que muere por su
+		-- propia explosion (killer = nil) no debe contar.
+		if killer and Service._activityService ~= nil then
+			Service._activityService.RecordMetric(killer, "Hunt", 1)
 		end
 	end
 

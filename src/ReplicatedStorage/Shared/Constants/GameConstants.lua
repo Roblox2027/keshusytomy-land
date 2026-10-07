@@ -81,5 +81,9 @@ return {
 		-- Las acciones no llevan payload: el servidor decide objetivo y
 		-- dano, el cliente solo pide actuar.
 		Combat = "CombatAction",
+		-- Exploracion, descubrimiento e interaccion (FASE 3). El cliente pide
+		-- la oferta, interactua con un punto o reclama; el servidor decide el
+		-- mundo, el progreso y la recompensa.
+		Explore = "ExploreAction",
 	},
 }

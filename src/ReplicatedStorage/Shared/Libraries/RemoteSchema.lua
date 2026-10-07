@@ -114,6 +114,15 @@ function Schema.new(remoteAction: { [string]: string })
 			Dash = PayloadType.None,
 			Ability = PayloadType.None,
 		},
+		-- Exploracion (FASE 3). El payload NUNCA es el mundo ni el progreso:
+		-- el servidor resuelve el mundo del jugador y decide el avance con SU
+		-- estado. `RequestOffer` lleva un numero SOLO como maximo de ofertas,
+		-- que el servidor acota al catalogo del mundo.
+		[remoteAction.Explore] = {
+			RequestOffer = PayloadType.Number,
+			Interact = PayloadType.String,
+			Claim = PayloadType.String,
+		},
 	}
 
 	local self = {
