@@ -375,6 +375,29 @@ local SERVICES = {
 		dependencies = { "NightService", "MonsterService" },
 	},
 
+	-- EventService: eventos mundiales por mundo (eventos de noche).
+	--
+	-- Depende de `NightService` porque la probabilidad y la duracion del
+	-- sorteo salen del reloj. `PlayerService` y `QuestService` se pasan
+	-- como OPCIONALES en `SetDependencies`: sin ellos los eventos corren
+	-- igual y solo falta acreditar recompensas ligadas a jugador/mision.
+	{
+		name = "EventService",
+		module = SERVER.Services.EventService,
+		dependencies = { "NightService" },
+	},
+
+	-- MiniBossService: mini-bosses por zona con enfriamiento.
+	--
+	-- Depende de `MonsterService` porque sus NPC los genera el y porque
+	-- las muertes le llegan por la flecha inversa
+	-- `MonsterService -> MiniBossService` (ver `wireDependencies`).
+	{
+		name = "MiniBossService",
+		module = SERVER.Services.MiniBossService,
+		dependencies = { "MonsterService" },
+	},
+
 	-- Herramienta de pruebas. Va al final y NO es critica: sin ella el
 	-- juego es exactamente igual de jugable, solo se pierde la
 	-- capacidad de certificar el camino de entrada del cliente.
@@ -429,6 +452,8 @@ local function wireDependencies(registry: any): { string }
 	-- registrado despues ya habria pasado su `Start`.
 	local nightService = registry:Get("NightService")
 	local hordeService = registry:Get("HordeService")
+	local eventService = registry:Get("EventService")
+	local miniBossService = registry:Get("MiniBossService")
 
 	-- Los seis de economia, inventario, progresion, perfil, datos y tienda.
 	local dataService = registry:Get("DataService")
@@ -675,6 +700,22 @@ local function wireDependencies(registry: any): { string }
 		end
 	)
 
+	-- EventService: el reloj decide si rueda y cuanto dura; jugador y
+	-- misiones van como opcionales por la misma razon que en HordeService.
+	connect("EventService", eventService, { "NightService" },
+		function(service: any)
+			service.SetDependencies(nightService, playerService, questService)
+		end
+	)
+
+	-- MiniBossService: necesita a `MonsterService` para invocar el spawn
+	-- de sus NPC dentro de la zona. El resto son opcionales.
+	connect("MiniBossService", miniBossService, { "MonsterService" },
+		function(service: any)
+			service.SetDependencies(monsterService, playerService, questService, nightService)
+		end
+	)
+
 	-- PowerupService -> MonsterService: la flecha que hace que CONGELAR
 	-- tenga efecto.
 	--
@@ -715,6 +756,29 @@ local function wireDependencies(registry: any): { string }
 		table.insert(report, "[WIRING OK] ExplosionService -> MonsterService")
 	else
 		table.insert(report, "[WIRING FAIL] ExplosionService/MonsterService no disponibles")
+	end
+
+	-- MonsterService -> MiniBossService: la flecha que hace que los
+	-- mini-bosses EXISTAN en runtime.
+	--
+	-- AUDITORIA (FASE 2): `MonsterService.OnMonsterDied` avisa a su
+	-- observador opcional con `pcall(Service._miniBossService.OnMonsterDied,
+	-- ...)`, pero NADIE llamaba jamas a `SetMiniBossService`: el setter
+	-- existia declarado y sin invocar. La consecuencia era silenciosa y
+	-- completa: los tests de contrato pasaban, pero en el juego la
+	-- notificacion de muerte no tenia destinatario y `MiniBossService`
+	-- esperaba en balde - ningun mini-boss aparecia nunca.
+	--
+	-- Va con `pcall` y fuera de `connect` por el mismo motivo que
+	-- `PowerupService -> MonsterService`: es una flecha inversa al orden
+	-- topologico del registro.
+	if monsterService and miniBossService then
+		pcall(function()
+			monsterService.SetMiniBossService(miniBossService)
+		end)
+		table.insert(report, "[WIRING OK] MonsterService -> MiniBossService")
+	else
+		table.insert(report, "[WIRING FAIL] MonsterService/MiniBossService no disponibles")
 	end
 
 	-- QuestService NO depende de los servicios de juego: al reves, son los

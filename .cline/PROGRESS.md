@@ -8,7 +8,7 @@
 ## Fases
 - [x] 0 Audit (fix zoneRim fallback `_Rim_999`; fix Forest ruta alternativa CentralPath->ExitNorth; verify completo PASS)
 - [x] 1 Generator (auditoria: determinismo PASS, idempotencia 2x SHA256 identico, git status estable, escribe solo default.project.json + tools/sync-lighting.lua, sin random/timestamps/IDs; fix `return map;` duplicado; bateria verify completa PASS)
-- [ ] 2 Sistemas existentes
+- [x] 2 Sistemas existentes (inventario 37 servicios: 28 registrados / 9 stubs ~810-835B sin registrar por diseño / 0 duplicados `*Service2`; FIX: EventService y MiniBossService cableados - construidos pero muertos en runtime; verify:wiring PASS 28/19/45; verify completo exit 0. Hallazgos pendientes: HordeService sin bucle spawn/kill y StartHorde sin llamantes = Fase 31-37; EventService sin HUD consumidor = Fase 58-59)
 - [ ] 3 Acceso mundos
 - [ ] 4 Arquitectura mundos
 - [ ] 5 Terreno organic

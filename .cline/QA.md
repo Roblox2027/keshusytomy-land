@@ -9,3 +9,11 @@
 - Play Test: BLOCKED (sin MCP/Studio dirigible; NO ejecutado)
 - MAP/Datamodel visual: NO VALIDADO (no confundir con verify: la validacion de codigo y la visual son distintas)
 - analyze.js (typecheck): FAIL preexistente (documentado en .ai/AI_CONTEXT.md y verify:env; 521 incidencias previas a este bootstrap)
+
+## Status (Fase 2 - 2026-10-07)
+- Verify: PASS exit 0 tras cablear EventService + MiniBossService (structure, wiring, 892 tests, worlds, contract, navigation, spawn, world-edge, monster-access 49/49, bomb-grid, powerup-boss, rojo:build, env, context)
+- verify:wiring: PASS (28 servicios en SERVICES, 19 conexiones, 45 llamadas entre servicios; metodos cableados existen en sus servicios)
+- Cobertura de servicios: 28 registrados / 9 stubs sin registrar por diseño / 0 duplicados `*Service2`
+- Cableado nuevo: EventService (antes 0 referencias externas) y MiniBossService (antes SetMiniBossService sin invocar) - P0s de integracion reparados
+- MCP: BLOCKED / Studio: BLOCKED / Play Test: BLOCKED / MAP visual: NO VALIDADO (ver BLOCKED.md)
+- Git push: BLOCKED (commits locales b7299b0 + Fase 2 pendientes de push por credenciales GitHub)

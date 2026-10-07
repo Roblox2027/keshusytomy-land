@@ -1,6 +1,6 @@
 # KESHUSYTOMY-LAN-D - CONTEXTO IA
 
-Generado: 2026-10-07T00:25:58.539Z
+Generado: 2026-10-07T01:02:23.176Z
 
 > Este archivo es un INDICE generado, no una fuente de verdad.
 > La fuente de verdad del estado del desarrollo es `docs/phases.md`.
@@ -9,7 +9,7 @@ Generado: 2026-10-07T00:25:58.539Z
 ## Git
 
 - Rama: `main`
-- Commit: `c939967` - fix: certify KeshusyTomy-LanD gameplay
+- Commit: `b7299b0` - chore: stabilize project generator baseline
 - Arbol: CON CAMBIOS SIN COMMITear
 
 ## FUENTES DE VERDAD (leer antes de decidir)
