@@ -106,6 +106,14 @@ function Schema.new(remoteAction: { [string]: string })
 			SetVolume = PayloadType.Table,
 			SetQuality = PayloadType.String,
 		},
+		-- Combate cuerpo a cuerpo (mision V2). SIN payload a proposito:
+		-- el cliente no manda objetivo, ni distancia, ni paso de combo.
+		-- Todo eso lo decide el servidor; aqui solo se pide actuar.
+		[remoteAction.Combat] = {
+			Melee = PayloadType.None,
+			Dash = PayloadType.None,
+			Ability = PayloadType.None,
+		},
 	}
 
 	local self = {
@@ -166,14 +174,23 @@ end
 --- @param magnitude number
 --- @return boolean valid
 --- @return string? reason
-function Schema.ValidateVectorComponents(x: number, y: number, z: number, magnitude: number): (boolean, string?)
+function Schema.ValidateVectorComponents(
+	x: number,
+	y: number,
+	z: number,
+	magnitude: number
+): (boolean, string?)
 	local MAX_COMPONENT = 1e6
 
 	if x ~= x or y ~= y or z ~= z or magnitude ~= magnitude then
 		return false, "componente no finito"
 	end
 
-	if math.abs(x) > MAX_COMPONENT or math.abs(y) > MAX_COMPONENT or math.abs(z) > MAX_COMPONENT then
+	if
+		math.abs(x) > MAX_COMPONENT
+		or math.abs(y) > MAX_COMPONENT
+		or math.abs(z) > MAX_COMPONENT
+	then
 		return false, "componente fuera de rango"
 	end
 

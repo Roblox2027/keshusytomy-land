@@ -1404,6 +1404,16 @@ function Controller.Start(maid: any?): boolean
 			end
 		end)
 
+		-- INTRO DEL BOSS (mision V2, FASE 10): la aparicion del jefe se
+		-- anuncia grande. El nombre lo publica el servidor con la barra de
+		-- vida, asi que el aviso no puede mentir sobre QUIEN ha salido.
+		_maid:Connect(player:GetAttributeChangedSignal("BossName"), function()
+			local bossName = player:GetAttribute("BossName")
+			if type(bossName) == "string" and bossName ~= "" then
+				Controller.Notify(("JEFE: %s"):format(bossName), Color3.fromRGB(255, 110, 100))
+			end
+		end)
+
 		-- EVENTO DE MUNDO (mision V2): el servidor publica `EventActive`
 		-- al abrir un evento; el aviso usa la etiqueta del servidor, que
 		-- no puede mentir sobre QUE evento es.

@@ -1,15 +1,49 @@
 {
-"ClassName": "Folder",
-"Children": [
-{ "Name": "PlayerAction", "ClassName": "RemoteEvent" },
-{ "Name": "BombAction", "ClassName": "RemoteEvent" },
-{ "Name": "ShopAction", "ClassName": "RemoteEvent" },
-{ "Name": "InventoryAction", "ClassName": "RemoteEvent" },
-{ "Name": "QuestAction", "ClassName": "RemoteEvent" },
-    { "Name": "CodeAction", "ClassName": "RemoteEvent" },
-{ "Name": "PortalAction", "ClassName": "RemoteEvent" },
-{ "Name": "CoreAction", "ClassName": "RemoteEvent" },
-{ "Name": "PartyAction", "ClassName": "RemoteEvent" },
-{ "Name": "SettingsAction", "ClassName": "RemoteEvent" }
-]
+    "ClassName": "Folder",
+    "Children": [
+        {
+            "Name": "PlayerAction",
+            "ClassName": "RemoteEvent"
+        },
+        {
+            "Name": "BombAction",
+            "ClassName": "RemoteEvent"
+        },
+        {
+            "Name": "ShopAction",
+            "ClassName": "RemoteEvent"
+        },
+        {
+            "Name": "InventoryAction",
+            "ClassName": "RemoteEvent"
+        },
+        {
+            "Name": "QuestAction",
+            "ClassName": "RemoteEvent"
+        },
+        {
+            "Name": "CodeAction",
+            "ClassName": "RemoteEvent"
+        },
+        {
+            "Name": "PortalAction",
+            "ClassName": "RemoteEvent"
+        },
+        {
+            "Name": "CoreAction",
+            "ClassName": "RemoteEvent"
+        },
+        {
+            "Name": "PartyAction",
+            "ClassName": "RemoteEvent"
+        },
+        {
+            "Name": "SettingsAction",
+            "ClassName": "RemoteEvent"
+        },
+        {
+            "Name": "CombatAction",
+            "ClassName": "RemoteEvent"
+        }
+    ]
 }

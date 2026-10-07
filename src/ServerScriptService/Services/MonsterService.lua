@@ -28,6 +28,7 @@ local MonsterScaleRules =
 	require(SHARED:WaitForChild("Libraries"):WaitForChild("MonsterScaleRules"))
 local VisualKit = require(SHARED:WaitForChild("Libraries"):WaitForChild("VisualKit"))
 local MonsterDefinitions = require(SHARED:WaitForChild("MonsterDefinitions"))
+local CombatRules = require(SHARED:WaitForChild("Libraries"):WaitForChild("CombatRules"))
 local Logger = require(UTILS:WaitForChild("Logger"))
 
 local Service = {}
@@ -416,6 +417,29 @@ local BOSS_PHASES = {
 	{ At = 0.3, Damage = 1.5, Speed = 1.3, Recovery = 0.7, Name = "FURIA" },
 }
 
+-- BOSS RITUAL (mision V2, FASE 10): lo que cambia de VERDAD por fase.
+--
+-- La fase 2 INVOCA adds: el duelo deja de ser un uno contra uno y el
+-- jugador tiene que decidir entre limpiar o seguir al jefe. La fase 3
+-- EXPONE una debilidad: el boss recibe mas dano, que es la ventana de
+-- "ahora o nunca" que cierra el combate en vez de alargarlo.
+
+--- Dano EXTRA que recibe el boss en su ultima fase.
+local BOSS_WEAKNESS_PHASE = 3
+local BOSS_WEAKNESS_MULTIPLIER = 1.4
+
+--- Adds que acompanan la segunda fase, por mundo. Son fauna del mundo,
+--- no jefes: la presion la pone el MOMENTO (el boss sigue vivo), no la
+--- vida del invocado.
+local BOSS_ADDS = {
+	Forest = "Slime",
+	Desert = "Hunter",
+	Ice = "IceBeast",
+	Volcano = "FireBeast",
+	Cyber = "CyberStalker",
+}
+local BOSS_ADD_COUNT = 2
+
 --- Fase que corresponde a una fraccion de vida.
 --- @param ratio number 0..1
 --- @return number indice de fase (1..#BOSS_PHASES)
@@ -499,6 +523,32 @@ local function syncBossBar(record: { [string]: any })
 		end
 
 		Logger.Info(("boss %s en fase %d (%s)"):format(record.Def.Id, phase, record.DisplayName))
+
+		-- ADDS DE FASE 2 (mision V2): la transicion se SIENTE porque el
+		-- combate cambia de verdad, no porque sube un multiplicador.
+		-- `Service.Spawn` aplica topes: si el mapa esta lleno no se
+		-- genera nada, y eso es el comportamiento correcto.
+		if phase == 2 and not record.AddsSpawned and record.WorldId then
+			record.AddsSpawned = true
+
+			local addId = BOSS_ADDS[record.WorldId]
+			local root = record.RootPart
+
+			if addId and root then
+				local origin = root.Position
+
+				-- `task.defer`: el spawn no puede ocurrir DENTRO de la
+				-- escritura de la fase (podria reentrar en el registro de
+				-- monstruos sobre el que se itera).
+				task.defer(function()
+					for index = 1, BOSS_ADD_COUNT do
+						local angle = (index / BOSS_ADD_COUNT) * math.pi * 2
+						local offset = Vector3.new(math.cos(angle) * 10, 3, math.sin(angle) * 10)
+						Service.Spawn(addId, origin + offset, record.WorldId)
+					end
+				end)
+			end
+		end
 	end
 
 	publishBossBar(record.WorldId, record)
@@ -1009,6 +1059,14 @@ function Service.ApplyDamageToMonster(
 
 	for _, record in pairs(Service._monsters) do
 		if record.Humanoid == humanoid and MonsterDeathRules.CanAct(record.DeathState) then
+			-- DEBILIDAD DE FASE FINAL (mision V2, FASE 10): el boss en su
+			-- ultima fase recibe dano extra. Es la ventana de "ahora o
+			-- nunca": cierra el combate en vez de alargarlo, y castiga al
+			-- jugador que no aprovecha la apertura.
+			if record.IsBoss and (record.Phase or 1) >= BOSS_WEAKNESS_PHASE then
+				amount *= BOSS_WEAKNESS_MULTIPLIER
+			end
+
 			-- ATRIBUCION ANTES DEL DANO.
 			--
 			-- `TakeDamage` dispara `Died` de forma SINCRONA cuando baja la
@@ -1047,6 +1105,54 @@ function Service.ApplyDamageToMonster(
 	end
 
 	return false
+end
+
+--- Dano en ARCO frente al atacante (COMBATE V2, mision V2 - FASE 8).
+---
+--- Es la mitad de motor del ataque cuerpo a cuerpo: `CombatRules` decide
+--- el arco y el dano, y este servicio los aplica sobre SU registro, que es
+--- la unica verdad de que monstruos existen. La atribucion la hace
+--- `ApplyDamageToMonster`, el mismo camino que la explosion de una bomba:
+--- una sola forma de daniar enemigos, y por tanto una sola que auditar.
+--- @param origin Vector3 posicion del atacante
+--- @param look Vector3 direccion de la mirada
+--- @param range number
+--- @param minDot number -1 = cualquier direccion
+--- @param damage number
+--- @param sourceUserId number? atribucion
+--- @return number victimas alcanzadas
+function Service.DamageInArc(
+	origin: Vector3,
+	look: Vector3,
+	range: number,
+	minDot: number,
+	damage: number,
+	sourceUserId: number?
+): number
+	local hits = 0
+
+	-- Se recorre UNA COPIA de los registros: `ApplyDamageToMonster` puede
+	-- matar, y matar borra la entrada sobre la que se itera.
+	local records = {}
+
+	for _, record in pairs(Service._monsters) do
+		table.insert(records, record)
+	end
+
+	for _, record in ipairs(records) do
+		local root = record.RootPart
+		local humanoid = record.Humanoid
+
+		if root and humanoid and MonsterDeathRules.CanAct(record.DeathState) then
+			if CombatRules.InArc(origin, look, root.Position, range, minDot) then
+				if Service.ApplyDamageToMonster(humanoid, damage, sourceUserId) then
+					hits += 1
+				end
+			end
+		end
+	end
+
+	return hits
 end
 
 --- Jugador vivo mas cercano dentro del radio.
@@ -1304,6 +1410,42 @@ local function onStateChanged(record: { [string]: any }, state: string, def: any
 				elseif state == AIService.States.Recovery then "-"
 				else ""
 			label.Visible = label.Text ~= ""
+		end
+	end
+
+	-- TELEGRAPH DE AREA DEL BOSS (mision V2, FASE 10): un circulo rojo en
+	-- el suelo mientras el boss carga. El `TelegraphGlow` dice "este bicho
+	-- va a golpear"; la marca de area dice DONDE, que es lo que permite
+	-- esquivar de verdad. Vive DENTRO del modelo: si el boss muere en la
+	-- carga, la marca desaparece con el y ningun `task.delay` la busca.
+	if record.IsBoss then
+		local marker = model:FindFirstChild("BossTelegraphArea")
+
+		if AIService.IsTelegraph(state) and record.RootPart then
+			if not marker then
+				marker = Instance.new("Part")
+				marker.Name = "BossTelegraphArea"
+				marker.Shape = Enum.PartType.Cylinder
+				marker.Anchored = true
+				marker.CanCollide = false
+				marker.CanTouch = false
+				marker.CanQuery = false
+				marker.CastShadow = false
+				marker.Color = Color3.fromRGB(255, 70, 60)
+				marker.Material = Enum.Material.Neon
+
+				-- El cilindro tumbado es un DISCO en el suelo: grosor
+				-- minimo en Y, radio en XZ.
+				marker.Size = Vector3.new(0.3, 28, 28)
+				marker.Parent = model
+			end
+
+			local rootPosition = record.RootPart.Position
+			marker.CFrame = CFrame.new(rootPosition.X, rootPosition.Y - 2.6, rootPosition.Z)
+				* CFrame.Angles(0, 0, math.rad(90))
+			marker.Transparency = 0.55
+		elseif marker and marker:IsA("BasePart") then
+			marker.Transparency = 1
 		end
 	end
 

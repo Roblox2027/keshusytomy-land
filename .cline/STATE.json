@@ -1,13 +1,14 @@
 ﻿{
     "mission": "MASTER MISSION V2 - Expansion total de gameplay",
-    "phase": "M2-BLOQUE1",
-    "subphase": "mundo-vivo",
-    "task": "Bloque 1 Mundo vivo COMPLETADO: eventos con cuerpo (A2), mecanica por mundo (A3), noche ambiental con luz real (B6); siguiente: Bloque 2 - Combate (combate V2 + boss ritual)",
+    "phase": "M2-BLOQUE2",
+    "subphase": "combate",
+    "task": "Bloque 2 Combate COMPLETADO: combate V2 (A1) + boss ritual (B1); siguiente: Bloque 3 - Progresion (loot dinamico, logros/discovery/titulos, coleccion Brainrot)",
     "done": true,
     "fases_completadas": [
         "FASE 0 - Continuidad (commit 09007f3)",
         "FASE 1 - Auditoria de diversion: GAMEPLAY_AUDIT.md (commit 09007f3)",
-        "BLOQUE 1 - Mundo vivo: A2 eventos con cuerpo + A3 mecanica por mundo + B6 noche ambiental, verificado y publicado"
+        "BLOQUE 1 - Mundo vivo: A2 eventos con cuerpo + A3 mecanica por mundo + B6 noche ambiental",
+        "BLOQUE 2 - Combate: A1 combate V2 (melee+dash+habilidad+combos via canal CombatAction sin payload, server-authoritative) + B1 boss ritual (telegraph de area, adds fase 2, debilidad x1.4 fase 3, intro UI)"
     ],
     "bloque1_detalle": {
         "A2_eventos": "EventRules.Bodies (Hunt/Boss/Survive/Reward) + WorldInvasion; EventService spawnea enemigos por zona, cuenta bajas via MonsterService, completa por objetivo (no por reloj), limpia siempre; HUD muestra etiqueta+objetivo+cuenta atras en panel Objective y Notify al abrir",
@@ -15,7 +16,6 @@
         "B6_noche": "EffectsController traduce NightPhase a Lighting (ClockTime/Brightness/OutdoorAmbient) con tween de 4s; ambiental, sin progreso por noches"
     },
     "pending": [
-        "Bloque 2 - Combate: ataque rapido + dash + habilidad (A1), boss ritual con telegraphs/arena/mecanicas por fase (B1)",
         "Bloque 3 - Progresion: loot dinamico (A4), logros/discovery/titulos (A5), coleccion Brainrot (B4)",
         "Bloque 4 - Contenido: misiones V2 (B2), arenas/hordas (B5), equipamiento real (B3)",
         "Bloque 5 - Social/profundidad: co-op, puzzles, coleccionables, home, vehiculos, NPC",
@@ -42,9 +42,9 @@
         "tests/shared/HazardRules.spec.lua"
     ],
     "tests": [
-        "Suite Luau PASS (919/919; +20 tests: cuerpo de eventos, hazards)",
+        "Suite Luau PASS (935/935; +16 tests de combate)",
         "verify-structure PASS (39 servicios)",
-        "verify-wiring PASS (30 servicios, 21 conexiones, 47 llamadas)",
+        "verify-wiring PASS (30 servicios, 21 conexiones)",
         "rojo build PASS"
     ],
     "failures": [],
@@ -56,9 +56,9 @@
         "Playtest en Studio del Bloque 1: pendiente (se ejecuta con el cierre de bloques via MCP)"
     ],
     "brainrot_visual_followup": [],
-    "checkpoint": "Bloque 1 Mundo vivo completado y verificado localmente",
-    "last_action": "Eventos con cuerpo + hazards por mundo + luz de noche, 919 tests PASS, build PASS",
-    "next_action": "Bloque 2 - Combate: ataque rapido cuerpo a cuerpo, dash con i-frames, habilidad con cooldown (server-authoritative via CombatService) y boss ritual (telegraphs, adds, debilidad por fase)",
+    "checkpoint": "Bloque 2 Combate completado y verificado localmente",
+    "last_action": "Combate V2 (melee/dash/habilidad/combos) + boss ritual; 935 tests PASS, build PASS",
+    "next_action": "Bloque 3 - Progresion: tabla de loot por fuente (A4), AchievementService + DiscoveryService + titulos (A5), BrainrotCollectionService (B4)",
     "commit": "09007f3",
     "head": "09007f3",
     "origin": "09007f3"

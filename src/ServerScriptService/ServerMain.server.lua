@@ -670,13 +670,15 @@ local function wireDependencies(registry: any): { string }
 	)
 
 	-- CombatService notifica las muertes a PlayerService, que es quien
-	-- mantiene el estado de sesion y paga al asesino.
+	-- mantiene el estado de sesion y paga al asesino. `MonsterService` va
+	-- como tercero (mision V2): es quien recibe el dano del cuerpo a
+	-- cuerpo sobre SU registro.
 	connect(
 		"CombatService",
 		combatService,
-		{ "RoundService", "PlayerService" },
+		{ "RoundService", "PlayerService", "MonsterService" },
 		function(service: any)
-			service.SetDependencies(roundService, playerService)
+			service.SetDependencies(roundService, playerService, monsterService)
 		end
 	)
 
@@ -1209,6 +1211,29 @@ local REMOTE_CHANNELS = {
 
 	[GameConstants.RemoteAction.Party] = {},
 	[GameConstants.RemoteAction.Settings] = {},
+
+	-- El canal del combate cuerpo a cuerpo (mision V2). Las acciones no
+	-- llevan payload: la gateway valida la forma (ninguna) y el ritmo
+	-- (rate limit), y `CombatService` valida el CONTEXTO: ronda en
+	-- curso, jugador vivo y cooldown. La distancia al objetivo nunca se
+	-- toma del cliente porque no HAY objetivo en el payload.
+	[GameConstants.RemoteAction.Combat] = {
+		Melee = function(player: Player, _payload: any)
+			if combatService then
+				combatService.TryMelee(player)
+			end
+		end,
+		Dash = function(player: Player, _payload: any)
+			if combatService then
+				combatService.TryDash(player)
+			end
+		end,
+		Ability = function(player: Player, _payload: any)
+			if combatService then
+				combatService.TryAbility(player)
+			end
+		end,
+	},
 }
 
 --- Comprueba que los modulos base esten presentes y sean validos.

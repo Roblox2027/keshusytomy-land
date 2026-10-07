@@ -39,6 +39,7 @@ local UTILS = SHARED:WaitForChild("Utils")
 local GameConfig = require(CONFIG:WaitForChild("GameConfig"))
 local GameConstants = require(SHARED:WaitForChild("Constants"):WaitForChild("GameConstants"))
 local CombatMath = require(SHARED:WaitForChild("Libraries"):WaitForChild("CombatMath"))
+local CombatRules = require(SHARED:WaitForChild("Libraries"):WaitForChild("CombatRules"))
 local Logger = require(UTILS:WaitForChild("Logger"))
 
 local RoundState = GameConstants.RoundState
@@ -50,6 +51,17 @@ Service.IsInitialized = false
 -- Servicios inyectados por ServerMain.
 Service._roundService = nil
 Service._playerService = nil
+
+-- MonsterService: quien aplica el dano del combate cuerpo a cuerpo
+-- sobre SU registro (mision V2, FASE 8). Opcional: sin el, el melee
+-- no tiene victimas y se rechaza limpio.
+Service._monsterService = nil
+
+-- Cooldowns y combos del combate V2, por userId. La cadena vive AQUI
+-- y nunca la manda el cliente: un cliente que pudiera mandar su paso
+-- de combo pediria el especial en cada golpe.
+Service._cooldowns = {}
+Service._combos = {}
 
 -- UserId -> momento (os.clock) hasta el que es invulnerable.
 Service._invulnerableUntil = {}
@@ -68,9 +80,11 @@ local MaidRef = nil
 --- Inyecta las dependencias del servicio.
 --- @param roundService any
 --- @param playerService any
-function Service.SetDependencies(roundService: any, playerService: any)
+--- @param monsterService any? (mision V2: victimas del cuerpo a cuerpo)
+function Service.SetDependencies(roundService: any, playerService: any, monsterService: any?)
 	Service._roundService = roundService
 	Service._playerService = playerService
+	Service._monsterService = monsterService
 end
 
 --- Jugador al que pertenece un Humanoid, o nil.
@@ -153,7 +167,11 @@ end
 --- @param sourceUserId number? quien lo causo (para atribucion)
 --- @return boolean applied false si se rechazo
 --- @return string? reason motivo del rechazo
-function Service.ApplyDamage(targetHumanoid: Humanoid, amount: number, sourceUserId: number?): (boolean, string?)
+function Service.ApplyDamage(
+	targetHumanoid: Humanoid,
+	amount: number,
+	sourceUserId: number?
+): (boolean, string?)
 	if not CombatMath.IsFiniteNumber(amount) or amount <= 0 then
 		Service._blockedDamage += 1
 		return false, "dano invalido"
@@ -283,12 +301,164 @@ end
 --- @param userId number
 function Service.ClearPlayer(userId: number)
 	Service._invulnerableUntil[userId] = nil
+	Service._cooldowns[userId] = nil
+	Service._combos[userId] = nil
 
 	for _, connection in ipairs(Service._deathConnections[userId] or {}) do
 		connection:Disconnect()
 	end
 
 	Service._deathConnections[userId] = nil
+end
+
+-- ---------------------------------------------------------------------------
+-- COMBATE V2: ataque rapido, dash y habilidad (MASTER MISSION V2 - FASE 8)
+-- ---------------------------------------------------------------------------
+
+--- Comprobaciones comunes a las tres acciones: jugador vivo, ronda en
+--- curso y cooldown cumplido. Devuelve el humanoid y la raiz listos.
+--- @param player Player
+--- @param action string clave del cooldown ("Melee"/"Dash"/"Ability")
+--- @param cooldown number
+--- @return Humanoid? humanoid
+--- @return BasePart? root
+local function readyFor(player: Player, action: string, cooldown: number): (Humanoid?, BasePart?)
+	-- La ronda tiene que estar en curso: el lobby es zona segura, y un
+	-- golpe en el lobby es exactamente el "bomba en el menu" que la
+	-- misma regla impide en `ApplyDamage`.
+	if Service._roundService and not Service._roundService.IsPlaying() then
+		return nil, nil
+	end
+
+	local character = player.Character
+	local humanoid = character and character:FindFirstChildOfClass("Humanoid")
+	local root = character and character:FindFirstChild("HumanoidRootPart")
+
+	if not humanoid or not root or not root:IsA("BasePart") or humanoid.Health <= 0 then
+		return nil, nil
+	end
+
+	local now = os.clock()
+	local cooldowns = Service._cooldowns[player.UserId]
+
+	if not cooldowns then
+		cooldowns = {}
+		Service._cooldowns[player.UserId] = cooldowns
+	end
+
+	if not CombatRules.IsReady(cooldowns[action], cooldown, now) then
+		return nil, nil
+	end
+
+	cooldowns[action] = now
+	return humanoid, root
+end
+
+--- Ataque rapido cuerpo a cuerpo.
+---
+--- El cliente NO manda objetivo ni dano: el servidor golpea a lo que
+--- este delante segun `CombatRules.InArc`, y la cadena de combo vive en
+--- `_combos`. Un cliente que mandara el paso de combo pediria el
+--- especial en cada golpe.
+--- @param player Player
+--- @return boolean swung el golpe salio (haya o no victimas)
+function Service.TryMelee(player: Player): boolean
+	local _, root = readyFor(player, "Melee", CombatRules.Melee.Cooldown)
+
+	if not root then
+		return false
+	end
+
+	local monsters = Service._monsterService
+
+	if not monsters or not monsters.DamageInArc then
+		return false
+	end
+
+	local now = os.clock()
+	local combo = Service._combos[player.UserId]
+
+	if not combo then
+		combo = { Count = 0, LastAt = 0 }
+		Service._combos[player.UserId] = combo
+	end
+
+	local step = CombatRules.ComboStep(combo.Count, combo.LastAt, now)
+	combo.Count = step
+	combo.LastAt = now
+
+	local damage = CombatRules.DamageFor(step)
+	local look = root.CFrame.LookVector
+
+	monsters.DamageInArc(
+		root.Position,
+		look,
+		CombatRules.Melee.Range,
+		CombatRules.Melee.MinDot,
+		damage,
+		player.UserId
+	)
+
+	-- El paso de combo se publica para que el cliente pueda MOSTRAR el
+	-- especial (distinto color/sonido). Lo decide el servidor.
+	player:SetAttribute("ComboStep", step)
+
+	return true
+end
+
+--- Dash: impulso hacia donde mira el jugador, con invulnerabilidad
+--- breve. La esquiva de verdad del combate V2.
+--- @param player Player
+--- @return boolean dashed
+function Service.TryDash(player: Player): boolean
+	local _, root = readyFor(player, "Dash", CombatRules.Dash.Cooldown)
+
+	if not root then
+		return false
+	end
+
+	-- Impulso por MASA: un personaje pesado y uno ligero se mueven lo
+	-- mismo, que es lo que el jugador espera de SU dash.
+	local direction = root.CFrame.LookVector
+	local impulse = direction * CombatRules.Dash.Impulse * root.AssemblyMass
+
+	root:ApplyImpulse(impulse)
+	Service.GrantInvulnerability(player, CombatRules.Dash.InvulnerabilitySeconds)
+
+	player:SetAttribute("DashAt", os.clock())
+
+	return true
+end
+
+--- Habilidad: golpe en area alrededor del jugador, cooldown largo.
+--- @param player Player
+--- @return boolean cast
+function Service.TryAbility(player: Player): boolean
+	local _, root = readyFor(player, "Ability", CombatRules.Ability.Cooldown)
+
+	if not root then
+		return false
+	end
+
+	local monsters = Service._monsterService
+
+	if not monsters or not monsters.DamageInArc then
+		return false
+	end
+
+	-- MinDot -1: el area es circular, no hay direccion que apuntar.
+	monsters.DamageInArc(
+		root.Position,
+		Vector3.new(0, 0, 1),
+		CombatRules.Ability.Range,
+		CombatRules.Ability.MinDot,
+		CombatRules.Ability.Damage,
+		player.UserId
+	)
+
+	player:SetAttribute("AbilityAt", os.clock())
+
+	return true
 end
 
 --- Estadisticas de combate (diagnostico).
@@ -314,6 +484,8 @@ function Service.Init(maid: any?): boolean
 	MaidRef = maid
 	Service._invulnerableUntil = {}
 	Service._deathConnections = {}
+	Service._cooldowns = {}
+	Service._combos = {}
 	Service._damageEvents = 0
 	Service._blockedDamage = 0
 	Service._kills = {}
@@ -363,4 +535,3 @@ function Service.Destroy(): boolean
 end
 
 return Service
-

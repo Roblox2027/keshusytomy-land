@@ -34,6 +34,7 @@ local SUITES = {
 	{ name = "AudioPool", path = "./shared/AudioPool.spec" },
 	{ name = "AudioRules", path = "./shared/AudioRules.spec" },
 	{ name = "CombatMath", path = "./shared/CombatMath.spec" },
+	{ name = "CombatRules", path = "./shared/CombatRules.spec" },
 	{ name = "Profile", path = "./shared/Profile.spec" },
 	{ name = "ProfileCodes", path = "./shared/ProfileCodes.spec" },
 	{ name = "Inventory", path = "./shared/Inventory.spec" },

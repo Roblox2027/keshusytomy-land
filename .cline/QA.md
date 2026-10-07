@@ -4,6 +4,7 @@
 - FASE 0 continuidad: PASS (git limpio, HEAD=origin/main=`ed18f24`, verify PASS salvo analyze.js baseline)
 - FASE 1 auditoria: PASS (`GAMEPLAY_AUDIT.md` — 16 hallazgos: 5 P0, 6 P1, 6 P2)
 - BLOQUE 1 Mundo vivo: PASS local (eventos con cuerpo A2, hazards por mundo A3, luz de noche B6; 919/919 tests, wiring/estructura/build PASS). Playtest Studio: PENDIENTE.
+- BLOQUE 2 Combate: PASS local (A1 melee/dash/habilidad/combos server-authoritative via CombatAction; B1 telegraph de area, adds fase 2, debilidad fase 3, intro UI; 935/935 tests, build PASS). Playtest Studio: PENDIENTE.
 - Bloques 2-5: NO INICIADOS
 - Criterio de terminacion V2: pendiente (ninguna categoria certificada aun)
 

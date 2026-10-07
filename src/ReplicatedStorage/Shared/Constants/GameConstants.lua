@@ -51,14 +51,14 @@ return {
 	CoreState = {
 		-- Inerte: carga por debajo del maximo. Admite fragmentos.
 		Inactive = "Inactive",
-	-- Cargando: se alcanzo el maximo y corre la secuencia. No admite
-	-- mas fragmentos.
+		-- Cargando: se alcanzo el maximo y corre la secuencia. No admite
+		-- mas fragmentos.
 		Activating = "Activating",
-	-- Activado y estable: el mundo siguiente queda desbloqueado.
+		-- Activado y estable: el mundo siguiente queda desbloqueado.
 		Active = "Active",
-	-- Sobrecargado: se paso del maximo y se drena hasta estabilizarse.
+		-- Sobrecargado: se paso del maximo y se drena hasta estabilizarse.
 		Overloaded = "Overloaded",
-	-- Evento: periodo de bonificacion tras activarse.
+		-- Evento: periodo de bonificacion tras activarse.
 		Event = "Event",
 	},
 
@@ -77,5 +77,9 @@ return {
 		Core = "CoreAction",
 		Party = "PartyAction",
 		Settings = "SettingsAction",
+		-- Combate cuerpo a cuerpo (mision V2): ataque, dash y habilidad.
+		-- Las acciones no llevan payload: el servidor decide objetivo y
+		-- dano, el cliente solo pide actuar.
+		Combat = "CombatAction",
 	},
 }

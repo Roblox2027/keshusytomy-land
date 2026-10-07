@@ -45,6 +45,7 @@ local GameConfig = require(CONFIG:WaitForChild("GameConfig"))
 local BombButtonRules = require(SHARED:WaitForChild("Libraries"):WaitForChild("BombButtonRules"))
 local Logger = require(UTILS:WaitForChild("Logger"))
 local BombController = require(CONTROLLERS:WaitForChild("BombController"))
+local CombatController = require(CONTROLLERS:WaitForChild("CombatController"))
 
 local RemoteAction = GameConstants.RemoteAction
 
@@ -115,7 +116,6 @@ local bombKeyHint = nil
 --- que hay que recordar mantener en dos sitios.
 local BOMB_VISUAL_SIZE = 104
 
-
 -- Estado de los avisos momentaneos (pulsado / colocado). Son apuntadores
 -- a `os.clock` y no banderas: asi el bucle de refresco decide por su cuenta
 -- cuando se han pasado los `Timing`, sin depender de que nadie tenga que
@@ -170,7 +170,7 @@ end
 --- @param color table { R, G, B }
 --- @return Color3
 local function toColor3(color: any): Color3
-    return Color3.fromRGB(color.R, color.G, color.B)
+	return Color3.fromRGB(color.R, color.G, color.B)
 end
 
 --- Crea una pieza dibujada de la bomba dentro de `BombVisual`.
@@ -184,20 +184,20 @@ end
 --- @param color Color3
 --- @return Frame
 local function makePiece(parent: Instance, spec: any, color: Color3): Frame
-    local frame = Instance.new("Frame")
-    frame.AnchorPoint = Vector2.new(0.5, 0.5)
-    frame.BackgroundColor3 = color
-    frame.BorderSizePixel = 0
-    frame.Rotation = spec.Rotation or 0
-    frame.ZIndex = 2
+	local frame = Instance.new("Frame")
+	frame.AnchorPoint = Vector2.new(0.5, 0.5)
+	frame.BackgroundColor3 = color
+	frame.BorderSizePixel = 0
+	frame.Rotation = spec.Rotation or 0
+	frame.ZIndex = 2
 
-    local corner = Instance.new("UICorner")
-    corner.CornerRadius = UDim.new(0, spec.CornerRadius or 0)
-    corner.Parent = frame
+	local corner = Instance.new("UICorner")
+	corner.CornerRadius = UDim.new(0, spec.CornerRadius or 0)
+	corner.Parent = frame
 
-    frame.Parent = parent
+	frame.Parent = parent
 
-    return frame
+	return frame
 end
 
 --- Dibuja la BOMBA dentro de `BombVisual`.
@@ -215,106 +215,99 @@ end
 --- @param parent Instance marco `BombVisual` del HUD
 --- @return table parts piezas creadas, indexadas por nombre
 local function buildBombDrawing(parent: Instance): { [string]: any }
-    local geometry = BombButtonRules.Geometry()
-    local palette = BombButtonRules.Palette
+	local geometry = BombButtonRules.Geometry()
+	local palette = BombButtonRules.Palette
 
-    -- `Geometry` esta disenada para un marco de `Rules.Size` (104). El marco
-    -- del generador es mayor (118), asi que se escala UNA vez aqui, por
-    -- proportion, y las piezas quedan centradas en el marco real.
-    local factor = BOMB_VISUAL_SIZE / BombButtonRules.Size
-    local center = BOMB_VISUAL_SIZE / 2
+	-- `Geometry` esta disenada para un marco de `Rules.Size` (104). El marco
+	-- del generador es mayor (118), asi que se escala UNA vez aqui, por
+	-- proportion, y las piezas quedan centradas en el marco real.
+	local factor = BOMB_VISUAL_SIZE / BombButtonRules.Size
+	local center = BOMB_VISUAL_SIZE / 2
 
-    local parts = {}
+	local parts = {}
 
-    local function scaled(spec: any): Frame
-        local frame = makePiece(parent, spec, Color3.new(1, 1, 1))
-        -- BUG CORREGIDO (medido en PLAY): aqui se restaba `center`, y como la
-        -- pieza ya tiene `AnchorPoint = (0.5, 0.5)`, eso la empujaba DOS veces
-        -- hacia el centro: `Position` es el CENTRO de la pieza, asi que el
-        -- desplazamiento del centro del marco hay que SUMARLO, no restarlo.
-        --
-        -- La geometria de `BombButtonRules` es relativa al CENTRO (`Body` va en
-        -- `X = 0`), asi que la posicion correcta es:
-        --
-        --     centro del marco + desplazamiento de la pieza
-        --
-        -- Medicion del fallo: `BombVisual` en `[327,427]` y `BombBody` en
-        -- `[267,372]`, es decir la bomba dibujada caia 60 px ARRIBA-IZQUIERDA
-        -- de su propio marco, encima del HUD y no del boton. El jugador veia
-        -- un boton vacio y un dibujo de bomba suelto por ahi: la bomba "no
-        -- aparecia" aunque `BombVisual` existiera, fuera de pantalla y visible.
-        frame.Position = UDim2.fromOffset(
-            center + (spec.Position.X or 0) * factor,
-            center + (spec.Position.Y or 0) * factor
-        )
+	local function scaled(spec: any): Frame
+		local frame = makePiece(parent, spec, Color3.new(1, 1, 1))
+		-- BUG CORREGIDO (medido en PLAY): aqui se restaba `center`, y como la
+		-- pieza ya tiene `AnchorPoint = (0.5, 0.5)`, eso la empujaba DOS veces
+		-- hacia el centro: `Position` es el CENTRO de la pieza, asi que el
+		-- desplazamiento del centro del marco hay que SUMARLO, no restarlo.
+		--
+		-- La geometria de `BombButtonRules` es relativa al CENTRO (`Body` va en
+		-- `X = 0`), asi que la posicion correcta es:
+		--
+		--     centro del marco + desplazamiento de la pieza
+		--
+		-- Medicion del fallo: `BombVisual` en `[327,427]` y `BombBody` en
+		-- `[267,372]`, es decir la bomba dibujada caia 60 px ARRIBA-IZQUIERDA
+		-- de su propio marco, encima del HUD y no del boton. El jugador veia
+		-- un boton vacio y un dibujo de bomba suelto por ahi: la bomba "no
+		-- aparecia" aunque `BombVisual` existiera, fuera de pantalla y visible.
+		frame.Position = UDim2.fromOffset(
+			center + (spec.Position.X or 0) * factor,
+			center + (spec.Position.Y or 0) * factor
+		)
 
-        if type(spec.Size) == "number" then
-            frame.Size = UDim2.fromOffset(spec.Size * factor, spec.Size * factor)
-        else
-            frame.Size = UDim2.fromOffset(
-                (spec.Size.X or 0) * factor,
-                (spec.Size.Y or 0) * factor
-            )
-        end
+		if type(spec.Size) == "number" then
+			frame.Size = UDim2.fromOffset(spec.Size * factor, spec.Size * factor)
+		else
+			frame.Size = UDim2.fromOffset((spec.Size.X or 0) * factor, (spec.Size.Y or 0) * factor)
+		end
 
-        local corner = frame:FindFirstChildOfClass("UICorner")
+		local corner = frame:FindFirstChildOfClass("UICorner")
 
-        if corner then
-            corner.CornerRadius = UDim.new(0, (spec.CornerRadius or 0) * factor)
-        end
+		if corner then
+			corner.CornerRadius = UDim.new(0, (spec.CornerRadius or 0) * factor)
+		end
 
-        return frame
-    end
+		return frame
+	end
 
-    parts.Body = scaled(geometry.Body)
-    parts.Body.Name = "BombBody"
-    parts.Body.BackgroundColor3 = toColor3(palette.Body)
-    parts.Band = scaled(geometry.Band)
-    parts.Band.Name = "BombBand"
-    parts.Band.BackgroundColor3 = toColor3(palette.Band)
+	parts.Body = scaled(geometry.Body)
+	parts.Body.Name = "BombBody"
+	parts.Body.BackgroundColor3 = toColor3(palette.Body)
+	parts.Band = scaled(geometry.Band)
+	parts.Band.Name = "BombBand"
+	parts.Band.BackgroundColor3 = toColor3(palette.Band)
 
-    -- ZIndex mayor para las piezas que van ENCIMA: con
-    -- `ZIndexBehavior = "Sibling"` el orden de creacion NO basta y el orden de
-    -- siblings dentro de la zona es el que decide.
-    parts.Top = scaled(geometry.Top)
-    parts.Top.Name = "BombTop"
-    parts.Top.BackgroundColor3 = toColor3(palette.Top)
-    parts.Top.ZIndex = 3
-    parts.Fuse = scaled(geometry.Fuse)
-    parts.Fuse.Name = "Fuse"
-    parts.Fuse.BackgroundColor3 = toColor3(palette.Fuse)
-    parts.Fuse.ZIndex = 3
-    parts.Spark = scaled(geometry.Spark)
-    parts.Spark.Name = "FuseGlow"
-    parts.Spark.BackgroundColor3 = toColor3(palette.Spark)
-    parts.Spark.ZIndex = 4
+	-- ZIndex mayor para las piezas que van ENCIMA: con
+	-- `ZIndexBehavior = "Sibling"` el orden de creacion NO basta y el orden de
+	-- siblings dentro de la zona es el que decide.
+	parts.Top = scaled(geometry.Top)
+	parts.Top.Name = "BombTop"
+	parts.Top.BackgroundColor3 = toColor3(palette.Top)
+	parts.Top.ZIndex = 3
+	parts.Fuse = scaled(geometry.Fuse)
+	parts.Fuse.Name = "Fuse"
+	parts.Fuse.BackgroundColor3 = toColor3(palette.Fuse)
+	parts.Fuse.ZIndex = 3
+	parts.Spark = scaled(geometry.Spark)
+	parts.Spark.Name = "FuseGlow"
+	parts.Spark.BackgroundColor3 = toColor3(palette.Spark)
+	parts.Spark.ZIndex = 4
 
-    -- HALO de la chispa: un disco translucido detras del punto calido.
-    --
-    -- Sin el, la chispa es un punto de 10 px que en movil no se ve. Con el,
-    -- se lee como "algo ardiendo" incluso a un metro de la pantalla.
-    local glow = scaled(geometry.Spark)
-    glow.Name = "SparkGlow"
-    glow.BackgroundTransparency = 0.55
-    glow.BackgroundColor3 = toColor3(palette.Spark)
-    glow.ZIndex = 2
-    glow.Size = UDim2.fromOffset(
-        geometry.Spark.Size * factor * 2.4,
-        geometry.Spark.Size * factor * 2.4
-    )
-    parts.Glow = glow
+	-- HALO de la chispa: un disco translucido detras del punto calido.
+	--
+	-- Sin el, la chispa es un punto de 10 px que en movil no se ve. Con el,
+	-- se lee como "algo ardiendo" incluso a un metro de la pantalla.
+	local glow = scaled(geometry.Spark)
+	glow.Name = "SparkGlow"
+	glow.BackgroundTransparency = 0.55
+	glow.BackgroundColor3 = toColor3(palette.Spark)
+	glow.ZIndex = 2
+	glow.Size =
+		UDim2.fromOffset(geometry.Spark.Size * factor * 2.4, geometry.Spark.Size * factor * 2.4)
+	parts.Glow = glow
 
-    -- NOTA: la etiqueta de tecla y el estado NO se dibujan aqui. Los declara
-    -- el generador como `KeyHint` y `State` dentro de `BombAction`: son
-    -- texto de apoyo y su posicion la decide el layout, no la geometria de la
-    -- bomba.
+	-- NOTA: la etiqueta de tecla y el estado NO se dibujan aqui. Los declara
+	-- el generador como `KeyHint` y `State` dentro de `BombAction`: son
+	-- texto de apoyo y su posicion la decide el layout, no la geometria de la
+	-- bomba.
 
-    bombParts = parts
+	bombParts = parts
 
-    return parts
+	return parts
 end
-
-
 
 -- -----------------------------------------------------------------------
 -- ENLAZADO CON EL MARCO DEL HUD
@@ -338,24 +331,24 @@ end
 --- @param player Player
 --- @return any? TextButton del HUD
 local function findBombAction(player: Player): any?
-    local playerGui = player:FindFirstChildOfClass("PlayerGui")
-    local hud = playerGui and playerGui:FindFirstChild("KeshusyHUD")
+	local playerGui = player:FindFirstChildOfClass("PlayerGui")
+	local hud = playerGui and playerGui:FindFirstChild("KeshusyHUD")
 
-    if not hud then
-        return nil
-    end
+	if not hud then
+		return nil
+	end
 
-    local node: any = hud
+	local node: any = hud
 
-    for _, step in ipairs(BOMB_PATH) do
-        node = node:FindFirstChild(step)
+	for _, step in ipairs(BOMB_PATH) do
+		node = node:FindFirstChild(step)
 
-        if not node then
-            return nil
-        end
-    end
+		if not node then
+			return nil
+		end
+	end
 
-    return node
+	return node
 end
 
 --- Enlaza la accion de bomba DECLARADA por el HUD.
@@ -388,109 +381,110 @@ end
 --- Regla: `Start -> Resolve -> Connect`. Nunca `Start -> old reference`.
 --- @return boolean bound
 local function ensureBombButton(): boolean
-    -- Referencia cacheada: solo se acepta si sigue en el arbol Y en la ruta
-    -- que el HUD declara hoy. Un SimpleGate de "no es nil" daria por bueno un
-    -- boton destruido, que es justo el fallo que se quiere evitar.
-    if bombButton and bombButton.Parent then
-        local actual = findBombAction(Players.LocalPlayer)
+	-- Referencia cacheada: solo se acepta si sigue en el arbol Y en la ruta
+	-- que el HUD declara hoy. Un SimpleGate de "no es nil" daria por bueno un
+	-- boton destruido, que es justo el fallo que se quiere evitar.
+	if bombButton and bombButton.Parent then
+		local actual = findBombAction(Players.LocalPlayer)
 
-        if actual == bombButton then
-            return true
-        end
+		if actual == bombButton then
+			return true
+		end
 
-        Logger.Info("InputController: el HUD cambio; se vuelve a enlazar la accion de bomba.")
-    end
+		Logger.Info("InputController: el HUD cambio; se vuelve a enlazar la accion de bomba.")
+	end
 
-    -- Lo que estaba antes se suelta SIEMPRE antes de resolver de nuevo: si no,
-    -- las piezas del boton viejo se quedan en la tabla y `refreshBombButton`
-    -- escribiria sobre instancias destruidas.
-    bombButton = nil
-    bombCooldown = nil
-    bombCooldownFill = nil
-    bombStateLabel = nil
-    bombKeyHint = nil
-    bombParts = {}
+	-- Lo que estaba antes se suelta SIEMPRE antes de resolver de nuevo: si no,
+	-- las piezas del boton viejo se quedan en la tabla y `refreshBombButton`
+	-- escribiria sobre instancias destruidas.
+	bombButton = nil
+	bombCooldown = nil
+	bombCooldownFill = nil
+	bombStateLabel = nil
+	bombKeyHint = nil
+	bombParts = {}
 
-    local player = Players.LocalPlayer
+	local player = Players.LocalPlayer
 
-    if not player then
-        return false
-    end
+	if not player then
+		return false
+	end
 
-    local playerGui = player:WaitForChild("PlayerGui", 10)
+	local playerGui = player:WaitForChild("PlayerGui", 10)
 
-    if not playerGui then
-        Logger.Warn("InputController: PlayerGui no disponible; no habra boton de bomba.")
-        return false
-    end
+	if not playerGui then
+		Logger.Warn("InputController: PlayerGui no disponible; no habra boton de bomba.")
+		return false
+	end
 
-    -- El HUD lo produce el arranque del lugar. Se espera a que aparezca: si
-    -- este controller despertara antes y solo leyera, devolveria `nil` y el
-    -- jugador se quedaria SIN forma visible de colocar una bomba.
-    local deadline = os.clock() + 15
-    local button = findBombAction(player)
+	-- El HUD lo produce el arranque del lugar. Se espera a que aparezca: si
+	-- este controller despertara antes y solo leyera, devolveria `nil` y el
+	-- jugador se quedaria SIN forma visible de colocar una bomba.
+	local deadline = os.clock() + 15
+	local button = findBombAction(player)
 
-    while not button and os.clock() < deadline do
-        task.wait(0.25)
-        button = findBombAction(player)
-    end
+	while not button and os.clock() < deadline do
+		task.wait(0.25)
+		button = findBombAction(player)
+	end
 
-    if not button then
-        Logger.Error(
-            ("InputController: el HUD no tiene %s; no habra accion de bomba visible.")
-                :format(table.concat(BOMB_PATH, "/"))
-        )
-        return false
-    end
+	if not button then
+		Logger.Error(
+			("InputController: el HUD no tiene %s; no habra accion de bomba visible."):format(
+				table.concat(BOMB_PATH, "/")
+			)
+		)
+		return false
+	end
 
-    local visual = button:FindFirstChild("BombVisual")
+	local visual = button:FindFirstChild("BombVisual")
 
-    if not visual then
-        Logger.Error("InputController: BombAction no tiene el marco BombVisual.")
-        return false
-    end
+	if not visual then
+		Logger.Error("InputController: BombAction no tiene el marco BombVisual.")
+		return false
+	end
 
-    -- Las piezas se dibujan UNA vez, dentro del marco que declara el
-    -- generador. No hay ninguna posicion que calcular: por eso el boton ya no
-    -- puede quedarse en (0, 0) "invisible" porque la camara todavia no exista.
-    buildBombDrawing(visual)
+	-- Las piezas se dibujan UNA vez, dentro del marco que declara el
+	-- generador. No hay ninguna posicion que calcular: por eso el boton ya no
+	-- puede quedarse en (0, 0) "invisible" porque la camara todavia no exista.
+	buildBombDrawing(visual)
 
-    bombCooldown = button:FindFirstChild("Cooldown")
-    bombCooldownFill = bombCooldown and bombCooldown:FindFirstChild("Fill") or nil
-    bombStateLabel = button:FindFirstChild("State")
-    bombKeyHint = button:FindFirstChild("KeyHint")
+	bombCooldown = button:FindFirstChild("Cooldown")
+	bombCooldownFill = bombCooldown and bombCooldown:FindFirstChild("Fill") or nil
+	bombStateLabel = button:FindFirstChild("State")
+	bombKeyHint = button:FindFirstChild("KeyHint")
 
-    -- `MouseButton1Click` cubre PC y el toque emulado en movil, y es la senal
-    -- del PROPIO boton, no global. Por eso no puede colocar una bomba al
-    -- abrir un menu o al mover la camara, que fue el bug que corrigio el
-    -- `TouchTap` global.
-    button.MouseButton1Click:Connect(function()
-        -- La marca de "pulsado" se pone ANTES de la peticion: el jugador
-        -- tiene que ver que el boton responde en el mismo frame del toque, no
-        -- un instante despues. Si la peticion falla, la marca caduca sola y el
-        -- boton vuelve a su estado.
-        _pressedUntil = os.clock() + BombButtonRules.Timing.PressDuration
+	-- `MouseButton1Click` cubre PC y el toque emulado en movil, y es la senal
+	-- del PROPIO boton, no global. Por eso no puede colocar una bomba al
+	-- abrir un menu o al mover la camara, que fue el bug que corrigio el
+	-- `TouchTap` global.
+	button.MouseButton1Click:Connect(function()
+		-- La marca de "pulsado" se pone ANTES de la peticion: el jugador
+		-- tiene que ver que el boton responde en el mismo frame del toque, no
+		-- un instante despues. Si la peticion falla, la marca caduca sola y el
+		-- boton vuelve a su estado.
+		_pressedUntil = os.clock() + BombButtonRules.Timing.PressDuration
 
-        local sent = Controller.RequestBombPlacement()
+		local sent = Controller.RequestBombPlacement()
 
-        if sent then
-            -- `BombController` ya sabe si el servidor acepto. Todavia no: la
-            -- ida y vuelta por la red no ha ocurrido. La confirmacion real
-            -- llega cuando el servidor publica la bomba en el mundo.
-            return
-        end
+		if sent then
+			-- `BombController` ya sabe si el servidor acepto. Todavia no: la
+			-- ida y vuelta por la red no ha ocurrido. La confirmacion real
+			-- llega cuando el servidor publica la bomba en el mundo.
+			return
+		end
 
-        -- No se envio nada: se retira la marca inmediatamente para que el
-        -- boton no se quede "pulsado" sin que haya pasado nada.
-        _pressedUntil = 0
-    end)
+		-- No se envio nada: se retira la marca inmediatamente para que el
+		-- boton no se quede "pulsado" sin que haya pasado nada.
+		_pressedUntil = 0
+	end)
 
-    -- El HUD NO se destruye aqui: pertenece al `PlayerGui` y lo borra Roblox
-    -- al salir, y es el UNICO sistema visual: no hay un `ScreenGui` paralelo
-    -- que limpiar.
-    bombButton = button
-    Logger.Info("InputController: accion de bomba enlazada al HUD (bomba dibujada, no texto).")
-    return true
+	-- El HUD NO se destruye aqui: pertenece al `PlayerGui` y lo borra Roblox
+	-- al salir, y es el UNICO sistema visual: no hay un `ScreenGui` paralelo
+	-- que limpiar.
+	bombButton = button
+	Logger.Info("InputController: accion de bomba enlazada al HUD (bomba dibujada, no texto).")
+	return true
 end
 
 --- Pinta el estado del boton.
@@ -518,156 +512,160 @@ end
 --- evento.
 --- @return string? motivo visible
 local function readBombRejection(): string?
-    local player = Players.LocalPlayer
+	local player = Players.LocalPlayer
 
-    if not player then
-        return nil
-    end
+	if not player then
+		return nil
+	end
 
-    local reason = player:GetAttribute("BombRejection")
+	local reason = player:GetAttribute("BombRejection")
 
-    if type(reason) ~= "string" or reason == "" then
-        _rejectionSeenAt = nil
-        return nil
-    end
+	if type(reason) ~= "string" or reason == "" then
+		_rejectionSeenAt = nil
+		return nil
+	end
 
-    if reason ~= _rejectionLastSeen then
-        _rejectionLastSeen = reason
-        _rejectionSeenAt = os.clock()
-    end
+	if reason ~= _rejectionLastSeen then
+		_rejectionLastSeen = reason
+		_rejectionSeenAt = os.clock()
+	end
 
-    if _rejectionSeenAt == nil then
-        return nil
-    end
+	if _rejectionSeenAt == nil then
+		return nil
+	end
 
-    if (os.clock() - _rejectionSeenAt) > BombButtonRules.Timing.RejectionDuration then
-        _rejectionSeenAt = nil
-        return nil
-    end
+	if (os.clock() - _rejectionSeenAt) > BombButtonRules.Timing.RejectionDuration then
+		_rejectionSeenAt = nil
+		return nil
+	end
 
-    return reason
+	return reason
 end
 
 --- @return boolean updated
 local function refreshBombButton(): boolean
-    if not bombButton or not bombButton.Parent then
-        return false
-    end
+	if not bombButton or not bombButton.Parent then
+		return false
+	end
 
-    local now = os.clock()
-    local remaining = Controller.GetBombCooldownRemaining()
+	local now = os.clock()
+	local remaining = Controller.GetBombCooldownRemaining()
 
-    -- `CanRequest` es la opinion del CLIENTE sobre si puede. No concede
-    -- nada: el servidor sigue validando. Solo decide si el boton se ve
-    -- disponible o apagado.
-    local canPlace = BombController.CanRequest()
+	-- `CanRequest` es la opinion del CLIENTE sobre si puede. No concede
+	-- nada: el servidor sigue validando. Solo decide si el boton se ve
+	-- disponible o apagado.
+	local canPlace = BombController.CanRequest()
 
-    local state = BombButtonRules.Resolve(
-        canPlace,
-        remaining,
-        now < _pressedUntil,
-        now < _placedUntil
-    )
-    local look = BombButtonRules.Appearance(state, remaining)
+	local state =
+		BombButtonRules.Resolve(canPlace, remaining, now < _pressedUntil, now < _placedUntil)
+	local look = BombButtonRules.Appearance(state, remaining)
 
-    -- COLOR: cada pieza se mezcla hacia gris segun `Dim`. Se usa el mismo
-    -- valor para todas, de modo que el boton entero se apaga como uno.
-    local muted = BombButtonRules.Palette.Muted
+	-- COLOR: cada pieza se mezcla hacia gris segun `Dim`. Se usa el mismo
+	-- valor para todas, de modo que el boton entero se apaga como uno.
+	local muted = BombButtonRules.Palette.Muted
 
-    --- @param color any
-    --- @return Color3
-    local function dimmed(color: any): Color3
-        local t = look.Dim
-        return Color3.fromRGB(
-            color.R + (muted.R - color.R) * t,
-            color.G + (muted.G - color.G) * t,
-            color.B + (muted.B - color.B) * t
-        )
-    end
+	--- @param color any
+	--- @return Color3
+	local function dimmed(color: any): Color3
+		local t = look.Dim
+		return Color3.fromRGB(
+			color.R + (muted.R - color.R) * t,
+			color.G + (muted.G - color.G) * t,
+			color.B + (muted.B - color.B) * t
+		)
+	end
 
-    if bombParts.Body then bombParts.Body.BackgroundColor3 = dimmed(look.Body) end
-    if bombParts.Band then bombParts.Band.BackgroundColor3 = dimmed(look.Band) end
-    if bombParts.Top then bombParts.Top.BackgroundColor3 = dimmed(look.Top) end
-    if bombParts.Fuse then bombParts.Fuse.BackgroundColor3 = dimmed(look.Fuse) end
+	if bombParts.Body then
+		bombParts.Body.BackgroundColor3 = dimmed(look.Body)
+	end
+	if bombParts.Band then
+		bombParts.Band.BackgroundColor3 = dimmed(look.Band)
+	end
+	if bombParts.Top then
+		bombParts.Top.BackgroundColor3 = dimmed(look.Top)
+	end
+	if bombParts.Fuse then
+		bombParts.Fuse.BackgroundColor3 = dimmed(look.Fuse)
+	end
 
-    -- CHISPA: es lo unico que ANDA, asi que lleva su propio pulso.
-    --
-    -- En `Placed` el factor lo fija `Appearance` (mas grande, para que se
-    -- lea como fogonazo). En cualquier otro estado visible late con el
-    -- tiempo. Cuando no debe verse, no se latea: llamar a `SparkPulse` en
-    -- un estado apagado seria trabajo por nada.
-    if bombParts.Spark and bombParts.Glow then
-        local visible = look.SparkVisible
-        bombParts.Spark.Visible = visible
-        bombParts.Glow.Visible = visible
+	-- CHISPA: es lo unico que ANDA, asi que lleva su propio pulso.
+	--
+	-- En `Placed` el factor lo fija `Appearance` (mas grande, para que se
+	-- lea como fogonazo). En cualquier otro estado visible late con el
+	-- tiempo. Cuando no debe verse, no se latea: llamar a `SparkPulse` en
+	-- un estado apagado seria trabajo por nada.
+	if bombParts.Spark and bombParts.Glow then
+		local visible = look.SparkVisible
+		bombParts.Spark.Visible = visible
+		bombParts.Glow.Visible = visible
 
-        local scale = look.SparkScale
+		local scale = look.SparkScale
 
-        if visible and state ~= BombButtonRules.State.Placed then
-            scale = BombButtonRules.SparkPulse(
-                now,
-                BombButtonRules.Timing.SparkPulsePeriod,
-                BombButtonRules.Timing.SparkPulseAmount
-            ) * look.SparkScale
-        end
+		if visible and state ~= BombButtonRules.State.Placed then
+			scale = BombButtonRules.SparkPulse(
+				now,
+				BombButtonRules.Timing.SparkPulsePeriod,
+				BombButtonRules.Timing.SparkPulseAmount
+			) * look.SparkScale
+		end
 
-        -- La chispa late sobre el TAMANO DE DISENO: el `UIScale` de la zona
-        -- lleva el conjunto a la pantalla real. Reposicionar en pixeles aqui
-        -- seria volver al parche de coordenadas que se elimina.
-        local sparkFactor = BOMB_VISUAL_SIZE / BombButtonRules.Size
-        local sparkBase = BombButtonRules.Geometry().Spark.Size * sparkFactor
-        local sparkSize = sparkBase * scale
+		-- La chispa late sobre el TAMANO DE DISENO: el `UIScale` de la zona
+		-- lleva el conjunto a la pantalla real. Reposicionar en pixeles aqui
+		-- seria volver al parche de coordenadas que se elimina.
+		local sparkFactor = BOMB_VISUAL_SIZE / BombButtonRules.Size
+		local sparkBase = BombButtonRules.Geometry().Spark.Size * sparkFactor
+		local sparkSize = sparkBase * scale
 
-        bombParts.Spark.Size = UDim2.fromOffset(sparkSize, sparkSize)
-        bombParts.Spark.BackgroundColor3 = dimmed(look.Spark)
-        bombParts.Glow.Size = UDim2.fromOffset(sparkSize * 2.4, sparkSize * 2.4)
-        bombParts.Glow.BackgroundColor3 = dimmed(look.Spark)
-    end
+		bombParts.Spark.Size = UDim2.fromOffset(sparkSize, sparkSize)
+		bombParts.Spark.BackgroundColor3 = dimmed(look.Spark)
+		bombParts.Glow.Size = UDim2.fromOffset(sparkSize * 2.4, sparkSize * 2.4)
+		bombParts.Glow.BackgroundColor3 = dimmed(look.Spark)
+	end
 
-    -- BARRA DE ENFRIAMIENTO.
-    --
-    -- Se vacia de izquierda a derecha y es el progreso que se ve SIN leer. Con
-    -- `remaining = 0` se oculta entera: una barra llena permanente seria ruido.
-    if bombCooldown and bombCooldownFill then
-        bombCooldown.Visible = remaining > 0
+	-- BARRA DE ENFRIAMIENTO.
+	--
+	-- Se vacia de izquierda a derecha y es el progreso que se ve SIN leer. Con
+	-- `remaining = 0` se oculta entera: una barra llena permanente seria ruido.
+	if bombCooldown and bombCooldownFill then
+		bombCooldown.Visible = remaining > 0
 
-        local ratio = if remaining > 0
-            then math.clamp(1 - (remaining / GameConfig.BombCooldown), 0, 1)
-            else 0
+		local ratio = if remaining > 0
+			then math.clamp(1 - (remaining / GameConfig.BombCooldown), 0, 1)
+			else 0
 
-        bombCooldownFill.Size = UDim2.fromScale(ratio, 1)
-    end
+		bombCooldownFill.Size = UDim2.fromScale(ratio, 1)
+	end
 
-    -- TEXTO DE APOYO: estado, cuenta atras o confirmacion.
-    --
-    -- El motivo del servidor tiene PRIORIDAD sobre el estado normal. MEDIDO EN
-    -- PLAY (antes de esto): el servidor rechazaba con `state_violation`, el
-    -- log lo decia y el cliente no mostraba nada. El jugador pulsaba un boton
-    -- que no respondsia y no tenia ninguna pista de por que.
-    if bombStateLabel then
-        local rejection = readBombRejection()
+	-- TEXTO DE APOYO: estado, cuenta atras o confirmacion.
+	--
+	-- El motivo del servidor tiene PRIORIDAD sobre el estado normal. MEDIDO EN
+	-- PLAY (antes de esto): el servidor rechazaba con `state_violation`, el
+	-- log lo decia y el cliente no mostraba nada. El jugador pulsaba un boton
+	-- que no respondsia y no tenia ninguna pista de por que.
+	if bombStateLabel then
+		local rejection = readBombRejection()
 
-        if rejection then
-            bombStateLabel.Text = rejection
-            bombStateLabel.TextColor3 = Color3.fromRGB(255, 120, 120)
-            bombStateLabel.TextSize = 11
-        else
-            bombStateLabel.Text = look.Label
-            bombStateLabel.TextColor3 = dimmed(BombButtonRules.Palette.Hint)
-            bombStateLabel.TextSize = if look.ShowCountdown then 15 else 12
-        end
-    end
+		if rejection then
+			bombStateLabel.Text = rejection
+			bombStateLabel.TextColor3 = Color3.fromRGB(255, 120, 120)
+			bombStateLabel.TextSize = 11
+		else
+			bombStateLabel.Text = look.Label
+			bombStateLabel.TextColor3 = dimmed(BombButtonRules.Palette.Hint)
+			bombStateLabel.TextSize = if look.ShowCountdown then 15 else 12
+		end
+	end
 
-    -- La tecla solo aparece cuando la bomba esta LISTA: durante el
-    -- enfriamiento el numero importa mas que el atajo.
-    if bombKeyHint then
-        bombKeyHint.Text = if state == BombButtonRules.State.Ready then "F" else ""
-    end
+	-- La tecla solo aparece cuando la bomba esta LISTA: durante el
+	-- enfriamiento el numero importa mas que el atajo.
+	if bombKeyHint then
+		bombKeyHint.Text = if state == BombButtonRules.State.Ready then "F" else ""
+	end
 
-    -- El MARCO nunca se pinta: es invisible y solo recibe los toques.
-    bombButton.BackgroundTransparency = 1
+	-- El MARCO nunca se pinta: es invisible y solo recibe los toques.
+	bombButton.BackgroundTransparency = 1
 
-    return true
+	return true
 end
 
 --- Marca el boton como "bomba colocada" durante el tiempo de confirmacion.
@@ -679,7 +677,7 @@ end
 --- bomba se hubiera puesto.
 --- @param duration number?
 function Controller.NotifyBombPlaced(duration: number?)
-    _placedUntil = os.clock() + (duration or BombButtonRules.Timing.PlacedDuration)
+	_placedUntil = os.clock() + (duration or BombButtonRules.Timing.PlacedDuration)
 end
 
 --- Conecta una senal SOLO si el controller sigue activo.
@@ -711,169 +709,194 @@ end
 --- @param signal any senal de Roblox
 --- @param handler function manejador
 local function connectIfActive(signal: any, handler: (...any) -> ())
-    if _maid then
-        _maid:Connect(signal, handler)
-    end
+	if _maid then
+		_maid:Connect(signal, handler)
+	end
 end
 
 --- Activa el controller. Debe ser idempotente y reversible con Destroy.
 --- @return boolean success
 function Controller.Start(maid: any?): boolean
-    if Controller.IsActive then
-        return true
-    end
+	if Controller.IsActive then
+		return true
+	end
 
-    local remotes = ReplicatedStorage:WaitForChild("Remotes")
-    local remote = remotes:FindFirstChild(RemoteAction.Bomb)
+	local remotes = ReplicatedStorage:WaitForChild("Remotes")
+	local remote = remotes:FindFirstChild(RemoteAction.Bomb)
 
-    if not remote or not remote:IsA("RemoteEvent") then
-        Logger.Error("InputController: ReplicatedStorage.Remotes." .. RemoteAction.Bomb .. " no existe.")
-        return false
-    end
+	if not remote or not remote:IsA("RemoteEvent") then
+		Logger.Error(
+			"InputController: ReplicatedStorage.Remotes." .. RemoteAction.Bomb .. " no existe."
+		)
+		return false
+	end
 
-    bombRemote = remote
-    _maid = maid
+	bombRemote = remote
+	_maid = maid
 
-    -- El boton se resuelve ANTES de conectar los eventos: el handler
-    -- tactil lo consulta y debe existir cuando llegue el primer toque.
-    --
-    -- `ensureBombButton` resuelve SIEMPRE desde el arbol actual. No se
-    -- salta por tener una referencia cacheada: una referencia al HUD de una
-    -- sesion anterior es justo lo que deja al controller "activo" y muerto
-    -- al mismo tiempo.
-    local enlazado = ensureBombButton()
+	-- El boton se resuelve ANTES de conectar los eventos: el handler
+	-- tactil lo consulta y debe existir cuando llegue el primer toque.
+	--
+	-- `ensureBombButton` resuelve SIEMPRE desde el arbol actual. No se
+	-- salta por tener una referencia cacheada: una referencia al HUD de una
+	-- sesion anterior es justo lo que deja al controller "activo" y muerto
+	-- al mismo tiempo.
+	local enlazado = ensureBombButton()
 
-    if not enlazado then
-        Logger.Warn(
-            "InputController: el HUD no tiene la accion de bomba todavia; "
-                .. "se seguira intentando desde el bucle de refresco."
-        )
-    end
+	if not enlazado then
+		Logger.Warn(
+			"InputController: el HUD no tiene la accion de bomba todavia; "
+				.. "se seguira intentando desde el bucle de refresco."
+		)
+	end
 
-    -- CONFIRMACION REAL DE LA BOMBA.
-    --
-    -- Se observa la carpeta `Bombs` del Workspace en vez de confiar en la
-    -- peticion que acabamos de enviar. La bomba la crea y la publica el
-    -- SERVIDOR, asi que su aparicion es la unica prueba de que la
-    -- peticion fue aceptada: si el servidor la rechazo (por enfriamiento,
-    -- sin ronda o fuera de la arena), no aparecera nada y el boton no
-    -- mostrara la confirmacion.
-    --
-    -- Se cuentan las bombas VISTAS, no las peticiones. Asi el boton
-    -- confirma tanto una bomba colocada con el dedo como una puesta con el
-    -- teclado, sin duplicar el camino.
-    local bombFolder = Workspace:WaitForChild("Bombs", 10)
-    local seenBombs = 0
+	-- CONFIRMACION REAL DE LA BOMBA.
+	--
+	-- Se observa la carpeta `Bombs` del Workspace en vez de confiar en la
+	-- peticion que acabamos de enviar. La bomba la crea y la publica el
+	-- SERVIDOR, asi que su aparicion es la unica prueba de que la
+	-- peticion fue aceptada: si el servidor la rechazo (por enfriamiento,
+	-- sin ronda o fuera de la arena), no aparecera nada y el boton no
+	-- mostrara la confirmacion.
+	--
+	-- Se cuentan las bombas VISTAS, no las peticiones. Asi el boton
+	-- confirma tanto una bomba colocada con el dedo como una puesta con el
+	-- teclado, sin duplicar el camino.
+	local bombFolder = Workspace:WaitForChild("Bombs", 10)
+	local seenBombs = 0
 
-    if bombFolder then
-        seenBombs = #bombFolder:GetChildren()
+	if bombFolder then
+		seenBombs = #bombFolder:GetChildren()
 
-        connectIfActive(bombFolder.ChildAdded, function(_instance: any)
-            seenBombs += 1
-            Controller.NotifyBombPlaced()
-        end)
+		connectIfActive(bombFolder.ChildAdded, function(_instance: any)
+			seenBombs += 1
+			Controller.NotifyBombPlaced()
+		end)
 
-        connectIfActive(bombFolder.ChildRemoved, function(_instance: any)
-            seenBombs -= 1
-        end)
-    end
+		connectIfActive(bombFolder.ChildRemoved, function(_instance: any)
+			seenBombs -= 1
+		end)
+	end
 
-    -- `InputBegan` es un unico evento y el juego ya traduce el gamepad
-    -- a KeyCode, asi que teclado y mando se resuelven juntos.
-    connectIfActive(
-        UserInputService.InputBegan,
-        function(input: any, gameProcessed: boolean)
-            if gameProcessed then
-                return
-            end
+	-- `InputBegan` es un unico evento y el juego ya traduce el gamepad
+	-- a KeyCode, asi que teclado y mando se resuelven juntos.
+	connectIfActive(UserInputService.InputBegan, function(input: any, gameProcessed: boolean)
+		if gameProcessed then
+			return
+		end
 
-            local isBombKey = input.KeyCode == Enum.KeyCode.F
-                or input.KeyCode == Enum.KeyCode.ButtonR2
+		local isBombKey = input.KeyCode == Enum.KeyCode.F or input.KeyCode == Enum.KeyCode.ButtonR2
 
-            if isBombKey then
-                Controller.RequestBombPlacement()
-            end
-        end
-    )
+		if isBombKey then
+			Controller.RequestBombPlacement()
+		end
 
-    -- Tactil: el `MouseButton1Click` del propio `BombAction` ya cubre movil,
-    -- y es la senal del control, no global. Un `TouchTap` global que
-    -- colocara bombas en cualquier punto fue exactamente el bug que hacia
-    -- el juego injugable (y disparaba el rate limit del servidor): aqui NO
-    -- se escucha, porque la misma intencion entra por el boton y por el
-    -- teclado.
-    --
-    -- El atajo de teclado NO se filtra por `bombButton`: el jugador puede
-    -- soltar bombas sin que el control este visible (por ejemplo durante un
-    -- overlay), y el teclado es la via principal en escritorio.
+		-- COMBATE V2 (mision V2): golpe rapido con click / E / X del
+		-- mando, dash con Q / B, habilidad con R / Y. La intencion se
+		-- traduce aqui; la decision la toma el servidor.
+		local isMeleeKey = input.KeyCode == Enum.KeyCode.E
+			or input.KeyCode == Enum.KeyCode.ButtonX
+			or input.UserInputType == Enum.UserInputType.MouseButton1
 
-    Controller.IsActive = true
+		if isMeleeKey then
+			CombatController.Melee()
+			return
+		end
 
-    -- Refresco del estado de la bomba. El intervalo es de 100 ms: bastante
-    -- fino para que el contador no parezca congelado y bastante grueso para
-    -- no poner un RenderStepped por frame en cada cliente.
-    --
-    -- NO hay nada que recolocar: la zona del HUD esta anclada y escalada, y
-    -- el motor la coloca sola en cualquier viewport. Ese bucle antes solo
-    -- "reaplicaba el layout"; ahora pinta el estado.
-    -- "reaplicaba el layout"; ahora solo pinta el estado.
-    task.spawn(function()
-        -- Revision del enlace, separada del refresco de estado.
-        --
-        -- No se comprueba en CADA pasada del refresco: `ensureBombButton`
-        -- vuelve a dibujar la bomba cuando el HUD cambia, y eso no debe
-        -- ocurrir diez veces por segundo. Solo se mira de vez en cuando, lo
-        -- bastante a menudo para que un HUD reconstruido vuelva a funcionar
-        -- sin que el jugador note el corte, y lo bastante raro para no
-        -- hacer trabajo inutil.
-        local proximaRevision = 0
+		local isDashKey = input.KeyCode == Enum.KeyCode.Q or input.KeyCode == Enum.KeyCode.ButtonB
 
-        while Controller.IsActive do
-            local ahora = os.clock()
+		if isDashKey then
+			CombatController.Dash()
+			return
+		end
 
-            if ahora >= proximaRevision then
-                proximaRevision = ahora + REBIND_CHECK_INTERVAL
-                ensureBombButton()
-            end
+		local isAbilityKey = input.KeyCode == Enum.KeyCode.R
+			or input.KeyCode == Enum.KeyCode.ButtonY
 
-            refreshBombButton()
-            task.wait(0.1)
-        end
-    end)
+		if isAbilityKey then
+			CombatController.Ability()
+			return
+		end
+	end)
 
-    Logger.Info("InputController listo (F / R2 / boton del HUD para colocar bomba).")
+	-- Tactil: el `MouseButton1Click` del propio `BombAction` ya cubre movil,
+	-- y es la senal del control, no global. Un `TouchTap` global que
+	-- colocara bombas en cualquier punto fue exactamente el bug que hacia
+	-- el juego injugable (y disparaba el rate limit del servidor): aqui NO
+	-- se escucha, porque la misma intencion entra por el boton y por el
+	-- teclado.
+	--
+	-- El atajo de teclado NO se filtra por `bombButton`: el jugador puede
+	-- soltar bombas sin que el control este visible (por ejemplo durante un
+	-- overlay), y el teclado es la via principal en escritorio.
 
-    return true
+	Controller.IsActive = true
+
+	-- Refresco del estado de la bomba. El intervalo es de 100 ms: bastante
+	-- fino para que el contador no parezca congelado y bastante grueso para
+	-- no poner un RenderStepped por frame en cada cliente.
+	--
+	-- NO hay nada que recolocar: la zona del HUD esta anclada y escalada, y
+	-- el motor la coloca sola en cualquier viewport. Ese bucle antes solo
+	-- "reaplicaba el layout"; ahora pinta el estado.
+	-- "reaplicaba el layout"; ahora solo pinta el estado.
+	task.spawn(function()
+		-- Revision del enlace, separada del refresco de estado.
+		--
+		-- No se comprueba en CADA pasada del refresco: `ensureBombButton`
+		-- vuelve a dibujar la bomba cuando el HUD cambia, y eso no debe
+		-- ocurrir diez veces por segundo. Solo se mira de vez en cuando, lo
+		-- bastante a menudo para que un HUD reconstruido vuelva a funcionar
+		-- sin que el jugador note el corte, y lo bastante raro para no
+		-- hacer trabajo inutil.
+		local proximaRevision = 0
+
+		while Controller.IsActive do
+			local ahora = os.clock()
+
+			if ahora >= proximaRevision then
+				proximaRevision = ahora + REBIND_CHECK_INTERVAL
+				ensureBombButton()
+			end
+
+			refreshBombButton()
+			task.wait(0.1)
+		end
+	end)
+
+	Logger.Info("InputController listo (F / R2 / boton del HUD para colocar bomba).")
+
+	return true
 end
 
 --- Desactiva el controller y elimina todas sus conexiones.
 --- @return boolean success
 function Controller.Destroy(): boolean
-    Controller.IsActive = false
-    bombRemote = nil
-    bombButton = nil
-    -- La tabla de piezas se vacia junto con el boton: si se guardara, y
-    -- `Destroy` se llamara dos veces, el segundo paso encontraria piezas
-    -- ya destruidas y `refreshBombButton` escribiria sobre ellas.
-    bombParts = {}
-    -- Las marcas temporales se limpian para que un `Start` posterior no
-    -- herede un "colocado" de hace diez segundos y avise sin motivo.
-    _pressedUntil = 0
-    _placedUntil = 0
-    -- El motivo de rechazo tambien: si no, un `Start` posterior lo
-    -- recordaria como "visto ahora" y lo pintaria aunque el servidor ya
-    -- hubiera limpiado el atributo.
-    _rejectionLastSeen = nil
-    _rejectionSeenAt = nil
-    -- Las referencias al HUD se sueltan tambien: un `Start` posterior vuelve
-    -- a enlazar el marco del HUD de esa sesion. El HUD NO se destruye: es del
-    -- `PlayerGui` y no es de este controller.
-    bombCooldown = nil
-    bombCooldownFill = nil
-    bombStateLabel = nil
-    bombKeyHint = nil
-    _maid = nil
-    return true
+	Controller.IsActive = false
+	bombRemote = nil
+	bombButton = nil
+	-- La tabla de piezas se vacia junto con el boton: si se guardara, y
+	-- `Destroy` se llamara dos veces, el segundo paso encontraria piezas
+	-- ya destruidas y `refreshBombButton` escribiria sobre ellas.
+	bombParts = {}
+	-- Las marcas temporales se limpian para que un `Start` posterior no
+	-- herede un "colocado" de hace diez segundos y avise sin motivo.
+	_pressedUntil = 0
+	_placedUntil = 0
+	-- El motivo de rechazo tambien: si no, un `Start` posterior lo
+	-- recordaria como "visto ahora" y lo pintaria aunque el servidor ya
+	-- hubiera limpiado el atributo.
+	_rejectionLastSeen = nil
+	_rejectionSeenAt = nil
+	-- Las referencias al HUD se sueltan tambien: un `Start` posterior vuelve
+	-- a enlazar el marco del HUD de esa sesion. El HUD NO se destruye: es del
+	-- `PlayerGui` y no es de este controller.
+	bombCooldown = nil
+	bombCooldownFill = nil
+	bombStateLabel = nil
+	bombKeyHint = nil
+	_maid = nil
+	return true
 end
 
 return Controller
