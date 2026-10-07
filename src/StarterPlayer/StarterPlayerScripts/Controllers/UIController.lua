@@ -1446,6 +1446,14 @@ function Controller.Start(maid: any?): boolean
 			end
 		end)
 
+		-- PUZZLE RESUELTO (mision V2, FASE 14).
+		_maid:Connect(player:GetAttributeChangedSignal("PuzzleSolved"), function()
+			local worldId = player:GetAttribute("PuzzleSolved")
+			if type(worldId) == "string" and worldId ~= "" then
+				Controller.Notify("PUZZLE RESUELTO", Color3.fromRGB(180, 160, 255))
+			end
+		end)
+
 		-- DROP DE LOOT (mision V2, FASE 23): el servidor publica QUE cayo
 		-- (`LootDrop`); el aviso lo repite tal cual, sin deducir nada.
 		_maid:Connect(player:GetAttributeChangedSignal("LootDropAt"), function()

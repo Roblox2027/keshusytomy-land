@@ -498,6 +498,14 @@ local SERVICES = {
 		dependencies = { "ProfileService" },
 	},
 
+	-- PuzzleService: doble interruptor por mundo (mision V2, FASES 13/14).
+	-- Depende de `EconomyService` (pago); `QuestService` es opcional.
+	{
+		name = "PuzzleService",
+		module = SERVER.Services.PuzzleService,
+		dependencies = { "EconomyService" },
+	},
+
 	-- Herramienta de pruebas. Va al final y NO es critica: sin ella el
 	-- juego es exactamente igual de jugable, solo se pierde la
 	-- capacidad de certificar el camino de entrada del cliente.
@@ -933,6 +941,16 @@ local function wireDependencies(registry: any): { string }
 	else
 		table.insert(report, "[WIRING FAIL] MonsterService/BestiaryService no disponibles")
 	end
+
+	-- PuzzleService: el pago va por economia; las misiones son opcionales.
+	connect(
+		"PuzzleService",
+		registry:Get("PuzzleService"),
+		{ "EconomyService" },
+		function(service: any)
+			service.SetDependencies(economyService, questService)
+		end
+	)
 
 	-- PowerupService -> MonsterService: la flecha que hace que CONGELAR
 	-- tenga efecto.

@@ -68,6 +68,7 @@ local SUITES = {
 	{ name = "AchievementRules", path = "./shared/AchievementRules.spec" },
 	{ name = "BestiaryRules", path = "./shared/BestiaryRules.spec" },
 	{ name = "EquipmentRules", path = "./shared/EquipmentRules.spec" },
+	{ name = "PuzzleRules", path = "./shared/PuzzleRules.spec" },
 	{ name = "MiniBoss", path = "./shared/MiniBoss.spec" },
 	{ name = "SecretRules", path = "./shared/SecretRules.spec" },
 	{ name = "ZonePopulation", path = "./shared/ZonePopulation.spec" },
