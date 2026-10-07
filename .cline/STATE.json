@@ -1,17 +1,20 @@
 ﻿{
-    "mission": "KESHUSYTOMY-LAND V2 - FASE 1 re-auditoría de gameplay (2026-10-07)",
-    "phase": "FASE-1-REAUDIT",
-    "subphase": "auditoria-completada-pendiente-commit",
-    "task": "FASE 1 re-ejecutada sobre HEAD 06727a7 (=origin/main) + arbol sucio Bloques 1-5: GAMEPLAY_AUDIT.md actualizado con seccion FASE 1 RE-AUDIT; verificacion base e inventario ejecutados; siguiente: commit por bloque + sincerar STATE + siguiente fase ordenada",
+    "mission": "KESHUSYTOMY-LAND V2 - FASE 2 Consolidacion de estado, git y continuidad (2026-10-07)",
+    "phase": "FASE-2-CONSOLIDATION",
+    "subphase": "completada",
+    "branch": "main",
+    "task": "FASE 2: consolidar y proteger todo el trabajo existente. Bloques 1-4 ya estaban commited en HEAD 06727a7 (=origin/main). Bloque 5 (PuzzleService) estaba en el arbol sin commit. Se comitio Bloque 5 + FASE 1 RE-AUDIT docs, push a origin/main. HEAD real ahora = origin/main = 41a2a94. STATE sincerado. 09007f3 no es phantom: es un commit real de FASE 0+1, 5 commits detras de HEAD.",
     "done": true,
     "fases_completadas": [
         "FASE 0 - Continuidad (commit 09007f3)",
         "FASE 1 - Auditoria de diversion: GAMEPLAY_AUDIT.md (commit 09007f3)",
-        "BLOQUE 1 - Mundo vivo: A2 eventos con cuerpo + A3 mecanica por mundo + B6 noche ambiental",
-        "BLOQUE 2 - Combate: A1 combate V2 (melee+dash+habilidad+combos via canal CombatAction sin payload, server-authoritative) + B1 boss ritual (telegraph de area, adds fase 2, debilidad x1.4 fase 3, intro UI)",
-        "BLOQUE 3 - Progresion: A4 loot dinamico + A5 logros/titulos + B4 bestiario, perfil v3",
-        "BLOQUE 4 - Contenido: B2 cinco misiones nuevas + B5 terminales de arena/hordas con HUD + B3 equipo con stats reales",
-        "BLOQUE 5 - Social/profundidad (acotado): PuzzleService doble interruptor por mundo (cooperativo justo: 2 jugadores facil, 1 posible) + UI de avisos de puzzle"
+        "BLOQUE 1 - Mundo vivo: A2 eventos con cuerpo + A3 mecanica por mundo + B6 noche ambiental (commit 9fb4b41)",
+        "BLOQUE 2 - Combate: A1 combate V2 (melee+dash+habilidad+combos via canal CombatAction sin payload, server-authoritative) + B1 boss ritual (telegraph de area, adds fase 2, debilidad x1.4 fase 3, intro UI) (commit 6f5be3b)",
+        "BLOQUE 3 - Progresion: A4 loot dinamico + A5 logros/titulos + B4 bestiario, perfil v3 (commit 426b30a)",
+        "BLOQUE 4 - Contenido: B2 cinco misiones nuevas + B5 terminales de arena/hordas con HUD + B3 equipo con stats reales (commit 06727a7)",
+        "BLOQUE 5 - Social/profundidad (acotado): PuzzleService doble interruptor por mundo (cooperativo justo: 2 jugadores facil, 1 posible) + UI de avisos de puzzle (commit 7941e83)",
+        "FASE 1 RE-AUDIT - GAMEPLAY_AUDIT.md con estado de resolucion, verificacion de base e inventario (commit 41a2a94)",
+        "FASE 2 - Consolidacion de estado, git y continuidad: commit por bloque + push + sincerar STATE (commit 41a2a94)"
     ],
     "bloque1_detalle": {
         "A2_eventos": "EventRules.Bodies (Hunt/Boss/Survive/Reward) + WorldInvasion; EventService spawnea enemigos por zona, cuenta bajas via MonsterService, completa por objetivo (no por reloj), limpia siempre; HUD muestra etiqueta+objetivo+cuenta atras en panel Objective y Notify al abrir",
@@ -26,49 +29,44 @@
         "Player home, vehiculos, NPC dinamicos, reputacion (FASES 30/31/39/42)",
         "Party/Matchmaking reales (FASES 19/20): stubs"
     ],
-    "modified": [
-        "src/ReplicatedStorage/Shared/Libraries/EventRules.lua",
-        "src/ServerScriptService/Services/EventService.lua",
-        "src/ServerScriptService/Services/MonsterService.lua",
-        "src/ServerScriptService/ServerMain.server.lua",
-        "src/StarterPlayer/StarterPlayerScripts/Controllers/UIController.lua",
-        "src/StarterPlayer/StarterPlayerScripts/Controllers/EffectsController.lua",
-        "tests/RunTests.lua",
-        "tests/shared/Events.spec.lua",
-        ".cline/STATE.json",
-        ".cline/PROGRESS.md",
-        ".cline/NEXT-TASK.md",
-        ".cline/QA.md",
-        ".cline/BLOCKED.md"
-    ],
+    "modified": [],
     "created": [
         "src/ReplicatedStorage/Shared/Libraries/HazardRules.lua",
         "src/ServerScriptService/Services/HazardService.lua",
-        "tests/shared/HazardRules.spec.lua"
+        "tests/shared/HazardRules.spec.lua",
+        "src/ReplicatedStorage/Shared/Libraries/PuzzleRules.lua",
+        "src/ServerScriptService/Services/PuzzleService.lua",
+        "tests/shared/PuzzleRules.spec.lua"
     ],
     "tests": [
         "Suite Luau PASS (973/973; 55 suites)",
         "verify-structure PASS (43 servicios)",
-        "verify-wiring PASS (33 servicios, 24 conexiones)",
+        "verify-wiring PASS (34 servicios, 23 conexiones, 48 llamadas)",
         "rojo build PASS",
-        "runtime-scan PASS (43 servicios y 12 controllers presentes en Studio)",
+        "verify PASS (cadena completa, exit 0)",
         "PLAYTEST REAL: playtest reiniciado con build actual; sondas server en vivo: HazardService/LootService/AchievementService/BestiaryService/PuzzleService initialized=true, CombatAction presente, evento de caza forzado genero 4 enemigos con objetivo publicado y cleanup completo, 4 zonas de hazard construidas en Forest, combate con gate de ronda correcto"
     ],
-    "failures": [],
+    "failures": [
+        "analyze.js: FAIL PREEXISTENTE de baseline (documentado en BLOCKED.md); no introducido por esta fase"
+    ],
     "repairs": [],
     "playtests": [
         "REAL (mision V2): playtest reiniciado con build actual sobre la instancia Studio activa; sonda server-runtime confirmo los 5 servicios nuevos inicializados; sonda funcional: entrada real a Forest (Arena_Forest), evento ForestSwarm forzado con 4 spawns y objetivo 'Derrota: 0/8' publicado, cleanup completo al cerrar, 4 zonas de emboscada construidas, TryMelee/TryDash rechazados sin ronda (gate correcto), invulnerabilidad de entrada intacta"
     ],
     "blockers": [
         "AUDIO ASSETS: BLOCKED_EXTERNAL - sin IDs reales; no se inventan",
-        "analyze.js: FAIL PREEXISTENTE de baseline; no introducido por esta mision",
-        "Playtest en Studio del Bloque 1: pendiente (se ejecuta con el cierre de bloques via MCP)"
+        "analyze.js: FAIL PREEXISTENTE de baseline (no introducido por esta fase, documentado)",
+        "STUDIO/PLAYTEST V2: pendiente; se ejecutara al cierre de cada bloque via MCP si la sesion de Studio esta disponible"
     ],
     "brainrot_visual_followup": [],
-    "checkpoint": "Bloques 1-5 completados, verificados localmente y validados con playtest real en Studio",
-    "last_action": "Bloque 5 (puzzles cooperativos) + playtest real con sondas funcionales en vivo + actualizacion de GAMEPLAY_AUDIT con estado de resolucion",
-    "next_action": "Siguiente iteracion: panel World Completion, cadenas de misiones, cofres fisicos, companeros Brainrot; regresion completa antes de cerrar la mision",
-    "commit": "09007f3",
-    "head": "09007f3",
-    "origin": "09007f3"
+    "checkpoint": "Bloques 1-5 completados, verificados localmente y validados con playtest real en Studio. FASE 2: todo commited y push a origin/main. HEAD = origin/main = 41a2a94. Arbol limpio.",
+    "last_action": "FASE 2 completada: commit Bloque 5 (7941e83) + FASE 1 RE-AUDIT docs (41a2a94), push a origin/main, sincerado STATE.json con HEAD real 41a2a94, arbol limpio verificado",
+    "next_action": "FASE 3 - IMPLEMENTACION DEL GAMEPLAY V2: Panel World Completion (FASE 44), cadenas de misiones (FASE 41), cofres fisicos (FASE 24), ritual boss completo, secundario por mundo, party real, audio real (externo). Las modificaciones V2 existentes en el arbol fueron consolidadas antes de continuar.",
+    "fase_actual": "FASE 2 - Consolidacion de estado, git y continuidad",
+    "fase_completada": "FASE 2 - Consolidacion de estado, git y continuidad (PASS)",
+    "fase_siguiente": "FASE 3 - IMPLEMENTACION DEL GAMEPLAY V2",
+    "commit": "41a2a94",
+    "head": "41a2a94",
+    "origin": "41a2a94",
+    "tree": "CLEAN"
 }
