@@ -57,7 +57,7 @@
 |---|---|---|
 | A1 Combate de una sola herramienta | **RESUELTO** | `CombatRules` + `CombatService.TryMelee/TryDash/TryAbility` + canal `CombatAction` + `CombatController` + bindings (click/E/X, Q/B, R/Y) + combos con ventana y especial x1.8. Validado en runtime (gate de ronda correcto). |
 | A2 Eventos sin cuerpo | **RESUELTO** | `EventRules.Bodies` (Hunt/Boss/Survive/Reward) + `WorldInvasion`; spawns por zona, objetivo y cleanup. Validado en vivo: 4 enemigos generados, objetivo publicado, cleanup completo. |
-| A3 Mundos sin mecánica propia | **RESUELTO** | `HazardRules`/`HazardService`: emboscada (Forest), arenas movedizas (Desert), rachas de viento (Ice), lava DOT (Volcano), láser telegrafiado (Cyber). Validado en vivo: 4 zonas construidas en Forest. |
+| A3 Mundos sin mecánica propia | **RESUELTO** | `HazardRules`/`HazardService`: emboscada (Forest), arenas movedizas (Desert), rachas de viento (Ice), lava DOT (Volcano), láser telegrafiado (Cyber). Validado en vivo: 4 zonas construidas en Forest. **FASE 4 complementario**: `WorldMechanics`/`WorldMechanicsService` — mecánicas SECUNDARIAS por mundo (Tracking/HiddenZone, BuriedTreasure/Oasis, SlipperyIce/FragilePlatform, MeteorShower/DynamicRoute, Terminal/SecurityLasers). |
 | A4 Recompensas monocromáticas | **RESUELTO** | `LootRules`/`LootService`: 5 materiales de mundo, drops monster 15 % / miniboss siempre (a veces doble) / boss siempre + 2 gemas (primera fuente gratuita de gemas por habilidad). |
 | A5 Sin logros/colección/discovery | **RESUELTO (parcial UI)** | `AchievementRules`/`AchievementService` (10 logros, títulos, perfil v3) + `BestiaryService` (colección de especies persistente). Datos y publicación hechos; PANEL de World Completion pendiente. |
 | B1 Boss sin ritual | **RESUELTO (parcial)** | Telegraph de área rojo, adds en fase 2, debilidad x1.4 en fase 3, intro "JEFE" en UI. Arena dedicada e intro de cámara pendientes. |
@@ -89,7 +89,7 @@ Veredicto por área (FASE 65 de la misión):
 | Bosses | PARCIAL (fases sí, telegraphs/arena/mecánica especial débiles) | Sí |
 | Minibosses | EXISTE (tiers, zonas, cooldown) | Sí |
 | Eventos dinámicos | EXISTE (ciclo de vida) pero NO spawnean contenido visible ni UI | Parcial |
-| Mecánicas por mundo | NO EXISTE (hazards sin efecto físico) | No |
+| Mecánicas por mundo | EXISTE (hazards + WorldMechanics FASE 4) | Sí (parcial) |
 | Secretos | EXISTE (prompt + persistencia) | Parcial (recompensa = solo monedas) |
 | Puzzles | NO EXISTE | No |
 | Coleccionables | NO EXISTE (fuera de secretos/items de tienda) | No |
@@ -249,3 +249,30 @@ Veredicto por área (FASE 65 de la misión):
 4. **Bloque 4 — Contenido:** B2 (misiones V2 + cadenas) + B5 (arenas/hordas) + B3 (equipamiento real).
 5. **Bloque 5 — Social/profundidad:** C1-C6 según capacidad.
 6. **Cierre:** QA de gameplay (FASE 59-63), playtest real (70), regresión (71), commits por bloque (73).
+
+---
+
+## FASE 3 — Actividades de exploracion (server-authoritative): COMPLETED (2026-10-07)
+- **Rules**: `ActivitiesRules` (puro) — progreso/claim atómico/cooldown/oferta diaria determinista/Audit.
+- **Catalog**: `ActivityCatalog` (15 actividades, 5 mundos, 6 tipos).
+- **Service**: `ActivityService` (espejo QuestService) — estado en perfil, paga Coins + Mat_* via InventoryService (fix aplicado), publica atributos ActivityOffer/ActivityProgress/ActivityClaimOutcome, RecordMetric, TryInteract con proximidad server-side.
+- **Remote layer**: canal `ExploreAction` (RequestOffer/Interact/Claim) en GameConstants + RemoteSchema + Remotes.model.json + AntiExploitRules.
+- **Wiring**: ActivityService en SERVICES; MonsterService→ActivityService (caza); handlers ExploreAction en REMOTE_CHANNELS.
+- **BUG FIX**: material rewards (Mat_*) ahora van a InventoryService.AddItem, no GrantCurrency.
+- **Gates**: 1014/1014 PASS (57 suites); verify:structure 44; verify:wiring 35/24/50; rojo:build PASS. analyze.js FAIL baseline.
+- **Playtest Studio/MCP**: CONECTADO. Offer/Interact/Claim/RecordMetric/duplicates/rejections/concurrency PASS.
+
+## FASE 4 — WorldMechanics: arquitectura de mecánicas únicas por mundo: COMPLETED (2026-10-07)
+- **Arquitectura**: `WorldMechanics` (pure library) — catalogó `MechanicsByWorld`, máquina de fases temporales (Calm/Warning/Active/Recovery/Cooldown) derivada del reloj del servidor, máquina de estados para terminales y plataformas frágiles (anti-explot), modificadores de movimiento, utilidades de posición, y `Audit` para coherencia.
+- **Service**: `WorldMechanicsService` (server-authoritative) — hilo de tick, gestión de eventos temporales, registro de puntos de interacción via `ActivityService.RegisterPoints`, modificadores de movimiento periódicos.
+- **5 WorldDefinitions extendidas** con listas `Mechanics` propias:
+  - Forest: Tracking, HiddenZone, NaturalMechanism (complementa hazard de emboscada).
+  - Desert: TemporalEvent (Sandstorm), BuriedTreasure, Oasis.
+  - Ice: SlipperyIce, FragilePlatform, TemporalEvent (Blizzard).
+  - Volcano: TemporalEvent (Eruption), MeteorShower, DynamicRoute.
+  - Cyber: Terminal, SecurityDoor, SecurityLasers, DynamicRoute.
+- **Server-authoritative**: la fase de un evento, estados de terminal/plataforma y recompensas nunca son decididos por el cliente. Estado scoped a (mundo, evento): cooldown por evento, no por jugador. Sin estado mutable compartido entre jugadores.
+- **Wiring**: `WorldMechanicsService` en `SERVICES` + `connect()` con `SetDependencies(activityService, combatService, worldService)`; `RegisterInteractionPoints` integrado (sustituye stub `no_point` de FASE 3).
+- **Tests**: 58 casos nuevos en `WorldMechanics.spec.lua` → 1062/1062 PASS.
+- **Gates**: 1062/1062 PASS (58 suites); verify:structure 45 servicios; verify:wiring 36/24/51; rojo:build PASS. analyze.js FAIL baseline (categorías de baseline, sin categorías nuevas).
+- **Playtest runtime**: pendiente (Studio/MCP) — validar spawn de partes, tick de fases y RegisterPoints con puntos reales.

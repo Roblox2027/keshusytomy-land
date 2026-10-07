@@ -115,6 +115,21 @@
   - [J] Concurrency: PASS — two concurrent `TryClaim` for same activity; first accepted (granted Mat_LeafEssence:5 + Coins:60), second rejected `already_claimed`; acceptedCount=1.
 - **Pendiente**: commit + push a origin/main. Follow-up: inyectar puntos de Discovery/Rescue/Mechanic (RegisterPoints) desde el loader de mundo (Interact rechaza con `no_point` hasta entonces — seguro por disenio); forward de DestructionService/SecretService/EventService a RecordMetric para Collection/Defense/Secret.
 
+### FASE 4 - WorldMechanics: arquitectura de mecanicas unicas por mundo: COMPLETED (2026-10-07)
+- **Arquitectura**: `WorldMechanics` (pure library, `src/ReplicatedStorage/Shared/Libraries/WorldMechanics.lua`) — catalogo `MechanicsByWorld` (Kind por mundo), maquina de fases temporales (Calm/Warning/Active/Recovery/Cooldown) derivada del reloj del servidor, maquina de estados para terminales (Active/Inactive/Locked) y plataformas frágiles (Intact/Cracked/Broken), modificadores de movimiento (WalkSpeed multipliers), utilidades de posición (`DistanceSqXZ`, `IsInRange`), y `Audit` para coherencia entre definiciones y reglas.
+- **Service**: `WorldMechanicsService` (`src/ServerScriptService/Services/WorldMechanicsService.lua`) — servicio server-authoritative con hilo de tick, construcción de partes, gestión de eventos temporales y registro de puntos de interacción (Discovery/Mechanic/Collection) via `ActivityService.RegisterPoints`. Dependencias: `ActivityService`, `CombatService`, `WorldService`.
+- **WorldDefinitions extendidas**: los 5 mundos (`Forest`, `Desert`, `Ice`, `Volcano`, `Cyber`) declaran su lista `Mechanics` en la definición:
+  - Forest: `Tracking`, `HiddenZone`, `NaturalMechanism` (mecánica complementaria al hazard de emboscada).
+  - Desert: `TemporalEvent (Sandstorm)`, `BuriedTreasure`, `Oasis`.
+  - Ice: `SlipperyIce`, `FragilePlatform`, `TemporalEvent (Blizzard)`.
+  - Volcano: `TemporalEvent (Eruption)`, `MeteorShower`, `DynamicRoute`.
+  - Cyber: `Terminal`, `SecurityDoor`, `SecurityLasers`, `DynamicRoute`.
+- **Tests**: `tests/shared/WorldMechanics.spec.lua` — 58 casos cubriendo catalogo, coherencia con definiciones, maquina de fases temporales, dano temporal, visibility factor, maquina de terminales (anti-explot), plataformas frágiles, modificadores de movimiento, validación de posición y `Audit`.
+- **Wiring**: `WorldMechanicsService` agregado a `SERVICES` en `ServerMain.server.lua` con `connect()` en `wireDependencies` llamando a `SetDependencies(activityService, combatService, worldService)`; `RegisterInteractionPoints` llamado desde el loader de mundos (sustituye el stub `no_point` del playtest FASE 3).
+- **Gates**: `npm test` PASS (1062/1062, 58 suites); `verify:structure` PASS (45 servicios); `verify:wiring` PASS (36 servicios, 24 conexiones, 51 llamadas); `rojo:build` PASS. `analyze.js` FAIL baseline preexistente — nuevos errores en `WorldMechanics.lua`/`WorldMechanicsService.lua`/`WorldMechanics.spec.lua` pertenecen a las mismas categorías de baseline (requiere de path resolución de tests, `tonumber()` nullable, `Unknown require`); sin categorías nuevas.
+- **Server-authoritative**: la fase de un evento, estados de terminal, y recompensas nunca deciden el cliente. Estado scoped a (mundo, evento): cooldown por evento, no por jugador. Sin estado mutable compartido entre jugadores.
+- **Pendiente**: playtest runtime en Studio/MCP para validar spawn de partes, tick de fases y RegisterPoints con puntos reales (no stubs).
+
 ## Bloqueos actuales
 - MCP Roblox: CONECTADO (verify:env, esta sesion). Playtest ejecutado.
 - Studio / Play Test: EJECUTADO — solo_playtest real sobre la instancia `latest.rbxlx` con peers edit/server/client-1.
@@ -128,7 +143,17 @@
 - [ ] Cofres fisicos con animacion (FASE 24)
 - [ ] Companeros Brainrot (FASE 22)
 - [ ] Player home, vehiculos, NPC dinamicos, reputacion (FASES 30/31/39/42)
-- [ ] Party/Matchmaking reales (FASES 19/20)
+- [ ] Party/Matchmaking reales (FASES 19/20): stubs
 - [ ] Audio real (externo)
 - [ ] Inyeccion de puntos de Discovery/Rescue/Mechanic (RegisterPoints) desde loader de mundo
 - [ ] Forward de Destruction/Secret/Event a RecordMetric para Collection/Defense/Secret
+
+---
+
+## FASE 4 — WorldMechanics (2026-10-07): estructura COMPLETED
+- Arquitectura de mecánicas unicas por mundo implementada y verificada.
+- `WorldMechanics` (pure library) + `WorldMechanicsService` (server-authoritative).
+- 5 mundos extendidos con listas `Mechanics` propias (Forest/Desert/Ice/Volcano/Cyber).
+- 58 tests nuevos (1062/1062 PASS). verify:structure 45 servicios. verify:wiring 36/24/51.
+- RegisterPoints integrado: puntos Discovery/Mechanic/Collection ahora se inyectan desde `WorldMechanicsService.RegisterInteractionPoints` via `ActivityService.RegisterPoints` (sustituye stub `no_point`).
+- Playtest runtime (Studio/MCP) pendiente de validar spawn de partes + tick de fases.

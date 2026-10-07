@@ -27,6 +27,9 @@ export type WorldDefinition = {
     MapFolder: string?,
     BossDefinitionId: string?,
     SpawnRules: { string },
+    -- Mecanicas expandidas de FASE 4. Lista de kinds del catalogo WorldMechanics.
+    -- Verificado por `WorldMechanics.Audit` contra MechanicsByWorld.
+    Mechanics: { string }?,
     Rewards: {
         XP: number,
         Coins: number,
@@ -46,6 +49,8 @@ local World: WorldDefinition = {
     MapFolder = "Ice",
     BossDefinitionId = "IceFrostKing",
     SpawnRules = { "IceBeast", "IceBeast", "Hunter", "Slime" },
+    -- FASE 4: hielo deslizante, plataformas frailibles y tormenta de hielo.
+    Mechanics = { "SlipperyIce", "FragilePlatform", "TemporalEvent" },
     Rewards = {
         XP = 30,
         Coins = 15,

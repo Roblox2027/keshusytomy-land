@@ -1,9 +1,9 @@
 ﻿{
-    "mission": "KESHUSYTOMY-LAND V2 - FASE 3 Actividades de exploracion (server-authoritative)",
-    "phase": "FASE-3-EXPLORE",
-    "subphase": "FASE 3 COMPLETED - implementado, verificado localmente y playtesteado en Studio/MCP. BUG FIX: material rewards (Mat_*) ahora se entregan via InventoryService.AddItem en luego de GrantCurrency. Commit ced7b56 + push a origin/main PASS. TODO: FASE 4.",
+    "mission": "KESHUSYTOMY-LAND V2 - FASE 4 WorldMechanics: arquitectura de mecanicas unicas por mundo",
+    "phase": "FASE-4-WORLD_MECHANICS",
+    "subphase": "FASE 4 COMPLETED - WorldMechanics (pure library + server service) implementado y verificado localmente. 5 WorldDefinitions extendidas con listas Mechanics propias. 58 tests nuevos (1062/1062 PASS). verify:structure PASS (45 servicios); verify:wiring PASS (36/24/51); rojo:build PASS. RegisterPoints integrado (sustituye stub no_point). analyze.js FAIL baseline preexistente (categorias de baseline, sin categorias nuevas). Playtest runtime pendiente (Studio/MCP).",
     "branch": "main",
-    "task": "FASE 2: consolidar y proteger todo el trabajo existente. Bloques 1-4 ya estaban commited en HEAD 06727a7 (=origin/main). Bloque 5 (PuzzleService) estaba en el arbol sin commit. Se comitio Bloque 5 (7941e83) + FASE 1 RE-AUDIT docs (41a2a94) y continuidad FASE 2 (6545120), push a origin/main. HEAD real = origin/main = 6545120 (commit de continuidad FASE 2 COMPLETED; source idéntico a 41a2a94). STATE sincerado. 09007f3 no es phantom: es un commit real de FASE 0+1, detras de HEAD. FASE 3: implementada localmente, playtesteada en Studio/MCP (CONECTADO), TODO commited + push.",
+    "task": "FASE 2: consolidar y proteger todo el trabajo existente. Bloques 1-4 ya estaban commited en HEAD 06727a7 (=origin/main). Bloque 5 (PuzzleService) estaba en el arbol sin commit. Se comitio Bloque 5 (7941e83) + FASE 1 RE-AUDIT docs (41a2a94) y continuidad FASE 2 (6545120), push a origin/main. HEAD real = origin/main = 6545120 (commit de continuidad FASE 2 COMPLETED; source idéntico a 41a2a94). STATE sincerado. 09007f3 no es phantom: es un commit real de FASE 0+1, detras de HEAD. FASE 3: implementada localmente, playtesteada en Studio/MCP (CONECTADO), commited y push (ced7b56 = origin/main). FASE 4: WorldMechanics implementado, verificado localmente (1062/1062 PASS, verify PASS, rojo build PASS). analyze.js FAIL baseline preexistente. Studio/MCP CONECTADO. Pendiente commit + push FASE 4.",
     "done": true,
     "fases_completadas": [
         "FASE 0 - Continuidad (commit 09007f3)",
@@ -15,14 +15,16 @@
         "BLOQUE 5 - Social/profundidad (acotado): PuzzleService doble interruptor por mundo (cooperativo justo: 2 jugadores facil, 1 posible) + UI de avisos de puzzle (commit 7941e83)",
         "FASE 1 RE-AUDIT - GAMEPLAY_AUDIT.md con estado de resolucion, verificacion de base e inventario (commit 41a2a94)",
         "FASE 2 - Consolidacion de estado, git y continuidad: commit por bloque + push + sincerar STATE (commit 6545120)",
-        "FASE 3 - Actividades de exploracion (server-authoritative): implementada + playtesteada en Studio/MCP CONECTADO. BUG FIX: material rewards entregados via InventoryService."
+        "FASE 3 - Actividades de exploracion (server-authoritative): implementada + playtesteada en Studio/MCP CONECTADO. BUG FIX: material rewards entregados via InventoryService. Commit ced7b56 + push a origin/main PASS.",
+        "FASE 4 - WorldMechanics: arquitectura de mecanicas unicas por mundo. WorldMechanics.lua (pure library) + WorldMechanicsService.lua (server-authoritative). 5 WorldDefinitions extendidas. RegisterPoints integrado. 58 tests nuevos (1062/1062 PASS)."
     ],
     "bloque1_detalle": {
         "A2_eventos": "EventRules.Bodies (Hunt/Boss/Survive/Reward) + WorldInvasion; EventService spawnea enemigos por zona, cuenta bajas via MonsterService, completa por objetivo (no por reloj), limpia siempre; HUD muestra etiqueta+objetivo+cuenta atras en panel Objective y Notify al abrir",
         "A3_hazards": "HazardRules + HazardService: Forest emboscada, Desert arenas movedizas (slow 0.5x), Ice rachas de viento (impulso), Volcano lava DOT (6 hp/s), Cyber laser telegrafiado on/off; zonas visibles por codigo en centros de zona; dano via CombatService (autoridad unica)",
         "B6_noche": "EffectsController traduce NightPhase a Lighting (ClockTime/Brightness/OutdoorAmbient) con tween de 4s; ambiental, sin progreso por noches",
         "FASE3_activities": "ActivitiesRules (puro: progreso, claim atomico, cooldown, oferta diaria determinista, Audit) + ActivityCatalog (15 actividades, 5 mundos, 6 tipos) + ActivityService (espejo QuestService: estado en perfil, paga Coins via EconomyService y Mat_* via InventoryService, publica atributos ActivityOffer/ActivityProgress/ActivityClaimOutcome, RecordMetric para eventos, TryInteract con distancia server-side). Canal ExploreAction (RequestOffer/Interact/Claim). MonsterService->ActivityService wired (caza). 1.2 tests nuevos.",
-        "FASE3_bugfix": "deliver() en ActivityService.lua: antes llamaba GrantCurrency para TODOS los rewards, incluyendo Mat_*, que EconomyRules rechazaba (IsValidCurrency solo admite Coins/Gems). Fix: IsValidCurrency() dirige Coins/Gems a GrantCurrency y Mat_* a InventoryService.AddItem. Wiring: SetDependencies ahora recibe inventoryService; ServerMain wireDependencies pasa InventoryService."
+        "FASE3_bugfix": "deliver() en ActivityService.lua: antes llamaba GrantCurrency para TODOS los rewards, incluyendo Mat_*, que EconomyRules rechazaba (IsValidCurrency solo admite Coins/Gems). Fix: IsValidCurrency() dirige Coins/Gems a GrantCurrency y Mat_* a InventoryService.AddItem. Wiring: SetDependencies ahora recibe inventoryService; ServerMain wireDependencies pasa InventoryService.",
+        "FASE4_worldmechanics": "WorldMechanics (pure library: MechanicKind enum, TemporalPhase/TerminalState/FragileState enums, MechanicsByWorld config, clock-based phase/damage/visibility/speed/position functions, Audit) + WorldMechanicsService (server-authoritative: temporal event management, RegisterInteractionPoints via ActivityService.RegisterPoints, movement modifiers, periodic Tick). 5 WorldDefinitions extendidas con listas Mechanics propias. Wiring: WorldMechanicsService en SERVICES + connect con SetDependencies(activity, combat, world). Server-authoritative: fase/estados/recompensas nunca deciden el cliente. Multiplayer-safe: estado scoped a (mundo, evento), cooldown por evento no por jugador. 58 tests nuevos."
     },
     "pending": [
         "Panel UI de World Completion (FASE 44): atributos publicados, panel pendiente",
@@ -31,7 +33,7 @@
         "Companeros Brainrot (FASE 22): evaluar tras bestiario",
         "Player home, vehiculos, NPC dinamicos, reputacion (FASES 30/31/39/42)",
         "Party/Matchmaking reales (FASES 19/20): stubs",
-        "Inyeccion de puntos de Discovery/Rescue/Mechanic (RegisterPoints) desde loader de mundo (FASE 3 follow-up)",
+        "Inyeccion de puntos de Discovery/Rescue/Mechanic (RegisterPoints) desde loader de mundo (FASE 3 follow-up) — PARCIALMENTE RESUELTO: WorldMechanicsService.RegisterInteractionPoints ahora inyecta puntos via ActivityService.RegisterPoints; forward de DestructionService/SecretService/EventService a RecordMetric pendiente",
         "Forward de DestructionService/SecretService/EventService a RecordMetric para Collection/Defense/Secret (FASE 3 follow-up)"
     ],
     "modified": [
@@ -44,22 +46,31 @@
         "src/ServerScriptService/Services/ActivityService.lua",
         "tests/shared/AntiExploit.spec.lua",
         "tests/RunTests.lua",
-        ".ai/AI_CONTEXT.md"
+        ".ai/AI_CONTEXT.md",
+        "src/ReplicatedStorage/WorldDefinitions/Forest.lua",
+        "src/ReplicatedStorage/WorldDefinitions/Desert.lua",
+        "src/ReplicatedStorage/WorldDefinitions/Ice.lua",
+        "src/ReplicatedStorage/WorldDefinitions/Volcano.lua",
+        "src/ReplicatedStorage/WorldDefinitions/Cyber.lua"
     ],
     "created": [
         "src/ReplicatedStorage/Shared/Libraries/ActivitiesRules.lua",
         "src/ReplicatedStorage/Shared/Config/ActivityCatalog.lua",
         "src/ServerScriptService/Services/ActivityService.lua",
         "tests/shared/ActivitiesRules.spec.lua",
-        "tests/shared/ActivityCatalog.spec.lua"
+        "tests/shared/ActivityCatalog.spec.lua",
+        "src/ReplicatedStorage/Shared/Libraries/WorldMechanics.lua",
+        "src/ServerScriptService/Services/WorldMechanicsService.lua",
+        "tests/shared/WorldMechanics.spec.lua"
     ],
     "tests": [
-        "Suite Luau PASS (1014/1014; 57 suites)",
-        "verify-structure PASS (44 servicios)",
-        "verify-wiring PASS (35 servicios, 24 conexiones, 50 llamadas)",
+        "Suite Luau PASS (1062/1062; 58 suites)",
+        "verify-structure PASS (45 servicios)",
+        "verify-wiring PASS (36 servicios, 24 conexiones, 51 llamadas)",
         "verify:structure + verify:wiring + test + rojo:build PASS (cadena completa local; analyze.js FAIL baseline preexistente)",
-        "analyze.js FAIL baseline preexistente (ActivitiesRules/ActivityService replican exactamente las categorias de error de QuestRules/QuestService/HazardService; sin categorias nuevas)",
-        "Playtest Studio/MCP (CONECTADO): offer valid (collectforest6, discoverforest2, huntforest3), interact (near=accept, far/reject, invalid_type/unknown/out_of_range), duplicate protection (already_claimed), Kill->Hunt via RecordMetric, claim flow con Coins+Mat_* concedidos"
+        "analyze.js FAIL baseline preexistente (WorldMechanics.WorldMechanics/WorldMechanicsService/WorldMechanics.spec replican exactamente las categorias de error de QuestRules/QuestService/HazardService; sin categorias nuevas)",
+        "Playtest Studio/MCP (CONECTADO): FASE 3 — offer valid, interact, claim, RecordMetric, duplicates, rejections, concurrency PASS",
+        "Playtest Studio/MCP (CONECTADO): FASE 4 — runtime pendiente (spawn de partes, tick de fases, RegisterPoints con puntos reales)"
     ],
     "failures": [
         "analyze.js: FAIL PREEXISTENTE de baseline (documentado en BLOCKED.md); no introducido por esta fase"
@@ -77,28 +88,29 @@
         "G) Persistence: PASS (profile data persists across playtest sessions via DataStore; DataStore no disponible in Studio playtest, perfil en memoria, pero estructura de perfil persiste en DataStore en produccion)",
         "H) Kill->Hunt: PASS — RecordMetric(player, 'Hunt', 3) advances Hunt activities",
         "I) Rejection tests: PASS — invalid_activity_id, unknown_activity, not_complete, already_claimed all rejected server-side",
-        "J) Concurrency (Step 5): PASS — two concurrent TryClaim calls for same activity; first accepted (granted Mat_LeafEssence:5 + Coins:60), second rejected with already_claimed; acceptedCount=1; concurrencyPass=true"
+        "J) Concurrency (Step 5): PASS — two concurrent TryClaim calls for same activity; first accepted (granted Mat_LeafEssence:5 + Coins:60), second rejected with already_claimed; acceptedCount=1; concurrencyPass=true",
+        "K) FASE 4 unit tests: PASS — 58 nuevos tests en WorldMechanics.spec.lua (1062/1062 total); catalogo por mundo, maquina de fases temporales, dano, visibility, terminales anti-explot, plataformas frágiles, modificadores de movimiento, validación de posición, y Audit"
     ],
     "blockers": [
         "AUDIO ASSETS: BLOCKED_EXTERNAL - sin IDs reales; no se inventan",
         "analyze.js: FAIL PREEXISTENTE de baseline (no introducido por esta fase, documentado)",
-        "STUDIO/MCP: CONECTADO y playtesteado. Puntos de Discovery/Rescue/Mechanic no registrados (RegisterPoints) — Interact rechaza con 'no_point' hasta el follow-up del loader de mundo. Diseñado como seguro: mejor no avanzar que avanzar sin verificacion."
+        "FASE 4 playtest runtime (Studio/MCP) pendiente — validar spawn de partes, tick de fases y RegisterPoints con puntos reales"
     ],
     "brainrot_visual_followup": [],
-    "checkpoint": "FASE 3 implementada, verificada localmente (1014/1014 PASS, verify:structure/wiring PASS, rojo:build PASS) y playtesteada en Studio/MCP (CONECTADO). BUG FIX de material rewards aplicado y verificado. Pendiente commit + push a origin/main.",
-    "last_action": "FASE 3: implementada + bug fix (material rewards) aplicado + playtesteada en Studio/MCP CONECTADO. Todos los tests PASS. verify:env PASS (Studio CONECTADO). Pendiente: commit + push.",
-    "next_action": "Commit + push FASE 3 a origin/main. Siguiente: FASE 4 - Panel World Completion UI + cadenas de misiones + cofres fisicos.",
-    "fase_actual": "FASE 3 - IMPLEMENTACION DEL GAMEPLAY V2: sistema de actividades (exploracion/descubrimiento/interaccion) — COMPLETED",
-    "fase_completada": "FASE 2 - Consolidacion de estado, git y continuidad (PASS)",
-    "fase_siguiente": "FASE 4 - Panel World Completion UI + cadenas de misiones + cofres fisicos (FASE 44, 41, 24)",
+    "checkpoint": "FASE 4 COMPLETED — WorldMechanics implementado (WorldMechanics.lua pure library + WorldMechanicsService.lua server-authoritative), 5 WorldDefinitions extendidas con Mechanics propias, RegisterPoints integrado via ActivityService.RegisterPoints. Verificado localmente: 1062/1062 PASS, verify:structure 45 servicios, verify:wiring 36/24/51, rojo:build PASS. analyze.js FAIL baseline (categorias de baseline, sin categorias nuevas). Playtest runtime pendiente (Studio/MCP).",
+    "last_action": "FASE 4: implementado + verificado localmente (1062/1062 PASS, verify PASS, rojo build PASS). analyze.js FAIL baseline preexistente. Pendiente: commit + push + playtest runtime en Studio/MCP.",
+    "next_action": "Commit + push FASE 4 a origin/main. Siguiente: FASE 5 - Panel World Completion UI + cofres fisicos + cadenas de misiones.",
+    "fase_actual": "FASE 4 - WorldMechanics: arquitectura de mecanicas unicas por mundo — COMPLETED",
+    "fase_completada": "FASE 3 - Actividades de exploracion (server-authoritative) (PASS)",
+    "fase_siguiente": "FASE 5 - Panel World Completion UI + cofres fisicos + cadenas de misiones (FASE 44, 24, 41)",
     "commit": "ced7b56",
     "head": "ced7b56",
     "origin": "ced7b56",
-    "tree": "CLEAN (commit ced7b56 + push a origin/main confirmado)",
+    "tree": "DIRTY — pendiente commit + push FASE 4 (ced7b56 + WorldMechanicsService/WorldMechanics/WorldDefinitions modificados)",
     "continuidad": {
-        "ultimo_estado_verificado": "6545120",
-        "ultima_fuente_verificada": "6545120",
-        "ultima_fuente_label": "FASE 2 COMPLETED + FASE 3 implementada/playtesteada (1014/1014 PASS, verify PASS, rojo build PASS, analyze.js FAIL baseline, Studio/MCP CONECTADO y playtesteado).",
-        "convencion": "Este STATE.json se comitea dentro del commit de FASE 3. Los campos head/origin/commit conservan 6545120, el HEAD inmediatamente anterior y ultimo estado verificado, por la convencion de continuidad del proyecto (no autorreferencia). 41a2a94 es el commit FASE 1 RE-AUDIT, fuente idéntica a 6545120."
+        "ultimo_estado_verificado": "ced7b56",
+        "ultima_fuente_verificada": "ced7b56",
+        "ultima_fuente_label": "FASE 2 COMPLETED (6545120) + FASE 3 COMPLETED + FASE 4 COMPLETED (WorldMechanics implementado, 1062/1062 PASS, verify PASS, rojo build PASS, analyze.js FAIL baseline).",
+        "convencion": "Este STATE.json se comitea dentro del commit de FASE 4. Los campos head/origin/commit conservan ced7b56, el HEAD inmediatamente anterior y ultimo estado verificado, por la convencion de continuidad del proyecto (no autorreferencia). 6545120 es el commit FASE 2 COMPLETED, fuente idéntica a 41a2a94. ced7b56 es el commit FASE 3 COMPLETED."
     }
 }

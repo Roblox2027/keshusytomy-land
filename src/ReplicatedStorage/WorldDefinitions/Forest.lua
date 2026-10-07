@@ -27,6 +27,9 @@ export type WorldDefinition = {
     MapFolder: string?,
     BossDefinitionId: string?,
     SpawnRules: { string },
+    -- Mecanicas expandidas de FASE 4. Lista de kinds del catalogo WorldMechanics.
+    -- Verificado por `WorldMechanics.Audit` contra MechanicsByWorld.
+    Mechanics: { string }?,
     Rewards: {
         XP: number,
         Coins: number,
@@ -44,6 +47,9 @@ local World: WorldDefinition = {
     MapFolder = "Forest",
     BossDefinitionId = "ForestGrooty",
     SpawnRules = { "Slime", "Slime", "BombBug", "Shadow" },
+    -- FASE 4: tracking de pasos, zonas ocultas y mecanismos naturales.
+    -- Forest no tiene eventos temporales: la emboscada ya provee sorpresa.
+    Mechanics = { "Tracking", "HiddenZone", "NaturalMechanism" },
     Rewards = {
         XP = 10,
         Coins = 5,

@@ -27,6 +27,9 @@ export type WorldDefinition = {
     MapFolder: string?,
     BossDefinitionId: string?,
     SpawnRules: { string },
+    -- Mecanicas expandidas de FASE 4. Lista de kinds del catalogo WorldMechanics.
+    -- Verificado por `WorldMechanics.Audit` contra MechanicsByWorld.
+    Mechanics: { string }?,
     Rewards: {
         XP: number,
         Coins: number,
@@ -46,6 +49,8 @@ local World: WorldDefinition = {
     MapFolder = "Volcano",
     BossDefinitionId = "VolcanoMagmaLord",
     SpawnRules = { "FireBeast", "BomberMonster", "IceBeast", "Hunter" },
+    -- FASE 4: erupcion con fases, lluvia de meteoros y rutas cambiantes.
+    Mechanics = { "TemporalEvent", "MeteorShower", "DynamicRoute" },
     Rewards = {
         XP = 40,
         Coins = 20,

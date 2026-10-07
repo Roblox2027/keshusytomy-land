@@ -74,6 +74,7 @@ local SUITES = {
 	{ name = "ZonePopulation", path = "./shared/ZonePopulation.spec" },
 	{ name = "ActivitiesRules", path = "./shared/ActivitiesRules.spec" },
 	{ name = "ActivityCatalog", path = "./shared/ActivityCatalog.spec" },
+	{ name = "WorldMechanics", path = "./shared/WorldMechanics.spec" },
 }
 
 local loadedSuites = 0

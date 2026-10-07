@@ -470,6 +470,16 @@ local SERVICES = {
 		dependencies = { "CombatService", "MonsterService" },
 	},
 
+	-- WorldMechanicsService: mecanicas EXPANDIDAS por mundo (FASE 4). Registra
+	-- puntos de interaccion con `ActivityService`, gestiona eventos temporales
+	-- (tormentas, erupciones) y publica estado. Depende de `ActivityService`
+	-- (RegisterPoints), `CombatService` (dano) y `WorldService` (mundos).
+	{
+		name = "WorldMechanicsService",
+		module = SERVER.Services.WorldMechanicsService,
+		dependencies = { "ActivityService", "CombatService", "WorldService" },
+	},
+
 	-- MiniBossService: mini-bosses por zona con enfriamiento.
 	--
 	-- Depende de `MonsterService` porque sus NPC los genera el y porque
@@ -887,6 +897,20 @@ local function wireDependencies(registry: any): { string }
 		{ "CombatService", "MonsterService" },
 		function(service: any)
 			service.SetDependencies(combatService, monsterService)
+		end
+	)
+
+	-- WorldMechanicsService (FASE 4): el dano de eventos temporales pasa por
+	-- `CombatService` (autoridad unica), los puntos de interaccion se registran
+	-- en `ActivityService` (RegisterPoints) y el mundo se resuelve con
+	-- `WorldService`. El servicio arranca igual sin ellos: las zonas se ven y
+	-- lo unico que falta es el efecto.
+	connect(
+		"WorldMechanicsService",
+		registry:Get("WorldMechanicsService"),
+		{ "ActivityService", "CombatService", "WorldService" },
+		function(service: any)
+			service.SetDependencies(activityService, combatService, worldService)
 		end
 	)
 

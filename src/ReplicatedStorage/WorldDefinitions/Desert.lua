@@ -27,6 +27,9 @@ export type WorldDefinition = {
     MapFolder: string?,
     BossDefinitionId: string?,
     SpawnRules: { string },
+    -- Mecanicas expandidas de FASE 4. Lista de kinds del catalogo WorldMechanics.
+    -- Verificado por `WorldMechanics.Audit` contra MechanicsByWorld.
+    Mechanics: { string }?,
     Rewards: {
         XP: number,
         Coins: number,
@@ -46,6 +49,8 @@ local World: WorldDefinition = {
     MapFolder = "Desert",
     BossDefinitionId = "DesertSandBeast",
     SpawnRules = { "Hunter", "Hunter", "Guardian", "Slime" },
+    -- FASE 4: tormenta de arena con fases, tesoros enterrados y oasis seguros.
+    Mechanics = { "TemporalEvent", "BuriedTreasure", "Oasis" },
     Rewards = {
         XP = 20,
         Coins = 10,

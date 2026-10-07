@@ -27,6 +27,9 @@ export type WorldDefinition = {
     MapFolder: string?,
     BossDefinitionId: string?,
     SpawnRules: { string },
+    -- Mecanicas expandidas de FASE 4. Lista de kinds del catalogo WorldMechanics.
+    -- Verificado por `WorldMechanics.Audit` contra MechanicsByWorld.
+    Mechanics: { string }?,
     Rewards: {
         XP: number,
         Coins: number,
@@ -54,6 +57,8 @@ local World: WorldDefinition = {
     MapFolder = "Cyber",
     BossDefinitionId = "CyberCore",
     SpawnRules = { "CyberStalker", "BomberMonster", "CyberStalker", "Guardian" },
+    -- FASE 4: terminales con maquina de estados, puertas de seguridad y lasers.
+    Mechanics = { "Terminal", "SecurityDoor", "SecurityLasers", "DynamicRoute" },
     Rewards = {
         XP = 50,
         Coins = 25,
