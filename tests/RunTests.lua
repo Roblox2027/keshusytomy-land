@@ -57,6 +57,13 @@ local SUITES = {
 	{ name = "MonsterDeath", path = "./shared/MonsterDeath.spec" },
 	{ name = "MonsterBalance", path = "./shared/MonsterBalance.spec" },
 	{ name = "TestDriverLogic", path = "./shared/TestDriverLogic.spec" },
+	{ name = "WorldAccess", path = "./shared/WorldAccess.spec" },
+	{ name = "NightCycle", path = "./shared/NightCycle.spec" },
+	{ name = "Difficulty", path = "./shared/Difficulty.spec" },
+	{ name = "Horde", path = "./shared/Horde.spec" },
+	{ name = "Events", path = "./shared/Events.spec" },
+	{ name = "MiniBoss", path = "./shared/MiniBoss.spec" },
+	{ name = "ZonePopulation", path = "./shared/ZonePopulation.spec" },
 }
 
 local loadedSuites = 0

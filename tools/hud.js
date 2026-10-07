@@ -1,4 +1,4 @@
-﻿// hud.js
+// hud.js
 // Construye el HUD REAL de KeshusyTomy-LanD como ARBOL DE CONTENEDORES.
 //
 // POR QUE SE GENERA Y NO SE ESCRIBE A MANO
@@ -534,6 +534,50 @@ function buildRightPanel() {
 		size2: 20,
 	});
 	node.ActiveBombs = activeBombs.node;
+
+	// CICLO DIA/NOCHE (FASES 8 y 9): numero de noche y reloj del mundo.
+	//
+	// Va DEBAJO del objetivo y de las bombas, no en la banda superior. La banda
+	// superior ya esta llena con mundo, nivel, XP y monedas, y el enunciado es
+	// explicito: "no sobrecargar la pantalla". Anadirla ahi obliga a encoger el
+	// resto de la barra en movil, que es donde ya no cabe.
+	//
+	// Ocupa 40 px, los mismos que `ActiveBombs`. El alto de la zona se mantiene
+	// en 108 porque las dos tarjetas caben justas (52 + 4 + 40 = 96) y ampliar
+	// la zona hacia abajo invadiria la zona central, que es la que hay que
+	// dejar libre para jugar.
+	const nightCard = card("NightStatus", {
+		position: [0, 0, 0, 60],
+		size: [1, 0, 0, 40],
+	});
+	nightCard.node.$properties.ZIndex = 1;
+	nightCard.node.$properties.Visible = false;
+	nightCard.node.NightLabel = label("NightLabel", {
+		position: [0, 10, 0, 6],
+		size: [0, 150, 0, 14],
+		text: "NOCHE 1",
+		tint: THEME.text,
+		size2: 12,
+	});
+	nightCard.node.PhaseLabel = label("PhaseLabel", {
+		position: [0, 10, 0, 20],
+		size: [0, 150, 0, 14],
+		text: "DIA",
+		tint: THEME.textDim,
+		size2: 10,
+	});
+	// El reloj va a la DERECHA de la tarjeta porque es el dato que cambia cada
+	// medio segundo: si esta debajo, el texto de la izquierda ("NOCHE 17")
+	// quedaria descentrado con cada cambio de ancho del reloj.
+	nightCard.node.Clock = label("Clock", {
+		position: [1, -62, 0, 12],
+		size: [0, 56, 0, 18],
+		text: "06:00",
+		tint: THEME.accent,
+		size2: 16,
+	});
+	node.NightStatus = nightCard.node;
+
 	return node;
 }
 

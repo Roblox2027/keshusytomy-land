@@ -80,19 +80,17 @@ local function describeMonsterScale()
 			expect.toBe(#problems, 0)
 		end)
 
-		Harness.it("los bichos del juego estan declarados, y son 9 de fauna y 5 de boss", function()
+		Harness.it("los bichos del juego estan declarados, y son 9 de fauna, 5 de boss y 15 de mini-boss", function()
 			-- Si alguien anade un monstruo nuevo y olvida la escala, el
 			-- jugador veria una caja del tamano de un jugador otra vez.
 			--
 			-- El numero es EXACTO y no un minimo a proposito: la fauna son
 			-- nueve arquetipos (Slime, BombBug, Shadow, Hunter, Guardian,
-			-- IceBeast, FireBeast, Bomber, CyberStalker) y hay uno por
-			-- mundo en los cinco ultimos. Lo que la cifra protege es que
-			-- nadie declare un bicho sin escala y que el reparto de fauna
-			-- por mundo no se desmonte en silencio.
+			-- IceBeast, FireBeast, Bomber, CyberStalker), hay un boss por
+			-- mundo y un mini-boss por zona (15 total).
 			local ids = allIds()
 
-			expect.toBe(#ids, 14)
+			expect.toBe(#ids, 29)
 
 			-- Y el reparto tiene que seguir siendo el de la especificacion:
 			-- cinco bosses, uno por mundo, y ninguno compartido.

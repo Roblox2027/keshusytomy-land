@@ -1,0 +1,11 @@
+# QA
+## Status (Fase 1 - 2026-10-07)
+- Tests: PASS (npm test 892 pasaron / 0 fallaron; suites 47/47)
+- Verify: PASS (`npm run verify` exit 0 completo: structure, wiring, worlds, contract, navigation, spawn, world-edge, monster-access 49/49, bomb-grid, powerup-boss 9 powerups/5 bosses, rojo:build, env, context)
+- Rojo: PASS (Rojo 7.7.0 -> `.ai/runtime/latest.rbxlx`)
+- Generator: PASS idempotente (2 ejecuciones `node tools/generate-project.js`: SHA256 `553A3027...BAC8` / `806C0F5E...30FA` identicos; git status sin cambios entre runs; escribe solo default.project.json + tools/sync-lighting.lua)
+- MCP: BLOCKED (ver BLOCKED.md; detectado con herramientas reales `studio-mcp.js` y `runtime-scan.js`, no asumido)
+- Studio: BLOCKED (proceso abierto PID 29564, plugin MCP no responde; NO ejecutado ni inspeccionado)
+- Play Test: BLOCKED (sin MCP/Studio dirigible; NO ejecutado)
+- MAP/Datamodel visual: NO VALIDADO (no confundir con verify: la validacion de codigo y la visual son distintas)
+- analyze.js (typecheck): FAIL preexistente (documentado en .ai/AI_CONTEXT.md y verify:env; 521 incidencias previas a este bootstrap)

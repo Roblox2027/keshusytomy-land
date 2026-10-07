@@ -1,0 +1,7 @@
+local R = require('../src/ReplicatedStorage/Shared/Libraries/NightRules')
+print('tipo', type(R))
+print('Phase', type(R.Phase))
+print('PhaseAt', type(R.PhaseAt))
+print('FormatClock', type(R.FormatClock))
+print('PhaseOrder', type(R.PhaseOrder))
+print('keys', table.concat(table.keys(R), ','))

@@ -41,6 +41,11 @@ local GameConstants = require(CONSTANTS:WaitForChild("GameConstants"))
 local Logger = require(UTILS:WaitForChild("Logger"))
 local RateLimiter = require(SHARED:WaitForChild("Libraries"):WaitForChild("RateLimiter"))
 
+-- Politica de acceso a mundos (FASE 3). Es la UNICA fuente de la pregunta
+-- "¿puede este jugador entrar en este mundo?", y ya no incluye el nivel.
+-- `PortalService` la consulta; nadie mas decide.
+local WorldAccessRules = require(SHARED:WaitForChild("Libraries"):WaitForChild("WorldAccessRules"))
+
 local RemoteAction = GameConstants.RemoteAction
 
 local Service = {}
@@ -186,7 +191,11 @@ function Service.CollectPortals(): number
 					Instance = instance,
 					Threshold = panel,
 					Position = panel.Position,
-					RequiredLevel = world.RequiredLevel or 1,
+					-- Nivel que se PINTA en el cartel. Viene de la politica de
+					-- acceso y ya no de la definicion del mundo: las dos cosas
+					-- dijeron 50 en Cyber y por eso el cartel mentia sobre un
+					-- mundo que, de hecho, siempre estuvo abierto.
+					RequiredLevel = WorldAccessRules.GetRequiredLevel(worldId),
 					DisplayName = world.DisplayName or worldId,
 					State = Service.PortalState.Open,
 				}
@@ -373,10 +382,38 @@ function Service.CanTravel(player: Player, worldId: any): (boolean, string?)
 		end
 	end
 
-	-- 7. Nivel requerido.
-	local level = Service.GetPlayerLevel(player)
-	if level < portal.RequiredLevel then
-		return false, ("requiere nivel %d"):format(portal.RequiredLevel)
+	-- 7. MUNDO ABIERTO DESDE NIVEL 1 (FASE 3 de la expansion).
+	--
+	-- ANTES: `if level < portal.RequiredLevel then return false, "requiere nivel %d"`.
+	-- Eso era el BLOQUEO DE ACCESO, y hacia que cuatro de los cinco mundos
+	-- fueran inalcanzables durante toda una partida normal (nadie llega a 50).
+	-- Un portal que dice "nivel 50" no es dificultad: es una puerta.
+	--
+	-- AHORA: la decision la toma `WorldAccessRules`, que es donde vive el
+	-- catalogo de mundos y la politica de acceso. La comprobacion sigue
+	-- EXISTIENDO y sigue teniendo dientes:
+	--
+	--   - un `worldId` que no este en el catalogo se rechaza;
+	--   - un mundo que el servidor tenga deshabilitado o sin mapa se rechaza;
+	--   - un mundo conocido y habilitado se ADMITE, sea cual sea el nivel.
+	--
+	-- Lo que desaparece es SOLO el comparador contra el nivel. El jugador ve
+	-- igualmente "Nivel 1" en el cartel, porque `GetRequiredLevel` sigue
+	-- existiendo: quitar el bloqueo no es quitar la informacion.
+	--
+	-- POR QUE NO SE BORRA LA FRONTERA ENTERA
+	-- -------------------------------------
+	-- Porque el `worldId` lo manda el cliente. Sin esta linea, un cliente
+	-- modificado podria pedir cualquier cadena y el unico filtro que quedaba
+	-- seria el registro del portal. El catalogo es la primera frontera, y esto
+	-- es la razon por la que el modulo existe como modulo.
+	local allowedAccess, accessReason = WorldAccessRules.CanEnter(worldId, function(id: string)
+		return Service._worldService ~= nil
+			and Service._worldService.IsWorldAvailable(id)
+	end)
+
+	if not allowedAccess then
+		return false, accessReason or "mundo no disponible"
 	end
 
 	-- 8. Proximidad al umbral.

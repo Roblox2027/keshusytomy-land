@@ -1,6 +1,6 @@
 # KESHUSYTOMY-LAN-D - CONTEXTO IA
 
-Generado: 2026-10-05T14:02:15.455Z
+Generado: 2026-10-07T00:25:58.539Z
 
 > Este archivo es un INDICE generado, no una fuente de verdad.
 > La fuente de verdad del estado del desarrollo es `docs/phases.md`.
@@ -9,7 +9,7 @@ Generado: 2026-10-05T14:02:15.455Z
 ## Git
 
 - Rama: `main`
-- Commit: `5ae788e` - feat(monstruos,audio): escala separada de hitbox y arquitectura de audio integral
+- Commit: `c939967` - fix: certify KeshusyTomy-LanD gameplay
 - Arbol: CON CAMBIOS SIN COMMITear
 
 ## FUENTES DE VERDAD (leer antes de decidir)
@@ -32,7 +32,7 @@ Generado: 2026-10-05T14:02:15.455Z
 | verify-structure | OK |
 | verify-wiring | OK |
 | analyze.js (typecheck) | FAIL |
-| Studio/MCP | CONECTADO |
+| Studio/MCP | BLOCKED (Studio/MCP no responde) |
 
 > analyze.js esta en FAIL. Es previo a este bootstrap (521 incidencias tambien sin estos archivos) y corresponde a `.ai/qa/ACCEPTANCE_TESTS.md`, no al entorno. No se maquilla como PASS ni se oculta.
 
@@ -48,10 +48,10 @@ Generado: 2026-10-05T14:02:15.455Z
 
 ## Inventario de fuente
 
-- Luau total: 240
-- Servicios de servidor: 34
+- Luau total: 261
+- Servicios de servidor: 37
 - Controllers de cliente: 12
-- Suites de prueba: 40
+- Suites de prueba: 47
 
 ## REGLA INNEGOCIABLE
 

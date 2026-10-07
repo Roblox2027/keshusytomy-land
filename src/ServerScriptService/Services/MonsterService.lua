@@ -54,6 +54,11 @@ Service._killed = 0
 -- UNICO que se pierde es el progreso de las misiones.
 Service._questService = nil
 
+-- MiniBossService: observador de muertes (FASE 15). Opcional:
+-- sin el, los mini-bosses son fauna jugable; con el, cobran su
+-- recompensa de tier y arrancan el enfriamiento de su zona.
+Service._miniBossService = nil
+
 local MaidRef = nil
 
 --- Carpeta de monstruos, creada una sola vez.
@@ -92,6 +97,17 @@ end
 --- @param questService any?
 function Service.SetQuestService(questService: any)
 	Service._questService = questService
+end
+
+--- Inyecta el `MiniBossService` (FASE 15).
+---
+--- Es un OBSERVADOR de las muertes, no una dependencia de
+--- ciclo de vida: se inyecta con `pcall` desde `ServerMain`
+--- por la misma razon que `PowerupService.SetMonsterService`
+--- (la flecha iria al reves y crearia un ciclo topologico).
+--- @param miniBossService any
+function Service.SetMiniBossService(miniBossService: any)
+	Service._miniBossService = miniBossService
 end
 
 --- Monstruos vivos ahora mismo.
@@ -810,6 +826,24 @@ function Service.OnMonsterDied(monsterId: number): boolean
 		if killer and Service._questService ~= nil then
 			Service._questService.RecordMetric(killer, "MonsterDefeated", 1)
 		end
+	end
+
+	-- MINI-BOSSES (FASE 15).
+	--
+	-- La notificacion va AQUI, dentro de `ClaimReward` y ANTES de
+	-- liberar el registro: `MiniBossService` necesita saber QUE
+	-- murio (`record.Def.Id`), en QUE mundo (`record.WorldId`) y si
+	-- la muerte ya cobro (`record.Rewarded`) para decidir si paga
+	-- SU recompensa escalada y arranca el enfriamiento de la zona.
+	--
+	-- El aviso es OPCIONAL por la misma razon que las flechas de
+	-- `PowerupService`: un servicio que observa no puede impedir
+	-- que el juego funcione sin el. Sin `MiniBossService`, los
+	-- mini-bosses mueren como fauna normal (el `MonsterDefinitions`
+	-- de arriba los declara jugables); con el, ademas cobran su
+	-- recompensa de tier y activan el cooldown de su zona.
+	if Service._miniBossService then
+		pcall(Service._miniBossService.OnMonsterDied, monsterId, record)
 	end
 
 	-- Liberacion de referencias. Un registro de muerte que conserve el

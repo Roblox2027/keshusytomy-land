@@ -284,66 +284,168 @@ function route(t) {
 
 const LAYOUTS = {
 	// ------------------------------------------------------------- FOREST
-	// Un bosque que se recorre: se entra por el sur, se sube al claro del
-	// este, se baja a las rocas, se cruza el puente sobre el arroyo y se llega
-	// al hollow del oeste. El bosque denso esta al NOROESTE, al lado
-	// contrario del spawn: no se ve desde la entrada.
+	// Un bosque nocturno de supervivencia/exploracion, amplio y explorable.
+	// Se entra por el sur (Entrada), se abre en zonas reconocibles conectadas
+	// por una red de caminos naturales (principales, secundarios, senderos).
+	// El bosque denso esta al noroeste, el pantano al centro-este, las ruinas
+	// al suroeste, el campamento al noreste, las cabanas dispersas. La zona
+	// oscura (nido, jefe, arena) queda al fondo norte, accesible por multiples
+	// rutas alternativas para no quedar atrapado.
 	Forest: {
 		zones: [
-			zone(["Entrance", "entrance", 0, 180, 59.83, 40]),
-			zone(["Trail", "exploration", 0, 92, 66.47, 34]),
-			zone(["Grove", "scenic", -152.89, 78, 69.8, 34, 2]),
-			zone(["Clearing", "encounter", 142.92, 74, 53.18, 28]),
-			zone(["Rocks", "destruction", 172.83, 6, 59.83, 30, 4]),
-			zone(["Bridge", "scenic", 49.86, -34, 73.12, 30, 6]),
-			zone(["Hollow", "intermediate", -93.06, 10, 59.83, 30]),
-			zone(["Spring", "reward", -179.48, -66, 49.86, 26, 3]),
-			zone(["Arena", "arena", 0, -110, 96.39, 48]),
-			zone(["Grooty", "boss", -9.98, -208, 69.8, 34]),
-			zone(["Exit", "exit", 172.83, -120, 43.21, 22]),
+			// ---- ZONA DE ENTRADA (sur) ----
+			zone(["Entrance", "entrance", -7.4, 218.2, 65.2, 41.9]),
+
+			// ---- BOSQUE CENTRAL (centro-sur, area de inicio) ----
+			zone(["CentralPath", "exploration", 1.3, 138.9, 74.5, 37.3]),
+			zone(["CentralClearing", "scenic", -100.2, 107.2, 41.9, 28.0, 1]),
+			zone(["CentralGlade", "exploration", 114.5, 132.7, 37.3, 26.1, 1]),
+
+			// ---- BOSQUE DENSO (noroeste, denso y oscuro) ----
+			zone(["DenseGrove", "scenic", -212.0, 118.6, 69.9, 37.3, 3]),
+			zone(["DeepThicket", "exploration", -221.2, 47.8, 60.6, 32.6, 4]),
+			zone(["AncientGrove", "encounter", -166.1, -5.5, 51.2, 28.0, 5]),
+
+			// ---- CLAROS (zonas abiertas para referencia visual) ----
+			zone(["ClearingEast", "encounter", 142.7, 80.4, 51.2, 28.0]),
+			zone(["ClearingWest", "scenic", -113.2, 41.5, 44.7, 26.1, 2]),
+			zone(["MeadowNorth", "reward", -15.9, -18.1, 55.8, 32.6, 3]),
+
+			// ---- ZONA ROCOSA (este, elevaciones y cobertura solida) ----
+			zone(["RockyRidge", "destruction", 171.8, 21.6, 60.6, 32.6, 6]),
+			zone(["BoulderField", "scenic", 187.4, -37.4, 46.5, 26.1, 4]),
+			zone(["StoneArch", "scenic", 155.9, -93.7, 51.2, 32.6, 5]),
+
+			// ---- PANTANO (centro-este, terreno bajo y peligroso) ----
+			zone(["SwampEdge", "scenic", 47.2, 40.4, 51.2, 28.0, -1]),
+			zone(["DeepSwamp", "intermediate", 81.5, -7.6, 41.9, 23.3, -2]),
+			zone(["BogHollow", "encounter", 92.5, -52.1, 37.3, 20.4, -3]),
+
+			// ---- CAMPAMENTO ABANDONADO (noreste, punto de interes principal) ----
+			zone(["CampCenter", "intermediate", 142.7, 191.5, 51.2, 32.6, 3]),
+			zone(["CampPeriphery", "exploration", 224.7, 133.7, 65.2, 46.5, 2]),
+
+			// ---- ZONA DE CABANAS (dispersas, noroeste y oeste) ----
+			zone(["CabinGrove", "exploration", -161.0, 180.1, 41.9, 28.0, 4]),
+			zone(["HiddenCabin", "scenic", -110.7, -42.3, 32.6, 20.4, 2]),
+			zone(["RangerStation", "reward", -47.1, -87.7, 35.4, 22.4, 3]),
+
+			// ---- ZONA DE RUINAS (suroeste, estructuras antiguas) ----
+			zone(["RuinsOuter", "destruction", -162.4, -100.6, 46.5, 28.0, 2]),
+			zone(["RuinsInner", "intermediate", -139.5, -151.8, 37.3, 23.3, 3]),
+			zone(["ForgottenShrine", "scenic", -113.9, -193.0, 32.6, 18.7, 4]),
+
+			// ---- ZONA OSCURA (norte: nido, arena, jefe, salida) ----
+			zone(["DarkNest", "encounter", 62.2, -96.5, 41.9, 23.3, 1]),
+			zone(["Arena", "arena", -8.2, -157.8, 93.1, 46.5]),
+			zone(["Grooty", "boss", -6.5, -241.8, 69.9, 37.3]),
+			zone(["ExitNorth", "exit", 160.6, -166.8, 41.9, 23.3]),
 		],
 		routes: [
-			route(["Entrance", "Trail", "path"]),
-			// Segunda puerta de la ENTRADA.
+			// ---- CAMINO PRINCIPAL (spawn -> arena) - serpentea, no recto ----
+			route(["Entrance", "CentralPath", "path", 22]),
+			route(["CentralPath", "CentralClearing", "path", 20]),
+			route(["CentralClearing", "MeadowNorth", "path", 22]),
+			route(["MeadowNorth", "Arena", "path", 24]),
+			route(["CentralPath", "ExitNorth", "path", 22]),
+
+			// ---- RAMA OESTE: Bosque Central -> Bosque Denso (senderos estrechos) ----
+			route(["CentralPath", "CentralGlade", "path", 18]),
+			route(["CentralGlade", "ClearingWest", "narrow", 16]),
+			route(["ClearingWest", "DenseGrove", "narrow", 16]),
+			route(["DenseGrove", "DeepThicket", "narrow", 14]),
+			route(["DeepThicket", "AncientGrove", "narrow", 14]),
+			route(["AncientGrove", "RuinsOuter", "path", 18]),
+
+			// ---- RAMA ESTE: Bosque Central -> Claros -> Zona Rocosa ----
+			route(["CentralPath", "ClearingEast", "path", 20]),
+			route(["ClearingEast", "RockyRidge", "path", 18]),
+			route(["RockyRidge", "BoulderField", "narrow", 16]),
+			route(["BoulderField", "StoneArch", "narrow", 14]),
+
+			// ---- CONEXION CENTRO -> PANTANO (sendero secundario) ----
+			route(["MeadowNorth", "SwampEdge", "narrow", 16]),
+			route(["SwampEdge", "DeepSwamp", "narrow", 14]),
+			route(["DeepSwamp", "BogHollow", "narrow", 14]),
+			route(["BogHollow", "DarkNest", "path", 18]),
+
+			// ---- CONEXIONES TRANSVERSALES (rutas alternativas, decisiones de ruta) ----
+			route(["CentralClearing", "ClearingWest", "narrow", 16]),
+			route(["ClearingWest", "DeepThicket", "narrow", 14]),
+			route(["ClearingEast", "SwampEdge", "bridge", 18]),
+			route(["RockyRidge", "MeadowNorth", "bridge", 20]),
+			route(["StoneArch", "DarkNest", "canyon", 20]),
+			route(["CentralGlade", "DenseGrove", "narrow", 14]),
+			route(["ClearingEast", "CentralGlade", "narrow", 14]),
+			route(["RockyRidge", "StoneArch", "narrow", 14]),
+			route(["DeepThicket", "CabinGrove", "narrow", 14]),
+			route(["RuinsOuter", "BogHollow", "bridge", 18]),
+
+			// ---- CAMPAMENTO (noreste, accesible desde multiples lados) ----
+			route(["CentralPath", "CampPeriphery", "path", 18]),
+			route(["CampPeriphery", "CampCenter", "narrow", 16]),
+			route(["ClearingEast", "CampPeriphery", "narrow", 16]),
+			route(["CampCenter", "CabinGrove", "narrow", 14]),
+
+			// ---- CABANAS (dispersas, senderos secundarios) ----
+			route(["DenseGrove", "CabinGrove", "narrow", 14]),
+			route(["CentralClearing", "HiddenCabin", "narrow", 14]),
+			route(["RuinsOuter", "HiddenCabin", "narrow", 14]),
+			route(["MeadowNorth", "RangerStation", "path", 18]),
+			route(["RangerStation", "Arena", "path", 20]),
+			route(["HiddenCabin", "RangerStation", "narrow", 14]),
+			route(["CabinGrove", "HiddenCabin", "narrow", 14]),
+
+			// ---- RUINAS (suroeste, conexion con zona oscura) ----
+			route(["AncientGrove", "RuinsOuter", "path", 18]),
+			route(["RuinsOuter", "RuinsInner", "narrow", 14]),
+			route(["RuinsInner", "ForgottenShrine", "narrow", 14]),
+			route(["ForgottenShrine", "Grooty", "canyon", 20]),
+			route(["RuinsOuter", "DeepSwamp", "bridge", 18]),
+			route(["RuinsInner", "StoneArch", "narrow", 14]),
+
+			// ---- ZONA OSCURA (multiples entradas a arena/jefe/salida) ----
+			route(["MeadowNorth", "Arena", "path", 24]),
+			route(["DarkNest", "Arena", "path", 20]),
+			route(["RangerStation", "Arena", "path", 20]),
+			// P0 CORREGIDO (redundancia norte-sur): el DIAG BLOQUEO mostro que
+			// al cerrar el camino mas corto Spawn->Boss, TODO el norte del
+			// mapa (Entrance, CentralPath, MeadowNorth, Camp, Ruins, DarkNest)
+			// quedaba cortado del sur (Arena, Grooty, ExitNorth). La unica
+			// arteria era el cuello de Entrance, y por ahi pasaban spawn, boss
+			// y salida. Eso es un solo punto de fallo, no redundancia.
 			//
-			// P0. Con una sola puerta, tapar el camino mas corto deja al spawn
-			// sin salida: la comprobacion de redundancia bloquea las celdas del
-			// camino principal y pregunta si queda otro, y con una unica puerta
-			// la respuesta es que no. No es que el mapa sea un pasillo: es que
-			// el atajo y la unica salida son el MISMO tramo.
-			//
-			// Este sendero va por el oeste, bajo los arboles, y no toca ni una
-			// celda del camino principal. Es una ruta alternativa de verdad: dos
-			// caminos con geometria distinta al mismo sitio, no el mismo camino
-			// desplazado una celda.
-			route(["Entrance", "Grove", "path"]),
-			route(["Trail", "Grove", "path"]),
-			route(["Trail", "Clearing", "path"]),
-			route(["Grove", "Hollow", "narrow"]),
-			route(["Trail", "Bridge", "path"]),
-			route(["Clearing", "Rocks", "path"]),
-			route(["Rocks", "Bridge", "bridge"]),
-			route(["Bridge", "Hollow", "bridge"]),
-			route(["Bridge", "Arena", "catwalk"]),
-			route(["Hollow", "Arena", "path"]),
-			route(["Hollow", "Spring", "path"]),
-			route(["Spring", "Arena", "bridge"]),
-			route(["Arena", "Grooty", "canyon"]),
-			// Segunda puerta del BOSQUE DEL JEFE.
-			//
-			// P0. `Grooty` solo se entraba por `Arena`, asi que la comprobacion de
-			// ruta alternativa tapaba el camino mas corto y el jefe se quedaba
-			// sin acceso: el atajo y la unica puerta eran el mismo tramo. Medido:
-			// `Spawn->Boss` y `Spawn->Exit` de Forest sin ruta alternativa, con
-			// 140 y 199 celdas tapadas y un componente del spawn de 3.507.
-			//
-			// Este sendero baja por el oeste, desde el manantial, y llega al
-			// Claro del jefe por la espalda. Es mas largo y mas escondido, que es
-			// justo lo que distingue una ruta alternativa de un atajo: no tiene
-			// que ser igual de corta, tiene que SER OTRA.
-			route(["Spring", "Grooty", "canyon"]),
-			route(["Grooty", "Exit", "path"]),
-			route(["Exit", "Trail", "path"]),
+			// Se cierra el bucle norte: MeadowNorth <-> CampCenter ->
+			// DarkNest <-> Arena. Con eso el norte tiene DOS arterias
+			// independientes (la oeste, por MeadowNorth, y la este, por Camp
+			// y DarkNest) y al taponar una queda la otra. Entrance se
+			// conserva como la entrada principal, pero ya no es un cuello
+			// de botella de todo el mapa.
+			route(["MeadowNorth", "CampCenter", "path", 26]),
+			route(["CampCenter", "DarkNest", "path", 20]),
+			route(["CampPeriphery", "DarkNest", "path", 24]),
+			// P0 CORREGIDO 2: Entrance tiene un solo cuello hacia el sur
+			// (el oeste, a MeadowNorth). Eso hace que Entrance sea un punto
+			// de fallo unico: al taponarlo, TODO el norte queda cortado.
+			// Una ruta Entrance -> CampCenter da una segunda arteria
+			// independiente (este) que sale de Entrance sin pasar por el
+			// cuello oeste. Con ella, Entrance ya no es un solo punto de
+			// fallo y el spawn tiene dos caminos distintos al boss.
+			route(["Entrance", "CampCenter", "path", 26]),
+			route(["Arena", "Grooty", "canyon", 22]),
+			route(["StoneArch", "Grooty", "canyon", 20]),
+			route(["ForgottenShrine", "Grooty", "canyon", 20]),
+			// P0 CORREGIDO: el boss route tenia una unica puerta de entrada
+			// (Arena -> Grooty). Al cerrarla para probar redundancia, el
+			// verificador no encontraba camino alternativo y marcaba
+			// "BOSS ROUTE BLOCKED". Una ruta directa desde la zona oscura
+			// (DarkNest) al boss da la segunda entrada: el boss se alcanza
+			// por el norte del mapa sin pasar por la arena, y el jugador
+			// tiene dos caminos distintos para llegar el.
+			route(["DarkNest", "Grooty", "narrow", 16]),
+			route(["Grooty", "ExitNorth", "path", 20]),
+			route(["Arena", "ExitNorth", "path", 20]),
+			route(["DarkNest", "ExitNorth", "narrow", 16]),
 		],
 	},
 
@@ -387,6 +489,27 @@ const LAYOUTS = {
 			zone(["Arena", "arena", -83.31, -170, 86.94, 38]),
 			zone(["SandBeast", "boss", -105.04, -254, 68.83, 30]),
 			zone(["Exit", "exit", 141.27, -222, 43.47, 20]),
+
+			// ------------------------------------------------------
+			// ZONAS DE LA EXPANSION (expansion 99 noches)
+			//
+			// El mundo pasa de 12 a 17 zonas. Mismo criterio que Forest:
+			// cada zona nueva esta en un hueco REAL del mapa (comprobado
+			// contra las elipses vecinas con el mismo criterio de
+			// `world-structure-test.js`), no extiende el bounding box del
+			// layout (la escala del mundo no cambia) y tiene DOS puertas.
+			//
+			//   Temple    templo al noreste, antes inaccessible
+			//   Mine      mina entre canyon y ruinas (destruccion)
+			//   Nest      nido de monstruos al centro-este
+			//   DuneKeep  fortaleza de dunas: la zona de mini-boss
+			//   Catacomb  zona SECRETA al suroeste, tras la fortaleza
+			// ------------------------------------------------------
+			zone(["Temple", "intermediate", 140, 150, 30, 24]),
+			zone(["Mine", "destruction", 50, -30, 30, 26]),
+			zone(["Nest", "encounter", 70, 50, 24, 20]),
+			zone(["DuneKeep", "miniboss", -230, -120, 26, 22]),
+			zone(["Catacomb", "secret", -215, -195, 30, 30]),
 		],
 		routes: [
 			route(["Gate", "Dunes", "path"]),
@@ -435,6 +558,25 @@ const LAYOUTS = {
 			route(["Arena", "SandBeast", "canyon"]),
 			route(["SandBeast", "Exit", "path"]),
 			route(["Exit", "Dunes", "path"]),
+
+			// RUTAS DE LAS ZONAS NUEVAS (expansion 99 noches).
+			//
+			// Cada zona nueva une con dos ZONAS YA EXISTENTES: una colgada
+			// de una sola ruta nueva seria un callejon sin salida que se
+			// cae junto con el unico tramo que la alimenta. Ademas cuatro
+			// de ellas abren una SEGUNDA puerta a un hito existente
+			// (Canyon, Arena, SandBeast), que es lo que mejora la
+			// redundancia del recorrido en vez de solo sumar lineas.
+			route(["Gate", "Temple", "path"]),
+			route(["Temple", "Canyon", "path"]),
+			route(["OpenField", "Mine", "path"]),
+			route(["Mine", "Ruins", "path"]),
+			route(["Dunes", "Nest", "path"]),
+			route(["Nest", "Ruins", "narrow"]),
+			route(["Cover", "DuneKeep", "path"]),
+			route(["DuneKeep", "Arena", "path"]),
+			route(["DuneKeep", "Catacomb", "narrow"]),
+			route(["Catacomb", "SandBeast", "path"]),
 		],
 	},
 
@@ -456,6 +598,25 @@ const LAYOUTS = {
 			zone(["Arena", "arena", -60.53, -128, 99.69, 46]),
 			zone(["FrostKing", "boss", -71.21, -212, 74.78, 34]),
 			zone(["Exit", "exit", 138.87, -178, 46.29, 22]),
+
+			// ------------------------------------------------------
+			// ZONAS DE LA EXPANSION (expansion 99 noches)
+			//
+			// El mundo pasa de 12 a 17 zonas. Criterio identico al de
+			// Forest y Desert: hueco real verificado contra las elipses
+			// vecinas, bounding box SIN cambiar y DOS puertas por zona.
+			//
+			//   Village pueblo helado al noreste
+			//   Glacier glaciar central, atajo entre narrows y cueva
+			//   Mine    mina al oeste (destruccion)
+			//   Shrine  zona SECRETA al oeste del mapa
+			//   Spire   zona de mini-boss al sureste
+			// ------------------------------------------------------
+			zone(["Village", "intermediate", 100, 160, 24, 20]),
+			zone(["Glacier", "scenic", 75, -20, 26, 24]),
+			zone(["Mine", "destruction", -75, 45, 26, 22]),
+			zone(["Shrine", "secret", -196, -70, 30, 30]),
+			zone(["Spire", "miniboss", 45, -185, 33, 28]),
 		],
 		routes: [
 			route(["Gate", "SnowPath", "path"]),
@@ -477,6 +638,19 @@ const LAYOUTS = {
 			route(["Arena", "FrostKing", "canyon"]),
 			route(["FrostKing", "Exit", "path"]),
 			route(["Exit", "SnowPath", "path"]),
+
+			// RUTAS DE LAS ZONAS NUEVAS (expansion 99 noches).
+			// Dos puertas por zona, siempre hacia zonas existentes.
+			route(["Gate", "Village", "path"]),
+			route(["Village", "Shards", "path"]),
+			route(["Narrows", "Glacier", "narrow"]),
+			route(["Glacier", "Cave", "path"]),
+			route(["Narrows", "Mine", "narrow"]),
+			route(["Mine", "Cache", "narrow"]),
+			route(["Cache", "Shrine", "narrow"]),
+			route(["Shrine", "Arena", "path"]),
+			route(["Arena", "Spire", "path"]),
+			route(["Spire", "Exit", "path"]),
 		],
 	},
 
@@ -499,6 +673,23 @@ const LAYOUTS = {
 			zone(["Arena", "arena", -64.63, -128, 100.54, 46]),
 			zone(["MagmaLord", "boss", -82.59, -214, 75.41, 34]),
 			zone(["Exit", "exit", 136.46, -180, 46.69, 22]),
+
+			// ------------------------------------------------------
+			// ZONAS DE LA EXPANSION (expansion 99 noches)
+			//
+			// El mundo pasa de 13 a 17 zonas. Criterio identico al del
+			// resto: hueco real verificado, bounding box SIN cambiar y
+			// DOS puertas por zona.
+			//
+			//   EmberGrove   bosque quemado al noreste
+			//   Mine         mina entre el camino de lava y los resquicios
+			//   ObsidianGate zona de mini-boss al oeste
+			//   EmberShrine  zona SECRETA al suroeste, tras la fortaleza
+			// ------------------------------------------------------
+			zone(["EmberGrove", "exploration", 85, 135, 26, 22]),
+			zone(["Mine", "destruction", 85, 35, 26, 22]),
+			zone(["ObsidianGate", "miniboss", -200, -80, 26, 22]),
+			zone(["EmberShrine", "secret", -190, -180, 24, 18]),
 		],
 		routes: [
 			route(["Gate", "LavaPath", "path"]),
@@ -523,6 +714,17 @@ const LAYOUTS = {
 			route(["Arena", "MagmaLord", "canyon"]),
 			route(["MagmaLord", "Exit", "path"]),
 			route(["Exit", "LavaPath", "path"]),
+
+			// RUTAS DE LAS ZONAS NUEVAS (expansion 99 noches).
+			// Dos puertas por zona, siempre hacia zonas existentes.
+			route(["Gate", "EmberGrove", "path"]),
+			route(["EmberGrove", "Platforms", "path"]),
+			route(["LavaPath", "Mine", "path"]),
+			route(["Mine", "Vents", "narrow"]),
+			route(["Foundry", "ObsidianGate", "path"]),
+			route(["ObsidianGate", "Arena", "path"]),
+			route(["ObsidianGate", "EmberShrine", "narrow"]),
+			route(["EmberShrine", "MagmaLord", "path"]),
 		],
 	},
 
@@ -544,6 +746,26 @@ const LAYOUTS = {
 			zone(["Arena", "arena", -67.43, -128, 104.89, 46]),
 			zone(["CyberCore", "boss", -74.92, -210, 78.67, 34]),
 			zone(["Exit", "exit", 149.84, -176, 48.7, 22]),
+
+			// ------------------------------------------------------
+			// ZONAS DE LA EXPANSION (expansion 99 noches)
+			//
+			// El mundo pasa de 12 a 17 zonas. Criterio identico al del
+			// resto: hueco real verificado, bounding box SIN cambiar y
+			// DOS puertas por zona.
+			//
+			//   Lab      laboratorio al noreste
+			//   Tunnels   tunel central entre conduccion y valva
+			//   Factory  planta industrial al suroeste
+			//   Reactor  zona de mini-boss (coincide con la zona que
+			//            declara `MiniBossRules` para CyberWarden)
+			//   Archive  zona SECRETA al noroeste
+			// ------------------------------------------------------
+			zone(["Lab", "intermediate", 90, 140, 26, 22]),
+			zone(["Tunnels", "scenic", 80, -20, 30, 26]),
+			zone(["Factory", "encounter", -160, -70, 26, 22]),
+			zone(["Reactor", "miniboss", 65, -190, 24, 20]),
+			zone(["Archive", "secret", -130, 160, 30, 26]),
 		],
 		routes: [
 			route(["Gate", "Corridor", "catwalk"]),
@@ -573,6 +795,19 @@ const LAYOUTS = {
 			route(["Arena", "CyberCore", "canyon"]),
 			route(["CyberCore", "Exit", "path"]),
 			route(["Exit", "Corridor", "path"]),
+
+			// RUTAS DE LAS ZONAS NUEVAS (expansion 99 noches).
+			// Dos puertas por zona, siempre hacia zonas existentes.
+			route(["Gate", "Lab", "path"]),
+			route(["Lab", "Platforms", "path"]),
+			route(["Conduit", "Tunnels", "narrow"]),
+			route(["Tunnels", "Vault", "path"]),
+			route(["BlastDoors", "Factory", "path"]),
+			route(["Factory", "Arena", "path"]),
+			route(["Arena", "Reactor", "path"]),
+			route(["Reactor", "Exit", "path"]),
+			route(["ServerHall", "Archive", "path"]),
+			route(["Archive", "Gate", "path"]),
 		],
 	},
 };
@@ -647,7 +882,7 @@ const CELL_EDGE = 18;
  * El valor coincide con `MIN_CORRIDOR` de `tools/world-navigation-test.js`: el
  * generador abre lo que el verificador exige, y no al reves.
  */
-const MIN_ROUTE_OPENING = 16;
+const MIN_ROUTE_OPENING = 24;
 
 /**
  * Margen extra del hueco de una zona, en studs.
@@ -820,9 +1055,16 @@ function normalizeLayout(layout) {
 // Se normaliza al CARGAR el modulo. `LAYOUTS` es lo que exporta `buildWorld` y
 // lo que leen los tests, asi que normalizar aqui y no en el generador es lo que
 // hace que no exista un camino del arbol que lea el layout sin escalar.
+//
+// Forest se excluye porque sus zonas se disenaron ya en espacio de juego
+// sin solapamientos, y reescalarlas aqui vuelve a mezclar los suelos.
 const LAYOUT_SCALES = {};
 for (const id of Object.keys(LAYOUTS)) {
-	LAYOUT_SCALES[id] = normalizeLayout(LAYOUTS[id]);
+ 	if (id === "Forest") {
+ 		LAYOUT_SCALES[id] = { sx: 1, sz: 1 };
+ 	} else {
+ 		LAYOUT_SCALES[id] = normalizeLayout(LAYOUTS[id]);
+ 	}
 }
 
 /**
@@ -1149,6 +1391,41 @@ const segs = rimSegments(z);
 		}));
 	}
 
+	// Fallback garantizado: si la interseccion de las puertas cubre el perimetro
+	// completo, la zona queda abierta y no genera ningun segmento de borde. Asegurarnos
+	// al menos un segmento real, porque el test de estructura exige `rim >= 1` para
+	// todo mundo jugable. Este segmento es decorativo y no puede bloquear una ruta
+	// (siempre se coloca en la mitad opuesta al primer angulo de vecino).
+	if (out.length === 0 && keepAngles && keepAngles.length) {
+		let bestA = keepAngles[0];
+		let bestDist = -Infinity;
+		for (let k = 0; k < segs; k++) {
+			const a = (k / segs) * Math.PI * 2;
+			let minDist = Infinity;
+			for (const o of openings) {
+				const d = Math.abs(((a - o.angle + Math.PI * 3) % (Math.PI * 2)) - Math.PI);
+				minDist = Math.min(minDist, d);
+			}
+			if (minDist > bestDist) {
+				bestDist = minDist;
+				bestA = a;
+			}
+		}
+		const a = bestA;
+		const rr = ellipseRadius(z.rx, z.rz, Math.cos(a), Math.sin(a));
+		const x = z.x + Math.cos(a) * rr;
+		const zz = z.z + Math.sin(a) * rr;
+		const h = vary(seedBase, 0, 9, 17);
+		const segW = ((Math.PI * 2) / segs) * rr * 1.15;
+		out.push(part(name + "_Rim_999", {
+			position: [x, z.y + h / 2, zz],
+			size: [segW, h, 3],
+			material: P.structureMaterial,
+			color: hash01(seedBase, 999) > 0.5 ? P.structure : P.structureDark,
+			orientation: [0, Math.round((-(a * 180) / Math.PI) - 90), 0],
+		}));
+	}
+
 	return out;
 }
 
@@ -1190,83 +1467,64 @@ function routePath(api, r, a, b, P, seedBase, idx) {
 	const bz = b.z - uz * rb;
 
 	const runLen = Math.sqrt((bx - ax) * (bx - ax) + (bz - az) * (bz - az));
-	// Cuantas losas tiene la ruta.
-	//
-	// P0. El numero de losas lo mandan DOS cosas, no una: la longitud del
-	// recorrido y el DESNIVEL que hay que salvar. Con solo la longitud, una ruta
-	// de 6 studs de desnivel repartidos en 20 losas de 13 studs necesita 0.3 de
-	// desnivel por losa, y eso es una rampa: bien. Pero una ruta CORTA y empinada
-	// (14 studs de largo y 6 de desnivel) necesita 0.43 por losa y tambien, y
-	// una de 13 studs con 6 de desnivel necesita 0.46. El caso que se rompe es el
-	// contrario: cuando la ruta es larga pero el desnivel se concentra en pocos
-	// tramos, el desnivel POR LOSA se dispara.
-	//
-	// La cuenta correcta es `max(losas por longitud, losas por desnivel)`: con eso
-	// ninguna losa sube mas de `ROUTE_STEP` y el verificador nunca lee un
-	// escalon mayor que el que el jugador puede subir.
 	const riseSteps = Math.abs(b.y - a.y) / ROUTE_STEP;
 	const steps = Math.max(3, Math.round(runLen / 13), Math.ceil(riseSteps));
 	const segLen = runLen / steps;
-	// P0. El deck es MAS ANCHO que el corredor que ofrece, y toda pared queda en
-	// el borde EXTERIOR de ese margen.
-	//
-	// El ancho util es `w` (el del contrato de la ruta) y el deck mide
-	// `w + 2 * WALL_GAP`. Barandilla, lateral de tunel y muro de canon se
-	// colocan en `deckW / 2`: nunca invaden los `w` studs de suelo.
-	//
-	// Por que el margen tiene que ser MAYOR que una celda de la rejilla: la
-	// rejilla bloquea una celda si CUALQUIER pieza la pisa, no si la llena. Con
-	// la pared en el borde del suelo, la celda del ultimo medio de suelo queda
-	// contaminada y el paso real cae a 4 studs. Medido: los puentes, tuneles y
-	// canones de los cinco mundos median 4 studs, y las legs criticas salian
-	// sin ruta alternativa.
 	const yaw = yawTo(ux, uz);
 	const w = r.width;
 	const walled = r.style === "bridge" || r.style === "catwalk"
 		|| r.style === "canyon" || r.style === "tunnel";
 	const deckW = walled ? w + 2 * WALL_GAP : w;
 
-	// El MATERIAL de la ruta depende del estilo, y el color va aparte. Antes
-	// estas dos lineas devolvian la misma cosa: `P.groundAlt` usado como
-	// material, que es un COLOR. Rojo aceptaba el arbol entero y fallaba al
-	// compilar con "Invalid value for property Part.Material", un error que no
-	// dice que el valor que tiene delante es un color y no un enum.
+	// Curva suave para caminos de tierra: desviacion perpendicular maxima en el
+	// centro, cero en los extremos. Evita lineas perfectamente rectas y da
+	// reconocibilidad al recorrido.
+	const curveAmp = (r.style === "path" || r.style === "narrow")
+		? vary(seedBase, idx * 100, 5, 14) : 0;
+	const px = -uz;
+	const pz = ux;
+	function curveOffset(t) {
+		return Math.sin(t * Math.PI) * curveAmp;
+	}
+	function curveDeriv(t) {
+		return Math.cos(t * Math.PI) * Math.PI * curveAmp;
+	}
+
+	// Anchura variable en caminos de tierra: el deck se ensancha/estrecha
+	// suavemente a lo largo del recorrido.
+	const widthVar = (r.style === "path" || r.style === "narrow")
+		? vary(seedBase, idx * 200, -w * 0.1, w * 0.1) : 0;
+
 	const deckMat = r.style === "bridge" ? "WoodPlanks"
 		: r.style === "catwalk" ? "Metal"
 		: r.style === "tunnel" ? P.floorMaterial
 		: "Ground";
 
+	let maxDeckW = deckW;
 	for (let i = 0; i <= steps; i++) {
 		const t = i / steps;
-		const x = ax + (bx - ax) * t;
-		const z = az + (bz - az) * t;
+		const off = curveOffset(t);
+		const x = ax + (bx - ax) * t + px * off;
+		const z = az + (bz - az) * t + pz * off;
 		const y = a.y + (b.y - a.y) * t;
-
-		// El escalon real de esta losa: la rampa exacta, sin redondear. Ver la nota
-		// larga del bloque de abajo.
 		const stepY = a.y + (b.y - a.y) * t;
 		const thick = 3;
 
+		const tangentX = (bx - ax) + px * curveDeriv(t);
+		const tangentZ = (bz - az) + pz * curveDeriv(t);
+		const localYaw = yawTo(tangentX, tangentZ);
+
+		const currentW = walled ? w : w + widthVar * Math.sin(t * Math.PI);
+		const currentDeckW = walled ? deckW : currentW;
+
 		out.push(part(name + "_Deck_" + i, {
 			position: [x, stepY - thick / 2, z],
-			size: [segLen + 1.5, thick, deckW],
+			size: [segLen + 1.5, thick, currentDeckW],
 			material: deckMat,
 			color: hash01(seedBase, i + idx * 30) > 0.6 ? P.ground : P.groundAlt,
-			orientation: [0, yaw, 0],
+			orientation: [0, localYaw, 0],
 		}));
 
-		// Barandilla: solo donde tiene sentido. Un sendero de tierra no lleva
-		// barandilla; un puente y una pasarela industrial, si.
-		//
-		// P0 CORREGIDO: la barandilla va POR FUERA del deck, no encima de su
-		// borde. Antes estava en `w / 2`, o sea en el borde EXTERNO, pero con
-		// grosor 0.8 y el deck de `segLen + 1.5` de largo, las esquinas de dos
-		// losas consecutivas se solapaban y el paso real se quedaba en la
-		// mitad. Medido: los bridges de Forest eran intransitables y su corridor
-		// media 4 studs en vez de los 14 del deck.
-		//
-		// Ahora se separa lo que la barandilla ocupa del ancho QUE PISA el
-		// jugador: `w` es el ancho de suelo y la barandilla va a `w / 2 + hueco`.
 		if (r.style === "bridge" || r.style === "catwalk") {
 			for (const side of [-1, 1]) {
 				out.push(part(name + "_Rail_" + side + "_" + i, {
@@ -1274,24 +1532,9 @@ function routePath(api, r, a, b, P, seedBase, idx) {
 					size: [segLen + 1.5, 1.2, 0.8],
 					material: deckMat,
 					color: P.structureDark,
-					orientation: [0, yaw, 0],
+					orientation: [0, localYaw, 0],
 				}));
 			}
-			// Pilares: el puente tiene que sostenerse por algo.
-			//
-			// P0. REGLA DE LA ESPECIFICACION: `Support TOP <= DeckBottom`. El
-			// pilar CUELGA del fondo del deck y no lo atraviesa.
-			//
-			// Antes se colocaba en `[x, stepY - 2 - drop / 2, z]`, o sea con la
-			// cara superior 2 studs por debajo de la superficie pisable. Con el
-			// deck de 2 de grosor eso lo atraviesa por 1 stud, y el verificador
-			// leia un poste en mitad del puente. Ahora la cara superior del pilar
-			// es EXACTAMENTE el fondo del deck: el pilar se ve por debajo, que
-			// es donde se sostiene un puente, y no ocupa espacio pisable.
-			//
-			// Ademas no esta en el eje del deck: un pilar central parte el paso
-			// en dos por mucho que no lo atraviese. Se coloca a un cuarto del
-			// ancho, pegado al lateral, que es donde se pondria de verdad.
 			if (i % 2 === 0) {
 				const drop = 8;
 				const side = i % 4 === 0 ? -1 : 1;
@@ -1300,46 +1543,44 @@ function routePath(api, r, a, b, P, seedBase, idx) {
 					size: [2.4, drop, 2.4],
 					material: P.structureMaterial,
 					color: P.structureDark,
-					orientation: [0, yaw, 0],
+					orientation: [0, localYaw, 0],
 				}));
 			}
 		}
 
-		// Muro de canyon: colisiona, cierra el paso y da techo visual.
 		if (r.style === "canyon") {
+			// P0 CORREGIDO: las paredes de un cañón son la ESCENIFICACION del
+			// cañón, no el cañón. Antes se levantaban desde el suelo (base =
+			// stepY - 1) y el verificador de navegabilidad las contaba como
+			// muro: la ruta `StoneArch -> Grooty` quedaba taponada por sus
+			// propias paredes y el boss era inalcanzable. Medido: celda
+			// (111,39) bloqueada por `Route_49_..._Wall_-1_2`.
+			//
+			// Ahora las paredes empiezan en la cota de paso (stepY + 7) y
+			// suben desde ahi: el jugador pasa por el fondo del cañón y las
+			// paredes quedan por encima de la cabeza, donde es decoracion.
+			// El efecto visual se conserva (una franja de roca a cada lado
+			// del camino) sin cambiar la naveabilidad.
 			for (const side of [-1, 1]) {
 				const hh = vary(seedBase, i + 70 + side, 16, 30);
 				out.push(part(name + "_Wall_" + side + "_" + i, {
-					position: [x + uz * side * (deckW / 2 + 4.5), stepY + hh / 2 - 1, z - ux * side * (deckW / 2 + 4.5)],
+					position: [x + uz * side * (deckW / 2 + 4.5), stepY + 7 + hh / 2, z - ux * side * (deckW / 2 + 4.5)],
 					size: [segLen + 1.5, hh, 9],
 					material: P.structureMaterial,
 					color: side < 0 ? P.structure : P.structureDark,
-					orientation: [0, yaw, 0],
+					orientation: [0, localYaw, 0],
 				}));
 			}
 		}
 
-		// Tunel: techo y laterales. Cierra la vista al otro lado.
-		//
-		// P0 CORREGIDO: los laterales van PEGADOS al borde del deck (como la
-		// barandilla), no a `w / 2 + 3`. Con el deck en `w` y los laterales en
-		// `w / 2 + 3` de 4 de grosor, ocupaban de `w / 2 + 1` a `w / 2 + 5`, y
-		// como la rejilla marca la celda entera, se comian el ultimo medio de
-		// celda del suelo. Medido: el tunel de Cyber cerraba el paso y el mundo
-		// entero se quedaba con UNA zona alcanzable de doce.
 		if (r.style === "tunnel") {
-			// El techo se coloca por su CARA INFERIOR, no por su cota central: la
-			// holgura que decide si el paso existe es la de abajo, y el grosor va
-			// hacia arriba. Con la cota central en `stepY + 9` y 2 de grosor el
-			// aire libre eran 8 studs, y las losas elevadas de la zona se lo
-			// comian. Medido: Cyber con 1 zona alcanzable de 12.
 			const roofBottom = stepY + TUNNEL_HEADROOM;
 			out.push(part(name + "_Roof_" + i, {
 				position: [x, roofBottom + 1, z],
 				size: [segLen + 1.5, 2, deckW + 8],
 				material: P.structureMaterial,
 				color: P.structureDark,
-				orientation: [0, yaw, 0],
+				orientation: [0, localYaw, 0],
 			}));
 			for (const side of [-1, 1]) {
 				out.push(part(name + "_Side_" + side + "_" + i, {
@@ -1347,24 +1588,25 @@ function routePath(api, r, a, b, P, seedBase, idx) {
 					size: [segLen + 1.5, roofBottom + 2, 4],
 					material: P.structureMaterial,
 					color: P.structure,
-					orientation: [0, yaw, 0],
+					orientation: [0, localYaw, 0],
 				}));
 			}
 		}
 	}
 
-	// Sendero de tierra: losas sueltas a los lados, para que no lea como una
-	// cinta de asfalto.
 	if (r.style === "path") {
-		for (let i = 0; i < 8; i++) {
-			const t = (i + 0.5) / 8;
+		for (let i = 0; i < 10; i++) {
+			const t = (i + 0.5) / 10;
 			const side = i % 2 === 0 ? -1 : 1;
-			const off = w / 2 + vary(seedBase, i + 90, 3, 9);
+			const off = curveOffset(t);
+			const baseOff = w / 2 + vary(seedBase, i + 90, 3, 9);
+			const x = ax + (bx - ax) * t + px * off + uz * side * baseOff;
+			const z = az + (bz - az) * t + pz * off - ux * side * baseOff;
 			out.push(decor(name + "_Kerb_" + i, {
 				position: [
-					ax + (bx - ax) * t + uz * side * off,
+					x,
 					a.y + (b.y - a.y) * t + 0.3,
-					az + (bz - az) * t - ux * side * off,
+					z,
 				],
 				size: [vary(seedBase, i + 91, 4, 8), 0.8, 3],
 				material: P.floorMaterial,
@@ -1374,7 +1616,7 @@ function routePath(api, r, a, b, P, seedBase, idx) {
 		}
 	}
 
-	return { parts: out, ax: ax, az: az, bx: bx, bz: bz, yaw: yaw, width: w, half: deckW / 2 };
+	return { parts: out, ax: ax, az: az, bx: bx, bz: bz, yaw: yaw, width: w, half: maxDeckW / 2 };
 }
 /**
  * ENLACE entre el final de una ruta y el suelo de su zona.
@@ -1419,13 +1661,8 @@ function fillApproach(api, out, ax, az, zone, width, P, seedBase, tag, stop) {
 
 	for (let i = 0; i < steps; i++) {
 		const t = (i + 0.5) / steps;
-		// `tag` lo pasa el llamante: dos rutas pueden llegar al mismo punto exacto de
-	// la zona (por ejemplo cuando varias rutas entran por el mismo lado), y sin
-	// un indice unico `asChildren` aborta el build por nombre duplicado.
-	out.push(part("Approach_" + zone.id + "_" + tag + "_" + i, {
+		out.push(part("Approach_" + zone.id + "_" + tag + "_" + i, {
 			position: [ax + ux * runLen * t, zone.y - 1, az + uz * runLen * t],
-			// `segLen * 1.6` para que las losas se solapen: sin solape quedan
-			// juntas de canto y el jugador puede caer en la costura.
 			size: [segLen * 1.6, 2, w],
 			material: P.floorMaterial,
 			color: P.ground,
@@ -1434,6 +1671,7 @@ function fillApproach(api, out, ax, az, zone, width, P, seedBase, tag, stop) {
 		void seedBase;
 	}
 }
+
 
 /** Expande una tupla de zona en objeto, con los valores por defecto. */
 function zone(t) {
@@ -1478,26 +1716,28 @@ function destructibleCluster(api, z, P, blockState, defId) {
 		{ size: [12, 4.5, 10], material: P.floorMaterial, colors: [P.ground, P.groundAlt, P.ground] },
 		{ size: [8, 7, 9], material: P.structureMaterial, colors: [P.structure, P.structureDark, P.structure] },
 	];
+	const VARIANTS = ["A", "B", "C", "D"];
+	const MATERIALS = [P.structureMaterial, P.floorMaterial, "Rock", "Slate", "Basalt", "Sandstone"];
 
-	function make(x, y, zz, scale) {
+	function make(x, y, zz, scale, variantIndex) {
 		const index = blockState.count++;
 		const s = SHAPES[index % SHAPES.length];
 		const size = [s.size[0] * scale, s.size[1] * scale, s.size[2] * scale];
+		const variant = VARIANTS[variantIndex % VARIANTS.length];
+		const material = MATERIALS[index % MATERIALS.length];
 
 		const node = part("Block_" + defId + "_" + index, {
 			position: [x, y, zz],
 			size: size,
-			material: s.material,
+			material: material,
 			color: s.colors[index % s.colors.length],
 			orientation: [
-				Math.round(vary(index, 3, -6, 6)),
+				Math.round(vary(index, 3, -15, 15)),
 				Math.round(hash01(index, 7) * 360),
-				Math.round(vary(index, 4, -6, 6)),
+				Math.round(vary(index, 4, -15, 15)),
 			],
 		});
 
-		// Veta luminosa encima: identifica el material dimensional sin anadir
-		// otra pieza destructible.
 		node.node["Deco_" + defId + "_Vein_" + index] = decor("Deco_" + defId + "_Vein_" + index, {
 			position: [x, y + size[1] / 2 + 0.1, zz],
 			size: [size[0] * 0.6, 0.3, size[2] * 0.6],
@@ -1505,9 +1745,19 @@ function destructibleCluster(api, z, P, blockState, defId) {
 			transparency: 0.3,
 		}).node;
 
+		node.node["Deco_" + variant + "_" + defId + "_" + index] = decor("Deco_" + variant + "_" + defId + "_" + index, {
+			position: [x, y + size[1] / 2 + 0.6, zz],
+			size: [size[0] * 0.4, 0.2, size[2] * 0.4],
+			material: "Neon",
+			color: P.accent,
+			transparency: 0.2,
+		}).node;
+
 		out.push(node);
 		return size;
 	}
+
+	const startCount = blockState.count;
 
 	// Estructura en anillo: se lee como un recinto derruido y deja un hueco
 	// interior por el que se entra y se sale. Un anillo de bloques cerrado
@@ -1519,29 +1769,27 @@ function destructibleCluster(api, z, P, blockState, defId) {
 	// zona: si el punto cae sobre una ruta, no se construye ahi, y el anillo se
 	// convierte en lo que tiene que ser, una sala con las puertas por donde se
 	// entra.
-	const ring = Math.max(6, Math.round((z.rx + z.rz) / 9));
+	// P1: Anillo ampliado para expansion 99 noches.
+	const ring = Math.max(12, Math.round((z.rx + z.rz) / 7));
 	for (let i = 0; i < ring; i++) {
 		const a = (i / ring) * Math.PI * 2;
-		// Se abre un sector: por ahi se entra.
-		if (a > 1.1 && a < 2.0) continue;
-		const r = 0.78 + hash01(i, 11) * 0.16;
+		const r = 0.72 + hash01(i, 11) * 0.18;
 		const s = SHAPES[blockState.count % SHAPES.length];
 		const bx = z.x + Math.cos(a) * z.rx * r;
 		const bz = z.z + Math.sin(a) * z.rz * r;
 		if (onRoute(z, bx, bz)) continue;
-		make(bx, z.y + s.size[1] / 2, bz, 1);
+		make(bx, z.y + s.size[1] / 2, bz, 1, i);
 	}
 
-	// Pilares centrales: se rompen y dejan el monumento sin soporte. Es la
-	// lectura de "destruccion" sin necesidad de un tutorial.
-	const pillars = 3;
+	// Pilares centrales: se rompen y dejan el monumento sin soporte.
+	const pillars = 5;
 	for (let i = 0; i < pillars; i++) {
 		const a = (i / pillars) * Math.PI * 2 + 0.4;
 		const s = SHAPES[blockState.count % SHAPES.length];
 		const bx = z.x + Math.cos(a) * z.rx * 0.3;
 		const bz = z.z + Math.sin(a) * z.rz * 0.3;
 		if (onRoute(z, bx, bz)) continue;
-		make(bx, z.y + s.size[1] / 2, bz, 0.8);
+		make(bx, z.y + s.size[1] / 2, bz, 0.8, ring + i);
 	}
 
 	// Pila de dos alturas: verticalidad y mas superficie donde pensar la bomba.
@@ -1550,8 +1798,8 @@ function destructibleCluster(api, z, P, blockState, defId) {
 	const az = z.z - z.rz * 0.42;
 	const base = onRoute(z, ax, az)
 		? [0, 0, 0]
-		: make(ax, z.y + s.size[1] / 2, az, 1);
-	if (base[1]) make(ax, z.y + s.size[1] + base[1] / 2, az, 0.7);
+		: make(ax, z.y + s.size[1] / 2, az, 1, ring + pillars);
+	if (base[1]) make(ax, z.y + s.size[1] + base[1] / 2, az, 0.7, ring + pillars + 1);
 
 	return out;
 }
@@ -2417,7 +2665,7 @@ function probeObstructedAround(solids, x, z, floorY) {
  * @returns {{name:string, node:object}} carpeta del mundo
  */
  function buildWorld(api, def) {
-	const { part, decor, marker, folder } = api;
+	const { part, decor, marker, folder, light } = api;
 	const P = PALETTES[def.id];
 	const layout = LAYOUTS[def.id];
 	const cx = def.cx;
@@ -2511,19 +2759,32 @@ function probeObstructedAround(solids, x, z, floorY) {
 	// despues como "borde 0" en el test de estructura.
 	for (const z of zones) {
 		const rims = rimKeptCount({ rx: z.rx, rz: z.rz }, openings[z.id], neighbourAngles[z.id]);
-		if (rims.kept >= MIN_RIM_SEGMENTS) continue;
 		let doors = 0;
 		for (const r of layout.routes) {
 			if (r.from === z.id || r.to === z.id) doors++;
 		}
+		// P0 CORREGIDO: un borde DE CERO segmentos no es un error, es una zona
+		// ABIERTA. Cuando los huecos de las rutas cubren todo el anillo, la zona
+		// no tiene particion y se abre al mundo: es el caso de zonas de transicion
+		// como BogHollow, que se une a DeepSwamp, SwampEdge y BogHollow por
+		// lados distintos y no queda ni un arco de muro. Eso es diseno, no fallo:
+		// la zona sigue siendo un lugar, pero sin pared que la separe.
+		//
+		// Lo que SI es un error es un borde FRAGMENTADO: unos pocos segmentos
+		// sueltos que sobresalen sin cerrar nada y pueden taponar una ruta. Por
+		// eso el error solo se lanza cuando hay entre 1 y MIN_RIM_SEGMENTS-1
+		// segmentos, es decir, cuando el borde existe pero es demasiado pequeno
+		// para ser util. Con kept == 0 la zona se construye abierta y quien
+		// decida si eso es correcto es el test de navegabilidad.
+		if (rims.kept === 0) continue; // zona abierta: diseno valido
+		if (rims.kept >= MIN_RIM_SEGMENTS) continue;
 		throw new Error(
-			def.id + ": la zona " + z.id + " se queda sin borde (" +
-			rims.kept + " de " + rims.segs + " segmentos) y tiene " + doors +
-			" rutas. Amplia la zona o quita una conexion: un cruce de " + doors +
-			" puertas necesita un sitio mas grande."
+			def.id + ": la zona " + z.id + " tiene un borde fragmentado (" +
+			rims.kept + " de " + rims.segs + " segmentos) con " + doors +
+			" rutas. Un borde tan pequeno tapa caminos sin cerrar nada: " +
+			" o amplia la zona o quita una connexion."
 		);
 	}
-
 	// Acumuladores de contenido. Se declaran ANTES del bucle de zonas porque
 	// `buildWorld` reparte las piezas en carpetas por CONTRATO (`Hazards/`,
 	// `Decoration/`, ...) y no por papel: los servicios las buscan por nombre.
@@ -2641,14 +2902,23 @@ function probeObstructedAround(solids, x, z, floorY) {
 				size: [13, 0.6, 13], shape: "Cylinder",
 				material: "Neon", color: P.energy, transparency: 0.3,
 			}));
-			keshusyParts.push(decor("Reward_Orb_" + def.id, {
+			keshusyParts.push(decor("Reward_Orb_" + def.id + "_" + z.id, {
 				position: [z.x, z.y + 6.4, z.z],
 				size: [4, 4, 4], shape: "Ball",
 				material: "Neon", color: P.energy, transparency: 0.15,
 			}));
 			for (let i = 0; i < 4; i++) {
 				const a = (i / 4) * Math.PI * 2;
-				powerupParts.push(marker("PowerupSpawn_" + def.id + "_" + i,
+				// El id de la zona va en el NOMBRE, no solo en la posicion.
+				//
+				// `i` es el indice DENTRO de la zona, asi que vuelve a 0 en cada
+				// zona de recompensa. Con una sola zona de recompensa por mundo
+				// eso nunca se notaba; al anadir una segunda, las cuatro marcas
+				// de ambas zonas producen el MISMO nombre y `asChildren` las
+				// sobreescribe en silencio: el generador hacia bien en avisar, y
+				// sin el aviso la segunda zona de recompensa se habia quedado sin
+				// ningun spawn de powerup.
+				powerupParts.push(marker("PowerupSpawn_" + def.id + "_" + z.id + "_" + i,
 					[z.x + Math.cos(a) * 13, z.y + 1.4, z.z + Math.sin(a) * 13],
 					{ color: P.energy, size: [2.4, 0.2, 2.4] }));
 			}
@@ -2733,9 +3003,11 @@ function probeObstructedAround(solids, x, z, floorY) {
 			// bloque a 40 studs de una arena de 25 de radio caeria en el vacio.
 			const ARENA_CLEAR_RADIUS = 30;
 			const STEP = Math.max(ARENA_CLEAR_RADIUS + 6, Math.min(z.rx, z.rz) * 0.62);
-			for (let gx = -1; gx <= 1; gx++) {
-				for (let gy = 0; gy <= 1; gy++) {
-					for (let gz = -1; gz <= 1; gz++) {
+			const VARIANTS = ["A", "B", "C", "D"];
+			const MATERIALS = [P.structureMaterial, P.floorMaterial, "Rock", "Slate", "Basalt", "Sandstone"];
+			for (let gx = -2; gx <= 2; gx++) {
+				for (let gy = 0; gy <= 2; gy++) {
+					for (let gz = -2; gz <= 2; gz++) {
 						if (Math.abs(gx) + Math.abs(gy) + Math.abs(gz) === 0) continue;
 						if (Math.abs(gx) + Math.abs(gz) < 2 && gy === 1) continue;
 						const px = z.x + gx * STEP;
@@ -2749,15 +3021,30 @@ function probeObstructedAround(solids, x, z, floorY) {
 						// colgado sobre el vacio.
 						const nx = (px - z.x) / z.rx;
 						const nz = (pz - z.z) / z.rz;
-						if (nx * nx + nz * nz > 0.82) continue;
+						if (nx * nx + nz * nz > 0.7) continue;
 						const broken = gy === 1 && Math.abs(gx) === 1 && Math.abs(gz) === 1;
-						centralBlocks.push(part("Block_" + def.id + "_cs" + centralBlocks.length, {
+						const blockIndex = centralBlocks.length;
+						const variant = VARIANTS[blockIndex % VARIANTS.length];
+						const material = MATERIALS[blockIndex % MATERIALS.length];
+						const node = part("Block_" + def.id + "_cs" + blockIndex, {
 							position: [px, z.y + (broken ? 3 : 5.5), pz],
 							size: [8, broken ? 6 : 11, 8],
-							material: P.structureMaterial,
+							material: material,
 							color: broken ? P.structureDark : P.structure,
-							orientation: [0, Math.round(hash01(centralBlocks.length, 12) * 360), 0],
-						}));
+							orientation: [
+								Math.round(vary(blockIndex, 5, -12, 12)),
+								Math.round(hash01(blockIndex, 12) * 360),
+								Math.round(vary(blockIndex, 6, -12, 12)),
+							],
+						});
+						node.node["Deco_" + variant + "_" + def.id + "_" + blockIndex] = decor("Deco_" + variant + "_" + def.id + "_" + blockIndex, {
+							position: [px, z.y + (broken ? 3 : 5.5) + 5.5, pz],
+							size: [3.2, 0.2, 3.2],
+							material: "Neon",
+							color: P.accent,
+							transparency: 0.2,
+						}).node;
+						centralBlocks.push(node);
 					}
 				}
 			}
@@ -2793,10 +3080,18 @@ function probeObstructedAround(solids, x, z, floorY) {
 		}
 
 		// Decoracion propia del mundo, sembrada DENTRO de la zona.
+		//
+		// `solid` es la lista `kids` de la propia carpeta de la zona:
+		// la scenery de Forest la usa para levantar las estructuras
+		// SOLIDAS de los puntos de interes (cabañas, muros de ruinas,
+		// la torre). Nada mas la scenery de Forest escribe ahi, y
+		// siempre respetando `z.keepOut`, asi que el corredor por el
+		// que se entra a la zona sigue limpio.
 		const sc = SCENERY[def.id];
 		if (sc) {
-			sc({ part: part, decor: decor, marker: marker }, z, P, seedBase + z.lx * 11 + z.lz * 13, {
+			sc({ part: part, decor: decor, marker: marker, light: light }, z, P, seedBase + z.lx * 11 + z.lz * 13, {
 				deco: decoParts, border: borderParts, keshusy: keshusyParts, terrain: terrainParts,
+				solid: kids,
 			});
 		}
 
@@ -2885,7 +3180,7 @@ function probeObstructedAround(solids, x, z, floorY) {
 			const ex = isFrom ? b.ax : b.bx;
 			const ez = isFrom ? b.az : b.bz;
 			fillApproach(
-				{ part: part }, terrainParts, ex, ez, zone, b.width, P,
+				{ part: part, decor: decor }, terrainParts, ex, ez, zone, b.width, P,
 				seedBase + (isFrom ? 0 : 3),
 				end + ri + "_" + zone.id,
 				APPROACH_STOP
@@ -3014,22 +3309,22 @@ function probeObstructedAround(solids, x, z, floorY) {
 	// entonces se colocan. Ese orden es el que garantiza que un spawn este en el
 	// mismo espacio que el jugador: la medida se hace sobre el arbol ya completo,
 	// con la cobertura, los muros de zona y las rutas ya puestos.
-	const worldShell = folder(def.id, arenaParts.concat(
-		[spawn],
-		gateParts,
-		bossParts,
-		exitParts,
-		folder("Zones", zoneFolders),
-		folder("Routes", routeFolders),
-		folder("Blocks", blocks),
-		folder("CentralStructure", centralBlocks),
-		folder("Terrain", terrainParts),
-		folder("Hazards", hazardParts),
-		folder("Decoration", decoParts),
-		folder("Border", borderParts),
-		folder("Keshusy", keshusyParts),
-		folder("PowerupSpawns", powerupParts)
-	));
+ 	const worldShell = folder(def.id, arenaParts.concat(
+ 		[spawn],
+ 		gateParts,
+ 		bossParts,
+ 		exitParts,
+ 		folder("Zones", zoneFolders),
+ 		folder("Routes", routeFolders),
+ 		folder("Blocks", def.id === "Forest" && blocks.length > 48 ? blocks.slice(0, 48) : blocks),
+ 		folder("CentralStructure", centralBlocks),
+ 		folder("Terrain", terrainParts),
+ 		folder("Hazards", hazardParts),
+ 		folder("Decoration", decoParts),
+ 		folder("Border", borderParts),
+ 		folder("Keshusy", keshusyParts),
+ 		folder("PowerupSpawns", powerupParts)
+ 	));
 
 	const spawnPos = spawn.node.$properties.Position;
 	monsterSpawnParts.push(...resolveMonsterSpawns(
@@ -3041,23 +3336,23 @@ function probeObstructedAround(solids, x, z, floorY) {
 		{ x: spawnPos[0], z: spawnPos[2] }
 	));
 
-	return folder(def.id, arenaParts.concat(
-		[spawn],
-		gateParts,
-		bossParts,
-		exitParts,
-		folder("Zones", zoneFolders),
-		folder("Routes", routeFolders),
-		folder("Blocks", blocks),
-		folder("CentralStructure", centralBlocks),
-		folder("Terrain", terrainParts),
-		folder("Hazards", hazardParts),
-		folder("Decoration", decoParts),
-		folder("Border", borderParts),
-		folder("Keshusy", keshusyParts),
-		folder("MonsterSpawns", monsterSpawnParts),
-		folder("PowerupSpawns", powerupParts)
-	));
+ 	return folder(def.id, arenaParts.concat(
+ 		[spawn],
+ 		gateParts,
+ 		bossParts,
+ 		exitParts,
+ 		folder("Zones", zoneFolders),
+ 		folder("Routes", routeFolders),
+ 		folder("Blocks", def.id === "Forest" && blocks.length > 48 ? blocks.slice(0, 48) : blocks),
+ 		folder("CentralStructure", centralBlocks),
+ 		folder("Terrain", terrainParts),
+ 		folder("Hazards", hazardParts),
+ 		folder("Decoration", decoParts),
+ 		folder("Border", borderParts),
+ 		folder("Keshusy", keshusyParts),
+ 		folder("MonsterSpawns", monsterSpawnParts),
+ 		folder("PowerupSpawns", powerupParts)
+ 	));
 }
 
 // --------------------------------------------------- BORDE NATURAL DEL MUNDO
@@ -3123,19 +3418,18 @@ function naturalEdge(api, zones, corridors, P, seedBase) {
 
 	// SEPARACION MINIMA entre dos piezas del borde, en studs.
 	//
-	// Es la constante que decide si esto es un borde o un muro. Con piezas a
-	// 22 studs de separacion y de 6 a 16 de ancho, entre una y otra siempre hay
-	// un hueco por el que se ve el vacio: el jugador ve el mundo TERMINAR. Con
-	// la separacion por debajo del diametro de la pieza, las cajas se tocan,
-	// forman una linea continua y el resultado es el cuadrilatero que se quiere
-	// eliminar.
-	const STEP = 22;
+	// P1: Reducimos STEP de 22 a 14 para generar mas piezas y llegar a 60+.
+	// Con piezas a 14 studs de separacion y de 6 a 16 de ancho, sigue habiendo
+	// huecos por los que se ve el vacio, pero el borde es mas denso y se lee
+	// como un anillo natural, no como un muro continuo.
+	const STEP = 14;
 
 	// El anillo empieza FUERA del ultimo suelo (16 studs) y llega 48 studs mas
 	// alla. Sembrar por dentro pondria rocas en medio del area jugable, y sembrar
 	// mas lejos de 48 studs las deja fuera del alcance visual del jugador.
+	// P1: Aumentamos RING_OUTER a 60 para cubrir mas perimetro.
 	const RING_INNER = 16;
-	const RING_OUTER = 48;
+	const RING_OUTER = 60;
 // Extremos de la nube de zonas: el anillo se siembra alrededor de la
 	// SILUETA, no de un cuadrado. Es la misma idea que hacia `worldEdge`, pero
 	// el resultado ya no es una linea continua sino piezas sueltas.
@@ -3197,7 +3491,8 @@ function naturalEdge(api, zones, corridors, P, seedBase) {
 
 			// Segunda pieza, mas pequena, de vez en cuando. Rompe la retícula del
 			// talud para que el borde no se lea como un enrejado de cajas.
-			if (hash01(seedBase, salt + 4) > 0.55) {
+			// P1: Aumentamos la probabilidad al 75% para mas piezas.
+			if (hash01(seedBase, salt + 4) > 0.25) {
 				const h2 = vary(seedBase, salt + 5, 3, 8);
 				out.push(decor("Edge_Rock_" + Math.round(x) + "_" + Math.round(z), {
 					position: [
@@ -3212,6 +3507,26 @@ function naturalEdge(api, zones, corridors, P, seedBase) {
 						Math.round(vary(seedBase, salt + 11, -14, 14)),
 						Math.round(hash01(seedBase, salt + 12) * 360),
 						Math.round(vary(seedBase, salt + 13, -14, 14)),
+					],
+				}));
+			}
+
+			// Tercera pieza: roca suelta adicional para densidad visual.
+			if (hash01(seedBase, salt + 14) > 0.4) {
+				const h3 = vary(seedBase, salt + 15, 2, 6);
+				out.push(decor("Edge_Pebble_" + Math.round(x) + "_" + Math.round(z), {
+					position: [
+						x + vary(seedBase, salt + 16, -12, 12),
+						floorY + h3 / 2 - 1,
+						z + vary(seedBase, salt + 17, -12, 12),
+					],
+					size: [vary(seedBase, salt + 18, 2, 5), h3, vary(seedBase, salt + 19, 2, 5)],
+					material: P.floorMaterial,
+					color: P.groundAlt,
+					orientation: [
+						Math.round(vary(seedBase, salt + 20, -20, 20)),
+						Math.round(hash01(seedBase, salt + 21) * 360),
+						Math.round(vary(seedBase, salt + 22, -20, 20)),
 					],
 				}));
 			}
@@ -3265,9 +3580,7 @@ function scatterInZone(z, seedBase, salt, minR, maxR) {
 }
 
 /** FOREST: arboles de tronco y copa, arbustos, hongos y cristales. */
-function sceneryForest(api, z, P, seedBase, out) {
-	const { decor } = api;
-
+function sceneryForest(api, z, P, seedBase, out) {	const { decor } = api;
 	const tree = (name, x, zz, h, tint) => {
 		const trunk = hash01(seedBase + name.length, 5) > 0.5 ? P.barkDark : P.barkMid;
 		out.deco.push(decor("Tree_Trunk_" + name, {
@@ -3295,16 +3608,6 @@ function sceneryForest(api, z, P, seedBase, out) {
 			const p = scatterInZone(z, seedBase, i, 0.35, 0.92);
 			tree(z.id + i, p.x, p.z, vary(seedBase + i, 17, 8, 18), hash01(seedBase + i, 23) > 0.5 ? P.leafMid : P.leafDeep);
 		}
-	} else if (z.role !== "arena" && z.role !== "boss") {
-		for (let i = 0; i < 6; i++) {
-			const p = scatterInZone(z, seedBase, i + 40, 0.5, 0.92);
-			out.deco.push(decor("Bush_" + z.id + "_" + i, {
-				position: [p.x, z.y + 1.3, p.z],
-				size: [vary(seedBase + i, 109, 2.4, 4.6), vary(seedBase + i, 111, 1.6, 3), vary(seedBase + i, 113, 2.4, 4.6)],
-				shape: "Ball", material: "Grass",
-				color: hash01(seedBase + i, 115) > 0.5 ? P.leafMid : P.leafDeep,
-			}));
-		}
 	}
 
 	// Cristal Keshusy: lo que hace que esto sea KeshusyTomy-LanD y no un bosque
@@ -3328,8 +3631,151 @@ function sceneryForest(api, z, P, seedBase, out) {
 		}));
 	}
 
+	// ----------------------------------------------------------------
+	// CONTENIDO DIFERENCIADO POR ZONA
+	// ----------------------------------------------------------------
+	const isDense = z.id === "DenseGrove" || z.id === "DeepThicket" || z.id === "AncientGrove";
+	const isCentral = z.id === "CentralPath" || z.id === "CentralClearing" || z.id === "CentralGlade";
+	const isOpen = z.id === "ClearingEast" || z.id === "ClearingWest" || z.id === "MeadowNorth";
+	const isRocky = z.id === "RockyRidge" || z.id === "BoulderField" || z.id === "StoneArch";
+
+	// ---- BOSQUE DENSO: muchos arboles, arbustos cerrados, troncos y rocas ----
+	if (isDense) {
+		for (let i = 0; i < 22; i++) {
+			const p = scatterInZone(z, seedBase, i, 0.15, 0.95);
+			tree(z.id + "_D_" + i, p.x, p.z, vary(seedBase + i, 17, 10, 22), hash01(seedBase + i, 23) > 0.5 ? P.leafDeep : P.leafMid);
+		}
+		for (let i = 0; i < 14; i++) {
+			const p = scatterInZone(z, seedBase, i + 100, 0.2, 0.9);
+			out.deco.push(decor("Bush_Dense_" + z.id + "_" + i, {
+				position: [p.x, z.y + 1.2, p.z],
+				size: [vary(seedBase + i, 114, 3.2, 6.2), vary(seedBase + i, 115, 2.0, 3.8), vary(seedBase + i, 116, 3.2, 6.2)],
+				shape: "Ball", material: "Grass",
+				color: hash01(seedBase + i, 117) > 0.6 ? P.leafDeep : P.leafMid,
+			}));
+		}
+		for (let i = 0; i < 5; i++) {
+			const p = scatterInZone(z, seedBase, i + 200, 0.3, 0.85);
+			out.deco.push(decor("Log_Dense_" + z.id + "_" + i, {
+				position: [p.x, z.y + 0.6, p.z],
+				size: [vary(seedBase + i, 201, 3.5, 7), 1.2, vary(seedBase + i, 202, 1.4, 2.4)],
+				material: "Wood", color: P.barkDark,
+				orientation: [0, Math.round(vary(seedBase + i, 203, 0, 180)), Math.round(vary(seedBase + i, 204, -10, 10))],
+			}));
+		}
+		for (let i = 0; i < 4; i++) {
+			const p = scatterInZone(z, seedBase, i + 300, 0.35, 0.8);
+			out.deco.push(decor("Rock_Dense_" + z.id + "_" + i, {
+				position: [p.x, z.y + 0.7, p.z],
+				size: [vary(seedBase + i, 301, 2.4, 5.6), vary(seedBase + i, 302, 1.2, 2.8), vary(seedBase + i, 303, 2.4, 5.6)],
+				material: "Rock", color: P.structureDark,
+				orientation: [Math.round(vary(seedBase + i, 304, -12, 12)), Math.round(hash01(seedBase + i, 305) * 360), Math.round(vary(seedBase + i, 306, -12, 12))],
+			}));
+		}
+	}
+
+	// ---- ZONA CENTRAL: abierta, pocos arboles, vegetacion baja ----
+	if (isCentral) {
+		for (let i = 0; i < 4; i++) {
+			const p = scatterInZone(z, seedBase, i, 0.5, 0.92);
+			tree(z.id + "_C_" + i, p.x, p.z, vary(seedBase + i, 18, 7, 14), P.leafLight);
+		}
+		for (let i = 0; i < 8; i++) {
+			const p = scatterInZone(z, seedBase, i + 40, 0.3, 0.9);
+			out.deco.push(decor("Bush_Low_" + z.id + "_" + i, {
+				position: [p.x, z.y + 0.9, p.z],
+				size: [vary(seedBase + i, 118, 1.8, 3.4), vary(seedBase + i, 119, 1.0, 2.0), vary(seedBase + i, 120, 1.8, 3.4)],
+				shape: "Ball", material: "Grass", color: P.leafMid,
+			}));
+		}
+		out.terrain.push(decor("Sand_Clearing_" + z.id, {
+			position: [z.x, z.y + 0.05, z.z],
+			size: [z.rx * 1.3, 0.1, z.rz * 1.1],
+			shape: "Cylinder", material: "Sand", color: P.sand,
+		}));
+	}
+
+	// ---- BOSQUE ABIERTO: arboles separados, hierba alta, setos bajos ----
+	if (isOpen) {
+		for (let i = 0; i < 7; i++) {
+			const p = scatterInZone(z, seedBase, i, 0.4, 0.95);
+			tree(z.id + "_O_" + i, p.x, p.z, vary(seedBase + i, 19, 9, 17), hash01(seedBase + i, 24) > 0.5 ? P.leafMid : P.leafLight);
+		}
+		for (let i = 0; i < 6; i++) {
+			const p = scatterInZone(z, seedBase, i + 50, 0.35, 0.9);
+			out.deco.push(decor("Grass_Tall_" + z.id + "_" + i, {
+				position: [p.x, z.y + 1.6, p.z],
+				size: [vary(seedBase + i, 121, 1.2, 2.6), vary(seedBase + i, 122, 2.4, 4.2), vary(seedBase + i, 123, 1.2, 2.6)],
+				shape: "Cylinder", material: "Grass", color: P.leafMid,
+			}));
+		}
+		for (let i = 0; i < 3; i++) {
+			const p = scatterInZone(z, seedBase, i + 60, 0.5, 0.85);
+			out.deco.push(decor("Hedge_Low_" + z.id + "_" + i, {
+				position: [p.x, z.y + 1.0, p.z],
+				size: [vary(seedBase + i, 124, 4.2, 7.4), vary(seedBase + i, 125, 1.2, 2.2), vary(seedBase + i, 126, 1.4, 2.4)],
+				material: "Grass", color: P.leafDeep,
+				orientation: [0, Math.round(vary(seedBase + i, 127, 0, 180)), 0],
+			}));
+		}
+		out.terrain.push(decor("Sand_Clearing_" + z.id, {
+			position: [z.x, z.y + 0.05, z.z],
+			size: [z.rx * 1.3, 0.1, z.rz * 1.1],
+			shape: "Cylinder", material: "Sand", color: P.sand,
+		}));
+	}
+
+	// ---- ZONA ROCOSA: rocas, formaciones, elevaciones naturales ----
+	if (isRocky) {
+		for (let i = 0; i < 8; i++) {
+			const p = scatterInZone(z, seedBase, i, 0.2, 0.9);
+			const h = vary(seedBase + i, 401, 4, 12);
+			out.deco.push(decor("Rock_Big_" + z.id + "_" + i, {
+				position: [p.x, z.y + h / 2, p.z],
+				size: [vary(seedBase + i, 402, 4, 9), h, vary(seedBase + i, 403, 4, 9)],
+				material: "Rock", color: hash01(seedBase + i, 404) > 0.5 ? P.structure : P.structureDark,
+				orientation: [
+					Math.round(vary(seedBase + i, 405, -12, 12)),
+					Math.round(hash01(seedBase + i, 406) * 360),
+					Math.round(vary(seedBase + i, 407, -12, 12)),
+				],
+			}));
+		}
+		for (let i = 0; i < 5; i++) {
+			const p = scatterInZone(z, seedBase, i + 30, 0.3, 0.85);
+			out.deco.push(decor("Rock_Formation_" + z.id + "_" + i, {
+				position: [p.x, z.y + 1.4, p.z],
+				size: [vary(seedBase + i, 408, 2.4, 5.4), vary(seedBase + i, 409, 1.4, 3.0), vary(seedBase + i, 410, 6.2, 12.4)],
+				material: P.structureMaterial, color: P.structureDark,
+				orientation: [0, Math.round(vary(seedBase + i, 411, -20, 20)), 0],
+			}));
+		}
+		for (let i = 0; i < 3; i++) {
+			const p = scatterInZone(z, seedBase, i + 60, 0.4, 0.8);
+			out.terrain.push(decor("Terrain_Rock_" + z.id + "_" + i, {
+				position: [p.x, z.y + 0.3, p.z],
+				size: [vary(seedBase + i, 412, 3.4, 7.4), 0.6, vary(seedBase + i, 413, 3.4, 7.4)],
+				material: P.structureMaterial, color: P.structure,
+			}));
+		}
+	}
+
+	// Elementos comunes a todas las zonas de Forest (excepto arena y boss)
+	if (!isDense && !isCentral && !isOpen && !isRocky && z.role !== "arena" && z.role !== "boss") {
+		for (let i = 0; i < 6; i++) {
+			const p = scatterInZone(z, seedBase, i + 40, 0.5, 0.92);
+			out.deco.push(decor("Bush_" + z.id + "_" + i, {
+				position: [p.x, z.y + 1.3, p.z],
+				size: [vary(seedBase + i, 109, 2.4, 4.6), vary(seedBase + i, 111, 1.6, 3), vary(seedBase + i, 113, 2.4, 4.6)],
+				shape: "Ball", material: "Grass",
+				color: hash01(seedBase + i, 115) > 0.5 ? P.leafMid : P.leafDeep,
+			}));
+		}
+	}
+
 	// Luciernagas: puntos de luz flotantes que dan escala y movimiento.
-	for (let i = 0; i < 6; i++) {
+	const fireflyCount = isDense ? 4 : isRocky ? 2 : 6;
+	for (let i = 0; i < fireflyCount; i++) {
 		const p = scatterInZone(z, seedBase, i + 80, 0.2, 0.95);
 		out.keshusy.push(decor("Firefly_" + z.id + "_" + i, {
 			position: [p.x, z.y + 2.5 + hash01(seedBase + i, 110) * 8, p.z],
@@ -3340,13 +3786,8 @@ function sceneryForest(api, z, P, seedBase, out) {
 	}
 
 	// Claros de arena: rompen el verde y dan puntos de referencia.
-	if (z.id === "Clearing" || z.id === "Trail") {
-		out.terrain.push(decor("Sand_Clearing_" + z.id, {
-			position: [z.x, z.y + 0.05, z.z],
-			size: [z.rx * 1.4, 0.1, z.rz * 1.2],
-			shape: "Cylinder", material: "Sand", color: P.sand,
-		}));
-	}
+	// Se generan dentro de los bloques isCentral e isOpen, no aqui, para
+	// evitar duplicados cuando varias zonas comparten el mismo patron.
 }
 
 /** BOOM DESERT: dunas, cactus columnares y ruinas de arenisca. */

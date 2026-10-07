@@ -37,7 +37,9 @@ local World: WorldDefinition = {
     Id = "Volcano",
     Name = "Volcano",
     DisplayName = "Volcano Rage",
-    RequiredLevel = 35,
+    -- FASE 3 (expansion 99 noches): todos los mundos se abren desde nivel 1.
+    -- La dificultad real la define `Difficulty`. Ver la nota de `Cyber.lua`.
+    RequiredLevel = 1,
     Theme = "Volcano",
     Difficulty = 4,
     MusicId = nil,

@@ -67,3 +67,36 @@ logs/
 *.zip
 *.7z
 *.exe
+
+# Debris de sesiones de depuracion (Master Script 15: NO se borran; se
+# excluyen del versionado porque nunca han estado en HEAD - `git ls-files
+# tmp_*` = 0). Versionarlos anadiria ~100 ficheros de una sesion y una
+# copia anidada entera del proyecto (.kilo/worktrees) al historial.
+/tmp_*.js
+/tmp_*.lua
+/patch_rim.js
+/probe_exit.js
+/run_why.js
+/search_why.js
+/gitdiff.txt
+/Install-RobloxAIKit.ps1
+*.rbxm
+/.kilo/
+/.ai/tmp/
+/.ai/tmp_diag*.js
+/.ai/gen_out.txt
+/.ai/nav_out.txt
+/.ai/nav_why.txt
+/.ai/why_out.txt
+/.ai/why_search.txt
+/.ai/fase1_status_*.txt
+
+# Artefacto accidental: typo de nombre, 0 bytes, 0 referencias en src/ ni
+# tests/ (el real es MonsterDefinitions.lua). Se conserva en disco pero NO
+# se versiona - un modulo vacion homonimo en Shared es trampa para el ojo.
+/src/ReplicatedStorage/Shared/MosterDefinitions.lua
+
+# El estado persistente de Cline se versiona COMPLETO (Master Script 30),
+# tambien el HISTORY.log, aunque `*.log` ignora los logs genericos.
+!.cline/HISTORY.log
+

@@ -345,6 +345,36 @@ local SERVICES = {
 	-- no se recorren.
 	{ name = "VisualService", module = SERVER.Services.VisualService, dependencies = { "WorldService" } },
 
+	-- NightService: el reloj de las 99 noches (FASES 8 y 9).
+	--
+	-- No depende de NADIE y NADIE depende de el todavia, y esa es la decision
+	-- deliberada: el reloj es la fuente de verdad del tiempo del mundo, asi que
+	-- tiene que arrancar antes que los sistemas que lo consulten y no puede
+	-- depender de ellos (si dependiera de `WorldService`, un fallo al registrar
+	-- los mundos dejaria el reloj parado y el juego entero sin ciclo).
+	--
+	-- NO es critico: sin el, el juego sigue siendo jugable (queda un ciclo
+	-- viejo de rondas) y por eso NO esta en `CriticalServices`. Aparecera en el
+	-- informe de arranque si falla, que es lo que hay que ver.
+	{
+		name = "NightService",
+		module = SERVER.Services.NightService,
+		dependencies = {},
+	},
+
+	-- HordeService: los eventos de horda (FASE 14).
+	--
+	-- Depende de `MonsterService` porque las hordas son enemigos y su muerte la
+	-- notifica ese servicio, y de `NightService` porque el tamano y la
+	-- recompensa dependen de la noche. La economia es OPCIONAL: sin ella las
+	-- hordas funcionan igual y lo unico que falta es el cobro del premio, que
+	-- es preferible a que no haya hordas.
+	{
+		name = "HordeService",
+		module = SERVER.Services.HordeService,
+		dependencies = { "NightService", "MonsterService" },
+	},
+
 	-- Herramienta de pruebas. Va al final y NO es critica: sin ella el
 	-- juego es exactamente igual de jugable, solo se pierde la
 	-- capacidad de certificar el camino de entrada del cliente.
@@ -389,8 +419,16 @@ local function wireDependencies(registry: any): { string }
 	local matchService = registry:Get("MatchService")
 	local spawnService = registry:Get("SpawnService")
 	local portalService = registry:Get("PortalService")
-local monsterService = registry:Get("MonsterService")
-local powerupService = registry:Get("PowerupService")
+	local monsterService = registry:Get("MonsterService")
+	local powerupService = registry:Get("PowerupService")
+
+	-- Servicios de la expansion de las 99 noches (FASES 8 y 14).
+	--
+	-- Se resuelven AQUI, y no mas tarde, por la misma razon que los demas: el
+	-- cableado ocurre entre `InitAll` y `StartAll`, asi que un servicio
+	-- registrado despues ya habria pasado su `Start`.
+	local nightService = registry:Get("NightService")
+	local hordeService = registry:Get("HordeService")
 
 	-- Los seis de economia, inventario, progresion, perfil, datos y tienda.
 	local dataService = registry:Get("DataService")
@@ -620,6 +658,20 @@ local powerupService = registry:Get("PowerupService")
 	connect("PowerupService", powerupService, { "WorldService" },
 		function(service: any)
 			service.SetDependencies(worldService, nil, bombService)
+		end
+	)
+
+	-- HordeService (FASE 14): el reloj decide el tamano, `MonsterService` le
+	-- notifica las bajas y la economia paga el premio.
+	--
+	-- La economia y las misiones se pasan a proposito como `nil` opcional: el
+	-- `connect` de abajo exige solo los servicios que son REALMENTE necesarios
+	-- para arrancar, y estos dos no lo son. Sin ellos, las hordas se cuentan y
+	-- se limpian igual y lo unico que falta es el cobro, que espreferible a que
+	-- no haya hordas en absoluto.
+	connect("HordeService", hordeService, { "NightService", "MonsterService" },
+		function(service: any)
+			service.SetDependencies(monsterService, nightService, economyService, questService)
 		end
 	)
 

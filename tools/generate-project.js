@@ -56,7 +56,6 @@ function asChildren(list) {
 		map[node.name] = node.node;
 	}
 	return map;
-	return map;
 }
 
 /**
@@ -190,6 +189,31 @@ function part(name, opts) {
  */
 function decor(name, opts) {
 	return part(name, Object.assign({}, opts, { canCollide: false }));
+}
+
+/**
+ * PointLight para iluminacion localizada de puntos de interes.
+ *
+ * El mapa tiene presupuesto de luces (forest-verify.js exige <= 12
+ * en todo el proyecto), asi que solo se crean para los focos que
+ * dan identidad a un lugar: la fogata del campamento, la linterna
+ * de la torre y el resplandor del santuario. Una luz por objeto
+ * hundiria el frame rate sin aportar lectura.
+ */
+function pointLight(name, opts) {
+	return {
+		name: name,
+		node: {
+			$className: "PointLight",
+			$properties: {
+				Brightness: opts.brightness !== undefined ? opts.brightness : 2,
+				Range: opts.range !== undefined ? opts.range : 24,
+				Color: color(...(opts.color || [255, 200, 120])),
+				Enabled: true,
+				Shadows: opts.shadows !== false,
+			},
+		},
+	};
 }
 
 function marker(name, position, opts) {
@@ -720,7 +744,7 @@ const WORLD_ORIGINS = [
 
 const worldFolders = WORLD_ORIGINS.map(function (w) {
 	return Worlds.buildWorld(
-		{ part: part, decor: decor, marker: marker, folder: folder },
+		{ part: part, decor: decor, marker: marker, folder: folder, light: pointLight },
 		{ id: w.id, cx: w.cx, cz: w.cz, seedBase: w.seedBase }
 	);
 });

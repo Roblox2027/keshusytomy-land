@@ -57,6 +57,9 @@ local COMPONENTS = {
     { key = "MissionBody", path = { "Root", "LeftPanel", "Mission", "Body" } },
     { key = "MissionToggle", path = { "Root", "LeftPanel", "Mission", "Toggle" } },
     { key = "Objective", path = { "Root", "RightPanel", "Objective" } },
+    -- Ciclo dia/noche (FASES 8 y 9). Se declara como RUTA completa, no como una
+    -- etiqueta suelta, porque la tarjeta tiene tres: noche, fase y reloj.
+    { key = "NightStatus", path = { "Root", "RightPanel", "NightStatus" } },
     { key = "ActiveBombs", path = { "Root", "RightPanel", "ActiveBombs" } },
     { key = "BombStats", path = { "Root", "BottomBar", "ContextActions", "BombStats" } },
     { key = "PowerupRow", path = { "Root", "BottomBar", "ContextActions", "PowerupRow" } },
@@ -121,6 +124,16 @@ local WATCHED_ATTRIBUTES = {
     "CoreCharge",
     "QuestCount",
     "QuestStreak",
+    -- Ciclo dia/noche: numero de noche, fase, reloj de mundo y si la fase es
+    -- una transicion (atardecer o amanecer), que es lo que avisa al jugador.
+    -- Se anaden a ESTA lista y no a una aparte porque el HUD tiene un solo
+    -- mecanismo para reaccionar a un cambio de atributo: separarlos haria que
+    -- un reloj que se actualiza cada medio segundo no refrescara la pantalla.
+    "Night",
+    "NightPhase",
+    "NightPhaseLabel",
+    "NightClock",
+    "NightTransition",
 }
 
 -- Marco del cartel de portal y el "token" del temporizador que lo oculta.
@@ -692,6 +705,52 @@ local function refresh()
     local worldName = attr("World")
     setText("World", "", (if worldName then ("MUNDO: %s"):format(tostring(worldName)) else "MUNDO: --"))
     setText("Level", "", ("LV %d"):format(attr("Level") or 1))
+
+    -- ------------------------------------------------------- Ciclo dia/noche
+    --
+    -- La tarjeta se OCULTA cuando el jugador esta en el lobby: ahi no hay
+    -- noche que medir y un "NOCHE 1 / 06:00" fijo seria un dato que no cambia
+    -- nunca, que es peor que no mostrarlo.
+    --
+    -- El reloj se escribe con el texto que publica el servidor (`NightClock`),
+    -- no se calcula aqui. La UI no calcula NADA de juego: si el reloj lo
+    -- compusiera el cliente, dos clientes verian horas distintas y habria que
+    -- depurar el HUD para descubrir que el problema era el reloj.
+    local night = attr("Night")
+    local clock = attr("NightClock")
+    local nightPanel = _panels and _panels.NightStatus
+
+    if nightPanel then
+        if type(night) == "number" and type(clock) == "string" then
+            nightPanel.Visible = true
+
+            local nightText = nightPanel:FindFirstChild("NightLabel")
+            local phaseText = nightPanel:FindFirstChild("PhaseLabel")
+            local clockText = nightPanel:FindFirstChild("Clock")
+
+            if nightText and nightText:IsA("TextLabel") then
+                nightText.Text = ("NOCHE %d"):format(night)
+            end
+
+            -- La transicion se marca CON EL MISMO TEXTO, no con un icono ni
+            -- con un color: el texto es lo unico que se lee de un vistazo en
+            -- movil, y "ATARDECER" escrito ahi avisa mas que un marco rojo.
+            local label2 = attr("NightPhaseLabel")
+            if phaseText and phaseText:IsA("TextLabel") then
+                phaseText.Text = if attr("NightTransition") == true
+                    then ("%s..."):format(tostring(label2 or ""))
+                    else tostring(label2 or "")
+            end
+
+            if clockText and clockText:IsA("TextLabel") then
+                clockText.Text = clock
+            end
+        else
+            -- Sin datos de noche todavia (o en el lobby): no se enseña una
+            -- tarjeta vacia.
+            nightPanel.Visible = false
+        end
+    end
 
     -- ---------------------------------------------------------------- Timer
     setText("Timer", "Round", ("RONDA %d"):format(attr("RoundNumber") or 0))

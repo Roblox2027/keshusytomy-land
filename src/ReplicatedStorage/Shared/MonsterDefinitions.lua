@@ -447,6 +447,222 @@ define({
 })
 
 -- =========================================================================
+-- MINI-BOSSES (FASE 15)
+--
+-- Son los NPC que `MiniBossService` genera en SU zona con enfriamiento.
+-- Los datos de diseno (tier, zona, cooldown, recompensa escalada) viven
+-- en `MiniBossRules`; aqui vive lo que el motor necesita: vida, velocidad,
+-- golpe, escala visual y recompensa base.
+--
+-- REGLAS QUE SE RESPETA (y comprueba `MiniBossRules.Audit`):
+--   - ningun id coincide con un boss principal (Grooty y compañia);
+--   - `VisualScale` es la `Scale` de `MiniBossRules` (2.0-2.4): mas
+--     grande que cualquier fauna, mas pequeno que la lectura de "boss";
+--   - `MaxAlive = 1`: solo puede haber uno de cada mini-boss vivo, y
+--     como cada uno vive en UNA zona, la zona nunca se inunda;
+--   - `ChaseSpeed` < 16 (velocidad del jugador): se le puede rodear,
+--     igual que al boss. Un mini-boss que atrape al jugador no es
+--     contenido repetible, es una trampa.
+-- =========================================================================
+
+-- FOREST. El Tronco Guardia es el muro de la zona BogHollow: lento,
+-- con mucha vida, no persigue lejos. La Araña es la rapida de
+-- DenseGrove (carga corta y frecuente). El Acechador es el raro de
+-- RockyRidge: desaparece y reaparece, asi que su dificultad es
+-- encontrarlo, no huir de el.
+define({
+	Id = "ForestTronk", Name = "Tronco Guardian", Health = 320, Speed = 8,
+	Damage = 22, XP = 60, Coins = 25, MaxAlive = 1,
+	Color = Color3.fromRGB(110, 150, 100),
+	VisualScale = 2.0,
+	PatrolSpeed = 3.5, ChaseSpeed = 8, ChargeSpeed = 10,
+	DetectionRange = 40, AggroRadius = 45, AttackRange = 10,
+	AttackCooldown = 3.0, RecoveryTime = 3.0,
+	DetectTime = 0.6, WarningTime = 1.0, ChargeDuration = 0.3,
+	Pressure = 0.6, StillWhenIdle = true, BlocksDestroy = true,
+})
+
+define({
+	Id = "ForestArana", Name = "Araña de Ramas", Health = 420, Speed = 12,
+	Damage = 26, XP = 70, Coins = 30, MaxAlive = 1,
+	Color = Color3.fromRGB(90, 70, 110),
+	VisualScale = 2.1,
+	PatrolSpeed = 5, ChaseSpeed = 12, ChargeSpeed = 15,
+	DetectionRange = 46, AggroRadius = 52, AttackRange = 8,
+	AttackCooldown = 2.2, RecoveryTime = 2.2,
+	DetectTime = 0.4, WarningTime = 0.7, ChargeDuration = 0.4,
+	Pressure = 0.65, Vanishes = true,
+})
+
+define({
+	Id = "ForestAcechador", Name = "Acechador del Claro", Health = 560, Speed = 13,
+	Damage = 32, XP = 90, Coins = 45, MaxAlive = 1,
+	Color = Color3.fromRGB(60, 80, 60),
+	VisualScale = 2.2,
+	PatrolSpeed = 5.5, ChaseSpeed = 13, ChargeSpeed = 16,
+	DetectionRange = 52, AggroRadius = 58, AttackRange = 9,
+	AttackCooldown = 2.6, RecoveryTime = 2.6,
+	DetectTime = 0.35, WarningTime = 0.6, ChargeDuration = 0.4,
+	Pressure = 0.68, Vanishes = true, LeavesBomb = true,
+})
+
+-- DESERT. El Escorpion controla el Oasis con carga telegrafiada; la
+-- Momia es el tanque de las Ruins (no se mueve de su templo); el
+-- Colmillo es el raro del Canyon: rapido y agresivo, pero audible.
+define({
+	Id = "DesertEscorpion", Name = "Escorpión de las Dunas", Health = 380, Speed = 11,
+	Damage = 28, XP = 70, Coins = 30, MaxAlive = 1,
+	Color = Color3.fromRGB(190, 150, 80),
+	VisualScale = 2.05,
+	PatrolSpeed = 4.5, ChaseSpeed = 11, ChargeSpeed = 17,
+	DetectionRange = 48, AggroRadius = 55, AttackRange = 9,
+	AttackCooldown = 3.4, RecoveryTime = 3.4,
+	DetectTime = 0.4, WarningTime = 0.9, ChargeDuration = 0.5,
+	Pressure = 0.7,
+})
+
+define({
+	Id = "DesertMomia", Name = "Momia del Templo", Health = 500, Speed = 7,
+	Damage = 34, XP = 80, Coins = 35, MaxAlive = 1,
+	Color = Color3.fromRGB(170, 150, 110),
+	VisualScale = 2.2,
+	PatrolSpeed = 3, ChaseSpeed = 7, ChargeSpeed = 8,
+	DetectionRange = 30, AggroRadius = 35, AttackRange = 9,
+	AttackCooldown = 3.6, RecoveryTime = 3.6,
+	DetectTime = 0.6, WarningTime = 1.1, ChargeDuration = 0.3,
+	Pressure = 0.7, StillWhenIdle = true, BlocksDestroy = true,
+})
+
+define({
+	Id = "DesertColmillo", Name = "Colmillo de Arena", Health = 640, Speed = 14,
+	Damage = 38, XP = 100, Coins = 55, MaxAlive = 1,
+	Color = Color3.fromRGB(210, 170, 100),
+	VisualScale = 2.3,
+	PatrolSpeed = 6, ChaseSpeed = 14, ChargeSpeed = 19,
+	DetectionRange = 54, AggroRadius = 60, AttackRange = 9,
+	AttackCooldown = 2.8, RecoveryTime = 2.8,
+	DetectTime = 0.35, WarningTime = 0.7, ChargeDuration = 0.4,
+	Pressure = 0.72,
+})
+
+-- ICE. El Golem es el muro del Lake; el Lobo es la manada rápida de
+-- las Narrows (corto enfriamiento, carga frecuente); el Espectro es
+-- el raro del Crevasse: desaparece y aplica lentitud.
+define({
+	Id = "IceGolem", Name = "Gólem de Hielo", Health = 440, Speed = 7,
+	Damage = 30, XP = 75, Coins = 32, MaxAlive = 1,
+	Color = Color3.fromRGB(140, 200, 230),
+	VisualScale = 2.15,
+	PatrolSpeed = 3, ChaseSpeed = 7, ChargeSpeed = 8,
+	DetectionRange = 34, AggroRadius = 40, AttackRange = 10,
+	AttackCooldown = 3.4, RecoveryTime = 3.4,
+	DetectTime = 0.6, WarningTime = 1.1, ChargeDuration = 0.3,
+	Pressure = 0.72, StillWhenIdle = true, BlocksDestroy = true,
+})
+
+define({
+	Id = "IceLobo", Name = "Lobo Glacial", Health = 520, Speed = 13,
+	Damage = 30, XP = 85, Coins = 36, MaxAlive = 1,
+	Color = Color3.fromRGB(170, 215, 240),
+	VisualScale = 2.0,
+	PatrolSpeed = 5.5, ChaseSpeed = 13, ChargeSpeed = 17,
+	DetectionRange = 50, AggroRadius = 56, AttackRange = 8,
+	AttackCooldown = 2.4, RecoveryTime = 2.4,
+	DetectTime = 0.4, WarningTime = 0.75, ChargeDuration = 0.4,
+	Pressure = 0.72, AppliesSlow = true,
+})
+
+define({
+	Id = "IceSpecter", Name = "Espectro del Glaciar", Health = 700, Speed = 12,
+	Damage = 36, XP = 120, Coins = 60, MaxAlive = 1,
+	Color = Color3.fromRGB(200, 230, 255),
+	VisualScale = 2.25,
+	PatrolSpeed = 5, ChaseSpeed = 12, ChargeSpeed = 16,
+	DetectionRange = 56, AggroRadius = 62, AttackRange = 9,
+	AttackCooldown = 2.8, RecoveryTime = 2.8,
+	DetectTime = 0.35, WarningTime = 0.65, ChargeDuration = 0.4,
+	Pressure = 0.74, Vanishes = true, AppliesSlow = true,
+})
+
+-- VOLCANO. La Escoria quema (AppliesBurn) en los Vents; el Ashen es
+-- el tanque de las Platforms; el Guardian de Obsidiana es el raro de
+-- la Fissure: vida alta, golpe duro y quemadura.
+define({
+	Id = "VolcanoSlag", Name = "Escoria Ardiente", Health = 520, Speed = 10,
+	Damage = 32, XP = 80, Coins = 35, MaxAlive = 1,
+	Color = Color3.fromRGB(200, 90, 50),
+	VisualScale = 2.1,
+	PatrolSpeed = 4, ChaseSpeed = 10, ChargeSpeed = 13,
+	DetectionRange = 44, AggroRadius = 50, AttackRange = 9,
+	AttackCooldown = 3.0, RecoveryTime = 3.0,
+	DetectTime = 0.5, WarningTime = 0.9, ChargeDuration = 0.4,
+	Pressure = 0.76, AppliesBurn = true,
+})
+
+define({
+	Id = "VolcanoAshen", Name = "Ashen", Health = 640, Speed = 9,
+	Damage = 38, XP = 95, Coins = 42, MaxAlive = 1,
+	Color = Color3.fromRGB(120, 90, 80),
+	VisualScale = 2.2,
+	PatrolSpeed = 3.5, ChaseSpeed = 9, ChargeSpeed = 11,
+	DetectionRange = 36, AggroRadius = 42, AttackRange = 10,
+	AttackCooldown = 3.6, RecoveryTime = 3.6,
+	DetectTime = 0.6, WarningTime = 1.0, ChargeDuration = 0.3,
+	Pressure = 0.78, StillWhenIdle = true, BlocksDestroy = true,
+})
+
+define({
+	Id = "VolcanoObsidian", Name = "Guardián de Obsidiana", Health = 820, Speed = 10,
+	Damage = 44, XP = 140, Coins = 70, MaxAlive = 1,
+	Color = Color3.fromRGB(70, 50, 60),
+	VisualScale = 2.4,
+	PatrolSpeed = 4, ChaseSpeed = 10, ChargeSpeed = 14,
+	DetectionRange = 52, AggroRadius = 60, AttackRange = 11,
+	AttackCooldown = 3.4, RecoveryTime = 3.4,
+	DetectTime = 0.5, WarningTime = 1.0, ChargeDuration = 0.4,
+	Pressure = 0.8, AppliesBurn = true, BlocksDestroy = true,
+})
+
+-- CYBER. El Dron es el centinela del ServerHall (refleja dano); el
+-- Reforzer es el tanque del Conduit; el Warden es el raro del
+-- Reactor: la refleccion hace que pegarse sea la peor decision.
+define({
+	Id = "CyberDrone", Name = "Dron Centinela", Health = 620, Speed = 12,
+	Damage = 34, XP = 90, Coins = 40, MaxAlive = 1,
+	Color = Color3.fromRGB(90, 220, 220),
+	VisualScale = 2.1,
+	PatrolSpeed = 5, ChaseSpeed = 12, ChargeSpeed = 15,
+	DetectionRange = 50, AggroRadius = 56, AttackRange = 9,
+	AttackCooldown = 2.8, RecoveryTime = 2.8,
+	DetectTime = 0.4, WarningTime = 0.7, ChargeDuration = 0.4,
+	Pressure = 0.82, ReflectsDamage = true,
+})
+
+define({
+	Id = "CyberEnforcer", Name = "Reforzer", Health = 760, Speed = 10,
+	Damage = 40, XP = 105, Coins = 48, MaxAlive = 1,
+	Color = Color3.fromRGB(120, 100, 240),
+	VisualScale = 2.25,
+	PatrolSpeed = 4, ChaseSpeed = 10, ChargeSpeed = 13,
+	DetectionRange = 42, AggroRadius = 48, AttackRange = 10,
+	AttackCooldown = 3.4, RecoveryTime = 3.4,
+	DetectTime = 0.55, WarningTime = 1.0, ChargeDuration = 0.3,
+	Pressure = 0.84, StillWhenIdle = true, BlocksDestroy = true,
+})
+
+define({
+	Id = "CyberWarden", Name = "Warden del Reactor", Health = 980, Speed = 11,
+	Damage = 46, XP = 160, Coins = 80, MaxAlive = 1,
+	Color = Color3.fromRGB(150, 80, 240),
+	VisualScale = 2.4,
+	PatrolSpeed = 4.5, ChaseSpeed = 11, ChargeSpeed = 15,
+	DetectionRange = 56, AggroRadius = 64, AttackRange = 11,
+	AttackCooldown = 3.2, RecoveryTime = 3.2,
+	DetectTime = 0.4, WarningTime = 0.8, ChargeDuration = 0.4,
+	Pressure = 0.85, ReflectsDamage = true, AppliesBurn = true,
+})
+
+-- =========================================================================
 -- BOSSES
 --
 -- Un boss es el CIERRE de un mundo, no un bicho mas grande. Por eso no

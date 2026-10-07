@@ -23,6 +23,7 @@ local CONFIG = SHARED:WaitForChild("Config")
 local UTILS = SHARED:WaitForChild("Utils")
 
 local FeatureConfig = require(CONFIG:WaitForChild("FeatureConfig"))
+local WorldAccessRules = require(SHARED:WaitForChild("Libraries"):WaitForChild("WorldAccessRules"))
 local Logger = require(UTILS:WaitForChild("Logger"))
 
 local Service = {}
@@ -91,32 +92,37 @@ function Service.IsWorldAvailable(worldId: string): boolean
 end
 
 --- Requisito de nivel de un mundo.
+---
+--- Ya NO es un bloqueo: es el dato que se pinta en el cartel del portal. Todos
+--- los mundos se abren desde `WorldAccessRules.OpenLevel` (1). La funcion se
+--- conserva porque el HUD, el portal y el diagnostico la muestran.
 --- @param worldId string
---- @return number requiredLevel 0 si el mundo no existe
+--- @return number requiredLevel
 function Service.GetRequiredLevel(worldId: string): number
-	local world = Service._worlds[worldId]
-	if not world then
+	if not Service.IsWorldAvailable(worldId) then
 		return 0
 	end
-	return world.RequiredLevel or 0
+	return WorldAccessRules.GetRequiredLevel(worldId)
 end
 
---- Indica si un jugador cumple el nivel requerido por un mundo.
+--- Indica si un jugador puede entrar en un mundo.
+---
+--- FASE 3: esta funcion YA NO COMPARA NIVELES. La politica vive en
+--- `WorldAccessRules` y aqui solo se le anade la condicion de que el mundo este
+--- registrado en ESTE servidor.
+---
+--- Se conserva el parametro `playerLevel` en la firma aunque no se use, porque
+--- llamarla sin el obligaria a cambiar todos los puntos de entrada y el nombre
+--- del parametro documenta la intencion. Se marca como deliberadamente
+--- ignorado en la documentacion de la prueba (`WorldAccess.spec`).
 --- @param worldId string
---- @param playerLevel number
+--- @param _playerLevel number nivel del jugador; ya no restringe la entrada
 --- @return boolean allowed
 --- @return string? reason
-function Service.CanEnterWorld(worldId: string, playerLevel: number): (boolean, string?)
-	if not Service.IsWorldAvailable(worldId) then
-		return false, "mundo no disponible"
-	end
-
-	local required = Service.GetRequiredLevel(worldId)
-	if playerLevel < required then
-		return false, ("requiere nivel %d"):format(required)
-	end
-
-	return true
+function Service.CanEnterWorld(worldId: string, _playerLevel: number): (boolean, string?)
+	return WorldAccessRules.CanEnter(worldId, function(id: string): boolean
+		return Service.IsWorldAvailable(id)
+	end)
 end
 --- Punto de aparicion por defecto de un mundo.
 --- La FASE 6 lo sustituye por los puntos reales del mapa.

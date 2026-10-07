@@ -72,6 +72,27 @@ Rules.VisualScale = {
 	IceFrostKing = 3.3,
 	VolcanoMagmaLord = 3.5,
 	CyberCore = 3.7,
+	-- Los mini-bosses van ENTRE la fauna y el boss: mas grandes
+	-- que cualquier enemigo normal (para que se lean como
+	-- amenaza de zona) pero claramente menores que el cierre
+	-- del mundo. `MiniBossRules.Audit` comprueba por su lado
+	-- que ninguno llega a 2.6, y `MonsterBalance.spec` que sus
+	-- tiempos son todos distintos.
+	ForestTronk = 2.0,
+	ForestArana = 2.1,
+	ForestAcechador = 2.2,
+	DesertEscorpion = 2.05,
+	DesertMomia = 2.2,
+	DesertColmillo = 2.3,
+	IceGolem = 2.15,
+	IceLobo = 2.0,
+	IceSpecter = 2.25,
+	VolcanoSlag = 2.1,
+	VolcanoAshen = 2.2,
+	VolcanoObsidian = 2.4,
+	CyberDrone = 2.1,
+	CyberEnforcer = 2.25,
+	CyberWarden = 2.4,
 }
 
 --- Rango permitido por monstruo. Sirve para VALIDAR, no para construir.
@@ -90,6 +111,26 @@ Rules.Ranges = {
 	IceFrostKing = { 3.0, 3.6 },
 	VolcanoMagmaLord = { 3.2, 3.8 },
 	CyberCore = { 3.4, 4.0 },
+	-- Mini-bosses: banda compartida (1.9-2.5), que es el
+	-- hueco entre el Guardian mas grande y el boss mas
+	-- pequeno. El valor exacto de cada uno se vigila aqui
+	-- para que un cambio de diseno en `MonsterDefinitions`
+	-- que salga de la banda falle en las pruebas.
+	ForestTronk = { 1.9, 2.1 },
+	ForestArana = { 2.0, 2.2 },
+	ForestAcechador = { 2.1, 2.3 },
+	DesertEscorpion = { 1.95, 2.15 },
+	DesertMomia = { 2.1, 2.3 },
+	DesertColmillo = { 2.2, 2.4 },
+	IceGolem = { 2.05, 2.25 },
+	IceLobo = { 1.9, 2.1 },
+	IceSpecter = { 2.15, 2.35 },
+	VolcanoSlag = { 2.0, 2.2 },
+	VolcanoAshen = { 2.1, 2.3 },
+	VolcanoObsidian = { 2.3, 2.5 },
+	CyberDrone = { 2.0, 2.2 },
+	CyberEnforcer = { 2.15, 2.35 },
+	CyberWarden = { 2.3, 2.5 },
 }
 
 --- IDS de los bosses, indexados por mundo.

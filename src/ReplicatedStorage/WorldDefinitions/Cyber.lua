@@ -37,7 +37,17 @@ local World: WorldDefinition = {
     Id = "Cyber",
     Name = "Cyber",
     DisplayName = "Cyber Keshusy",
-    RequiredLevel = 50,
+    -- FASE 3 (expansion 99 noches): TODOS los mundos se abren desde el nivel 1.
+    --
+    -- Antes este valor era el unico mecanismo de dificultad entre mundos y
+    -- tambien el bloqueo de entrada: Cyber exigia nivel 50. La expansion separa
+    -- las dos cosas y por eso `Difficulty` (abajo) es la que define que tan duro
+    -- es el mundo, mientras este campo queda en 1 para todos.
+    --
+    -- NO se borra el campo: `PortalService` lo lee para PINTAR el cartel del
+    -- portal, y la comprobacion `WorldAccess.spec` verifica que ningun mundo
+    -- vuelva a cerrarse.
+    RequiredLevel = 1,
     Theme = "Cyber",
     Difficulty = 5,
     MusicId = nil,

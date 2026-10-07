@@ -1,0 +1,19 @@
+# HISTORY
+
+## Fase 0 - Audit (completada, previa a este checkpoint)
+- Fix `zoneRim` fallback `_Rim_999` en tools/worlds.js (zonas con route openings cubrian todo el perimetro y generaban 0 rim).
+- Fix Forest: ruta alternativa CentralPath -> ExitNorth -> path -> 22 anadida (test:navigation). NO eliminar.
+- verify completo PASS (exit 0); archivos temporales de debug previos eliminados.
+
+## Fase 1 - Generator (2026-10-06/07)
+- AUDITORIA tools/generate-project.js: determinismo PASS (sin Math.random/timestamps/IDs variables en generate-project.js/worlds.js/portals.js/hud.js; require graph limpio: solo fs/path + ./worlds ./portals ./hud).
+- IDEMPOTENCIA PASS: ejecucion 1 SHA256 `553A3027...BAC8` (default.project.json) + `806C0F5E...30FA` (sync-lighting.lua) == estado previo; ejecucion 2 identica byte a byte y `git status` identico (snapshot diff = 0). Escribe SOLO esos 2 ficheros.
+- REPARACION: eliminado `return map;` duplicado (codigo muerto, lineas 58-59). Verificado: salida byte-identica tras el fix.
+- INCIDENTE: 2a ejecucion fallo con EBUSY (default.project.json bloqueado por proceso externo, probable editor). No escribio nada (hash intacto). Reintento manual -> OK. No es defecto del generator.
+- VALIDACION: npm test 892/892 PASS; npm run verify exit 0 (structure, wiring, worlds, contract, navigation, spawn, world-edge, monster-access 49/49, bomb-grid, powerup-boss 9/5, rojo:build Rojo 7.7.0, env, context).
+- MCP DESCUBIERTO: proyecto trae `tools/studio-mcp.js` (cliente HTTP de @chrrxs/robloxstudio-mcp, puerto 58741, token en ~/.robloxstudio-mcp/auth-token - EXISTE). `npm run mcp:list` -> fetch failed; netstat 58741 -> sin LISTEN; Studio proceso RobloxStudioBeta PID 29564 ABIERTO pero sin servidor MCP. `npm run runtime:scan` -> status BLOCKED. Veredicto: ROBLOX MCP BLOCKED / ROBLOX PLAY TEST BLOCKED.
+- HALLAZGOS menores: (a) tools/generate-ai-context.js mete new Date() en .ai/AI_CONTEXT.md cada `verify` (esperado, artefacto versionado); (b) src/ReplicatedStorage/Shared/MosterDefinitions.lua = fichero 0 bytes con typo, 0 referencias - NO borrado (regla NO borrar), excluido del versionado en .gitignore; (c) tools/fillApproach_fixed.js y tools/forest-zones.js = borradores WIP no requeridos por el pipeline (worlds.js tiene su propio fillApproach) - versionados como WIP, no forman parte del build.
+- COMMIT baseline Fase 0+1: "chore: stabilize project generator baseline". Alcance: todo el tracked modificado + fuentes nuevas (libs/servicios/tests) + .cline/ + .ai/ estado; EXCLUIDO sin borrar: tmp_* (~80 ficheros, nunca estuvieron en HEAD), .kilo/ (8.5MB con worktree copia anidada del proyecto), artefactos raiz (gitdiff.txt, KeshusyTomy-LanD.rbxm 772KB, Install-RobloxAIKit.ps1, patch_rim/probe_exit/run_why/search_why.js), salidas generadas .ai/*_out.txt y .ai/tmp_diag*. Desviacion de `git add .` literal documentada: incrustar la copia anidada del proyecto en el historial violaria "no duplicar sistemas".
+
+
+
