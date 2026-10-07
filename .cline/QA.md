@@ -1,5 +1,12 @@
 # QA
-## Status actual
+
+## MASTER MISSION V2
+- FASE 0 continuidad: PASS (git limpio, HEAD=origin/main=`ed18f24`, verify PASS salvo analyze.js baseline)
+- FASE 1 auditoria: PASS (`GAMEPLAY_AUDIT.md` — 16 hallazgos: 5 P0, 6 P1, 6 P2)
+- Bloques 1-5: NO INICIADOS
+- Criterio de terminacion V2: pendiente (ninguna categoria certificada aun)
+
+## Status mision V1 (cerrada)
 - PROJECT: KeshusyTomy-LanD
 - STATUS: RECONSTRUIDO Y VERIFICADO; PLAY TEST REAL EJECUTADO; AUDIO ASSETS PENDIENTES
 

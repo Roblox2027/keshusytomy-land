@@ -1,6 +1,22 @@
 # PROGRESS
 
-## Estado general
+## MASTER MISSION V2 — Expansion total de gameplay
+
+### FASE 0 — Continuidad: PASS (2026-10-07)
+- `.cline/*` leidos; `git status` limpio; HEAD = origin/main = `ed18f24`.
+- `npm run verify`: Rojo build PASS, Suite Luau PASS, verify-structure PASS, verify-wiring PASS. `analyze.js` FAIL preexistente (baseline, documentado).
+
+### FASE 1 — Auditoria de diversion: PASS
+- Entregable: [GAMEPLAY_AUDIT.md](../GAMEPLAY_AUDIT.md)
+- 16 hallazgos con problema/ubicacion/causa/impacto/solucion/prioridad.
+- P0: combate de una sola herramienta (A1), eventos sin cuerpo visible (A2), mundos sin mecanica propia (A3), recompensas monocromaticas (A4), sin logros/coleccion/discovery (A5).
+- P1: bosses sin ritual (B1), misiones de un solo tipo (B2), equipamiento sin stats (B3), Brainrot sin funcion jugable (B4), hordas/arenas dormidas (B5), noche sin dientes (B6).
+- P2: co-op, puzzles, coleccionables fisicos, player home, vehiculos, NPC/reputacion.
+- Orden de ataque: 5 bloques (Mundo vivo → Combate → Progresion → Contenido → Social) + cierre QA/playtest/regresion.
+
+---
+
+## Mision anterior (V1) — Estado general
 - Proyecto: KeshusyTomy-LanD
 - Fase actual: 5 / reconstruccion total de mundos + gameplay + audio + IA + Play Test real
 - Estado: RECONSTRUIDO, VERIFICADO LOCALMENTE Y PROBADO EN STUDIO (play test real ejecutado en `latest.rbxlx`)

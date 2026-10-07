@@ -1,5 +1,12 @@
 # BLOCKED
 
+## MASTER MISSION V2
+- AUDIO ASSETS: BLOCKED_EXTERNAL (heredado) — sin IDs reales; el mixer espera IDs en `AudioConfig`.
+- STUDIO/PLAYTEST V2: pendiente; se ejecutara al cierre de cada bloque via MCP si la sesion de Studio esta disponible.
+- BRAINROT_VISUAL_FOLLOWUP: vacio (sin hallazgos visuales registrados).
+
+## Mision V1 (historico)
+
 ## ROBLOX MCP: RESUELTO (esta sesion)
 - Se abrio `latest.rbxlx` en Studio y MCP conecto la instancia `lrh-zvl` con peers edit/server/client-1.
 - El DataModel real (Workspace.Worlds con los 5 mundos) se inspecciono en vivo.
