@@ -13,7 +13,7 @@
             -> PortalController
             -> PortalAction:FireServer("Enter", worldId)
             -> RemoteGateway (valida forma + frecuencia)
-            -> PortalService.TryEnter (nivel, portal, ronda, distancia)
+            -> PortalService.TryEnter (portal, catalogo, ronda, distancia)
             -> MatchService.MovePlayer (teleport del SERVIDOR)
             -> veredicto por el mismo canal
 
@@ -24,7 +24,7 @@
     2. El cliente NO decide si el viaje es legal. Solo pide. El servidor
        responde con `accepted` y `reason`.
     3. Una interaccion NUNCA es silenciosa. Si el servidor rechaza, se
-       muestra el motivo ("requiere nivel 10", "hay una ronda en curso").
+       muestra el motivo ("portal inexistente", "hay una ronda en curso").
 
     NOTA SOBRE RENDIMIENTO
     ----------------------

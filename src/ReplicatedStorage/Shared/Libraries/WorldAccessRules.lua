@@ -48,11 +48,16 @@ Rules.WorldOrder = { "Forest", "Desert", "Ice", "Volcano", "Cyber" }
 -- Nombre que el jugador LEE. Es el mismo texto que ponian las definiciones de
 -- mundo, movido aqui para que el cartel del portal y este modulo no puedan
 -- discrepar.
+--
+-- FASE 3 (auditoria): antes decia "Frost Peaks" y "Ember Ridge", mientras las
+-- definiciones (que pintan el cartel via `VisualService`) y el generador
+-- (`tools/worlds.js`) decian "Frozen Tomy" y "Volcano Rage". Prevalece la
+-- definicion: es la que el jugador ve en el mapa. `Audit` lo comprueba.
 Rules.DisplayNameByWorld = {
 	Forest = "Keshusy Forest",
 	Desert = "Boom Desert",
-	Ice = "Frost Peaks",
-	Volcano = "Ember Ridge",
+	Ice = "Frozen Tomy",
+	Volcano = "Volcano Rage",
 	Cyber = "Cyber Keshusy",
 }
 
@@ -363,6 +368,16 @@ function Rules.Audit(declared: any?): { string }
 				if entry.RequiredLevel ~= Rules.OpenLevel then
 					table.insert(problems, ("%s: RequiredLevel %s vuelve a cerrar el mundo")
 						:format(id, tostring(entry.RequiredLevel)))
+				end
+
+				-- El nombre legible tiene que ser el de la definicion. El
+				-- cartel del portal pinta `definition.DisplayName`; si estas
+				-- reglas dijeran otra cosa, el catalogo interno mostraria un
+				-- nombre que no existe en el mapa (fue el caso Ice/Volcano).
+				if type(entry.DisplayName) == "string"
+					and entry.DisplayName ~= Rules.GetDisplayName(id) then
+					table.insert(problems, ("%s: nombre '%s' aqui, '%s' en la definicion")
+						:format(id, Rules.GetDisplayName(id), entry.DisplayName))
 				end
 			end
 		end

@@ -18,13 +18,14 @@
 		4. El portal esta abierto. Un jugador que ya esta dentro de una ronda
 		   en curso no puede salirse por el, pero una ronda en curso NO cierra
 		   el portal a quien esta en el lobby.
-		5. El jugador tiene el nivel requerido por el mundo.
-		6. El mundo destino esta disponible (FeatureConfig + registro).
-		7. El jugador esta junto al umbral y no esta en cooldown.
-		8. El teleport lo ejecuta el SERVIDOR.
+		5. El mundo esta en el catalogo de acceso (`WorldAccessRules.CanEnter`)
+		   y registrado/habilitado en `WorldService`. SIN bloqueo por nivel:
+		   los cinco mundos se abren desde el nivel 1 (FASE 3).
+		6. El jugador esta junto al umbral y no esta en cooldown.
+		7. El teleport lo ejecuta el SERVIDOR.
 
 	El paso 3 es el que cierra el teleport arbitrario: un `worldId`
-	inventado no tiene portal, y sin portal no hay viaje. El paso 8 es el
+	inventado no tiene portal, y sin portal no hay viaje. El paso 7 es el
 	que evita que la posicion la elija el cliente: el destino se calcula
 	siempre a partir de instancias del mapa.
 ]]

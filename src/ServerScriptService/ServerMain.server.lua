@@ -656,9 +656,9 @@ local function wireDependencies(registry: any): { string }
 		end
 	)
 
-	-- PortalService necesita el mundo (para el nivel), el destino (para
+	-- PortalService necesita el mundo (el catalogo de acceso), el destino (para
 	-- teletransportar), la ronda (para impedir salir durante la partida) y el
-	-- jugador (para leer su nivel real y no el atributo del cliente).
+	-- jugador (para diagnostico de nivel; ya NO bloquea por nivel: FASE 3).
 	connect("PortalService", portalService,
 		{ "WorldService", "MatchService", "RoundService", "PlayerService" },
 		function(service: any)

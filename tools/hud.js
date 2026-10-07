@@ -555,7 +555,7 @@ function buildRightPanel() {
 	nightCard.node.NightLabel = label("NightLabel", {
 		position: [0, 10, 0, 6],
 		size: [0, 150, 0, 14],
-		text: "NOCHE 1",
+		text: "AMBIENTE",
 		tint: THEME.text,
 		size2: 12,
 	});

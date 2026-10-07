@@ -176,6 +176,24 @@ local function describeWorldAccess()
 				)
 			end
 		end)
+
+		Harness.it("el nombre legible es el de la definicion del mundo", function()
+			-- FASE 3 (auditoria): las reglas decian "Frost Peaks"/"Ember
+			-- Ridge" mientras el cartel del portal pintaba "Frozen Tomy"/
+			-- "Volcano Rage". Dos nombres para un mismo mundo es una
+			-- division de identidad que el jugador nota en el mapa.
+			for _, id in ipairs(Access.GetWorldIds()) do
+				expect.toBe(
+					Access.GetDisplayName(id),
+					DECLARED[id].DisplayName,
+					("%s: reglas '%s', definicion '%s'"):format(
+						id,
+						Access.GetDisplayName(id),
+						DECLARED[id].DisplayName
+					)
+				)
+			end
+		end)
 	end)
 end
 

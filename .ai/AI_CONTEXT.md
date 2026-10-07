@@ -1,6 +1,6 @@
 # KESHUSYTOMY-LAN-D - CONTEXTO IA
 
-Generado: 2026-10-07T01:02:23.176Z
+Generado: 2026-10-07T03:36:12.954Z
 
 > Este archivo es un INDICE generado, no una fuente de verdad.
 > La fuente de verdad del estado del desarrollo es `docs/phases.md`.
@@ -9,7 +9,7 @@ Generado: 2026-10-07T01:02:23.176Z
 ## Git
 
 - Rama: `main`
-- Commit: `b7299b0` - chore: stabilize project generator baseline
+- Commit: `54f53aa` - feat(sistemas): cablea EventService y MiniBossService y cierra la auditoria Fase 2
 - Arbol: CON CAMBIOS SIN COMMITear
 
 ## FUENTES DE VERDAD (leer antes de decidir)
@@ -32,7 +32,7 @@ Generado: 2026-10-07T01:02:23.176Z
 | verify-structure | OK |
 | verify-wiring | OK |
 | analyze.js (typecheck) | FAIL |
-| Studio/MCP | BLOCKED (Studio/MCP no responde) |
+| Studio/MCP | CONECTADO |
 
 > analyze.js esta en FAIL. Es previo a este bootstrap (521 incidencias tambien sin estos archivos) y corresponde a `.ai/qa/ACCEPTANCE_TESTS.md`, no al entorno. No se maquilla como PASS ni se oculta.
 

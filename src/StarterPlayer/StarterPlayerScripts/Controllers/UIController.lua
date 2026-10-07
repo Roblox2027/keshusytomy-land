@@ -729,7 +729,9 @@ local function refresh()
             local clockText = nightPanel:FindFirstChild("Clock")
 
             if nightText and nightText:IsA("TextLabel") then
-                nightText.Text = ("NOCHE %d"):format(night)
+                -- El ciclo dia/noche sigue siendo ambiental y secundario: no se
+                -- presenta como objetivo numerico ni como contador de progreso.
+                nightText.Text = "AMBIENTE"
             end
 
             -- La transicion se marca CON EL MISMO TEXTO, no con un icono ni
