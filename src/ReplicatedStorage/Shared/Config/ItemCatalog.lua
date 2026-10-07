@@ -273,6 +273,97 @@ local ITEMS: { [string]: any } = {
 		Contents = { "Hat_Keshusy", "Trail_Gems", "Cure_Potion" },
 		ContentCounts = { Hat_Keshusy = 1, Trail_Gems = 1, Cure_Potion = 3 },
 	},
+
+	-- --- Materiales de mundo (mision V2, FASE 23/25) ------------------
+	--
+	-- NO SE VENDEN (`Available = false`): entran al inventario por DROPS
+	-- de monstruos, minibosses, bosses y eventos, no por la tienda. Un
+	-- material comprable convertiria el drop en irrelevante y la tienda
+	-- en pay-to-skip.
+	--
+	-- La categoria es `Powerup` (la categoria "no cosmetica, no
+	-- equipable" que ya existe): crear una categoria nueva obligaria a
+	-- tocar la UI, las reglas y los tests por un solo dato.
+	Mat_LeafEssence = {
+		Id = "Mat_LeafEssence",
+		DisplayName = "Esencia de hoja",
+		Category = ItemCatalog.Category.Powerup,
+		Rarity = ItemCatalog.Rarity.Common,
+		Stackable = true,
+		MaxStack = 999,
+		Tradable = false,
+		Consumable = false,
+		Cosmetic = false,
+		Equipable = false,
+		Price = 0,
+		Currency = ItemCatalog.Currency.Free,
+		Available = false,
+		Description = "Material del bosque. Lo sueltan sus criaturas.",
+	},
+	Mat_SandCrystal = {
+		Id = "Mat_SandCrystal",
+		DisplayName = "Cristal de arena",
+		Category = ItemCatalog.Category.Powerup,
+		Rarity = ItemCatalog.Rarity.Common,
+		Stackable = true,
+		MaxStack = 999,
+		Tradable = false,
+		Consumable = false,
+		Cosmetic = false,
+		Equipable = false,
+		Price = 0,
+		Currency = ItemCatalog.Currency.Free,
+		Available = false,
+		Description = "Material del desierto. Lo sueltan sus criaturas.",
+	},
+	Mat_FrostShard = {
+		Id = "Mat_FrostShard",
+		DisplayName = "Fragmento de escarcha",
+		Category = ItemCatalog.Category.Powerup,
+		Rarity = ItemCatalog.Rarity.Common,
+		Stackable = true,
+		MaxStack = 999,
+		Tradable = false,
+		Consumable = false,
+		Cosmetic = false,
+		Equipable = false,
+		Price = 0,
+		Currency = ItemCatalog.Currency.Free,
+		Available = false,
+		Description = "Material del hielo. Lo sueltan sus criaturas.",
+	},
+	Mat_EmberCore = {
+		Id = "Mat_EmberCore",
+		DisplayName = "Nucleo de brasa",
+		Category = ItemCatalog.Category.Powerup,
+		Rarity = ItemCatalog.Rarity.Rare,
+		Stackable = true,
+		MaxStack = 999,
+		Tradable = false,
+		Consumable = false,
+		Cosmetic = false,
+		Equipable = false,
+		Price = 0,
+		Currency = ItemCatalog.Currency.Free,
+		Available = false,
+		Description = "Material raro del volcan. Lo sueltan sus criaturas.",
+	},
+	Mat_CircuitChip = {
+		Id = "Mat_CircuitChip",
+		DisplayName = "Chip de circuito",
+		Category = ItemCatalog.Category.Powerup,
+		Rarity = ItemCatalog.Rarity.Rare,
+		Stackable = true,
+		MaxStack = 999,
+		Tradable = false,
+		Consumable = false,
+		Cosmetic = false,
+		Equipable = false,
+		Price = 0,
+		Currency = ItemCatalog.Currency.Free,
+		Available = false,
+		Description = "Material raro del mundo cyber. Lo sueltan sus criaturas.",
+	},
 }
 
 -- ---------------------------------------------------------------
@@ -442,15 +533,20 @@ function ItemCatalog.Validate(): { string }
 		local definition = ITEMS[id]
 
 		if type(definition.Price) ~= "number" or definition.Price < 0 then
-			table.insert(problems, ("%s: precio invalido (%s)"):format(id, tostring(definition.Price)))
+			table.insert(
+				problems,
+				("%s: precio invalido (%s)"):format(id, tostring(definition.Price))
+			)
 		end
 
-		local currencyKnown =
-			definition.Currency == ItemCatalog.Currency.Coins
+		local currencyKnown = definition.Currency == ItemCatalog.Currency.Coins
 			or definition.Currency == ItemCatalog.Currency.Gems
 			or definition.Currency == ItemCatalog.Currency.Free
 		if not currencyKnown then
-			table.insert(problems, ("%s: moneda desconocida (%s)"):format(id, tostring(definition.Currency)))
+			table.insert(
+				problems,
+				("%s: moneda desconocida (%s)"):format(id, tostring(definition.Currency))
+			)
 		end
 
 		if definition.Tradable then
@@ -459,8 +555,10 @@ function ItemCatalog.Validate(): { string }
 
 		-- Anti-P2W estructural: un item NO puede ser cosmetico y a la
 		-- vez aportar efecto mecanico.
-		if definition.Cosmetic
-			and (definition.XpMultiplier or definition.CoinMultiplier or definition.HealAmount) then
+		if
+			definition.Cosmetic
+			and (definition.XpMultiplier or definition.CoinMultiplier or definition.HealAmount)
+		then
 			table.insert(problems, ("%s: es Cosmetic pero aporta efecto mecanico"):format(id))
 		end
 
@@ -473,7 +571,10 @@ function ItemCatalog.Validate(): { string }
 					if itemId == id then
 						table.insert(problems, ("%s: bundle que se contiene a si mismo"):format(id))
 					elseif not ItemCatalog.Has(itemId) then
-						table.insert(problems, ("%s: contiene el id inexistente %s"):format(id, tostring(itemId)))
+						table.insert(
+							problems,
+							("%s: contiene el id inexistente %s"):format(id, tostring(itemId))
+						)
 					end
 				end
 			end

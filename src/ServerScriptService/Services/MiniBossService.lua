@@ -90,6 +90,9 @@ Service._playerService = nil
 Service._questService = nil
 Service._nightService = nil
 
+-- LootService: observador opcional (mision V2, FASE 23/25).
+Service._lootService = nil
+
 -- Hilo de mantenimiento.
 Service._thread = nil
 Service._running = false
@@ -121,6 +124,12 @@ function Service.SetDependencies(
 	Service._playerService = playerService
 	Service._questService = questService
 	Service._nightService = nightService
+end
+
+--- Inyecta el `LootService` (mision V2, FASE 23/25).
+--- @param lootService any
+function Service.SetLootService(lootService: any)
+	Service._lootService = lootService
 end
 
 -- ---------------------------------------------------------------------------
@@ -196,10 +205,7 @@ function Service.GetZoneCenter(worldId: string, zoneId: string): Vector3?
 					local core = child:FindFirstChild(child.Name .. "_Core")
 
 					if core and core:IsA("BasePart") then
-						local zoneId = string.sub(
-							child.Name,
-							(#"Zone_" + #worldId + 2)
-						)
+						local zoneId = string.sub(child.Name, (#"Zone_" + #worldId + 2))
 						cache[zoneId] = core.Position
 					end
 				end
@@ -300,8 +306,12 @@ function Service.TrySpawnForZone(
 
 		if not Service._warnedMissing[worldId][zoneId] then
 			Service._warnedMissing[worldId][zoneId] = true
-			Logger.Warn(("MiniBossService: '%s' declara zona '%s' que el mapa no tiene")
-				:format(worldId, zoneId))
+			Logger.Warn(
+				("MiniBossService: '%s' declara zona '%s' que el mapa no tiene"):format(
+					worldId,
+					zoneId
+				)
+			)
 		end
 
 		return nil
@@ -358,8 +368,14 @@ function Service.TrySpawnForZone(
 	Service._zoneOccupant[worldId] = Service._zoneOccupant[worldId] or {}
 	Service._zoneOccupant[worldId][zoneId] = monsterId
 
-	Logger.Info(("MiniBossService: '%s' aparece en %s/%s (nivel de tier %s)")
-		:format(mini.Id, worldId, zoneId, tostring(mini.Tier)))
+	Logger.Info(
+		("MiniBossService: '%s' aparece en %s/%s (nivel de tier %s)"):format(
+			mini.Id,
+			worldId,
+			zoneId,
+			tostring(mini.Tier)
+		)
+	)
 
 	return monsterId
 end
@@ -425,6 +441,13 @@ function Service.OnMonsterDied(monsterId: number, record: table)
 		Service._questService.RecordMetric(killer, "MiniBossDefeated", 1)
 	end
 
+	-- LOOT (mision V2, FASE 23/25): el mini-boss SIEMPRE suelta
+	-- material, y a veces doble. Es el observador opcional de turno:
+	-- sin el, el mini-boss paga su tier y listo.
+	if killer and Service._lootService and Service._lootService.OnMiniBossDefeated then
+		pcall(Service._lootService.OnMiniBossDefeated, killer, worldId)
+	end
+
 	-- LIMPIEZA: registro, ocupacion de zona y ENFRIAMIENTO.
 	-- El enfriamiento arranca AQUI, no cuando se intento
 	-- generar: derrotarlo es lo que reinicia el ciclo.
@@ -439,9 +462,14 @@ function Service.OnMonsterDied(monsterId: number, record: table)
 	Service._cooldowns[worldId] = Service._cooldowns[worldId] or {}
 	Service._cooldowns[worldId][zoneId] = os.clock() + MiniBossRules.CooldownFor(mini)
 
-	Logger.Info(("MiniBossService: '%s' derrotado en %s/%s; enfriamiento %d s")
-		:format(mini.Id, worldId, zoneId,
-			math.floor(MiniBossRules.CooldownFor(mini))))
+	Logger.Info(
+		("MiniBossService: '%s' derrotado en %s/%s; enfriamiento %d s"):format(
+			mini.Id,
+			worldId,
+			zoneId,
+			math.floor(MiniBossRules.CooldownFor(mini))
+		)
+	)
 end
 
 -- ---------------------------------------------------------------------------
@@ -526,14 +554,15 @@ function Service.Start(): boolean
 	Service._running = true
 	Service._thread = task.spawn(runMaintenance)
 
-	Logger.Info(("MiniBossService: listo (%d mini-bosses en el catalogo)")
-		:format((function(): number
+	Logger.Info(
+		("MiniBossService: listo (%d mini-bosses en el catalogo)"):format((function(): number
 			local total = 0
 			for _, list in pairs(MiniBossRules.ByWorld) do
 				total += #list
 			end
 			return total
-		end)()))
+		end)())
+	)
 
 	return true
 end

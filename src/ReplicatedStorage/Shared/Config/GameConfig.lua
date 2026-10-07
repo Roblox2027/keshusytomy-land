@@ -26,7 +26,7 @@ return {
 	GameName = "KeshusyTomy-LanD",
 	GameVersion = "0.1.0",
 	ContentVersion = "0.1.0",
-	DataVersion = 2,
+	DataVersion = 3,
 
 	DebugMode = true,
 

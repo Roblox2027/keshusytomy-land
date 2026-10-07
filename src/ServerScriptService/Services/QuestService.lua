@@ -61,6 +61,8 @@ Service.IsInitialized = false
 -- EMITEN eventos de juego.
 Service._profileService = nil
 Service._economyService = nil
+-- AchievementService: destino del reenvio de metricas (mision V2).
+Service._achievementService = nil
 
 Service._stats = {
 	advanced = 0,
@@ -133,10 +135,12 @@ function Service.Start(maid: any?): boolean
 	local problems = QuestCatalog.Validate(QuestRules)
 
 	if #problems > 0 then
-		Logger.Error(("QuestService: el catalogo tiene %d problemas: %s"):format(
-			#problems,
-			table.concat(problems, "; ")
-		))
+		Logger.Error(
+			("QuestService: el catalogo tiene %d problemas: %s"):format(
+				#problems,
+				table.concat(problems, "; ")
+			)
+		)
 		return false
 	end
 
@@ -243,6 +247,16 @@ local function definitionsFor(metric: string): { any }
 	return byMetric
 end
 
+--- Inyecta el `AchievementService` (mision V2, FASE 17).
+---
+--- Es un DESTINO de reenvio, no una dependencia de ciclo de vida:
+--- las misiones avanzan igual sin el, y lo unico que falta es el
+--- progreso de logros.
+--- @param achievementService any
+function Service.SetAchievementService(achievementService: any)
+	Service._achievementService = achievementService
+end
+
 --- Registra un evento de juego y avanza las misiones que lo escuchan.
 ---
 --- Es el CAMINO UNICO por el que una mision progresa. Lo llaman los
@@ -257,6 +271,14 @@ end
 --- @return number questsAdvanced cuantas misiones avanzaron
 function Service.RecordMetric(player: Player?, metric: string, amount: number?): number
 	local state = questStateOf(player)
+
+	-- LOGROS (mision V2): la misma metrica alimenta los logros. El
+	-- reenvio va PRIMERO y con pcall: un fallo en logros no puede
+	-- frenar el progreso de las misiones, y las dos cuentas nunca
+	-- divergen porque comparten este UNICO embudo.
+	if Service._achievementService and player then
+		pcall(Service._achievementService.RecordMetric, player, metric, amount or 1)
+	end
 
 	if not state then
 		return 0
@@ -282,7 +304,9 @@ function Service.RecordMetric(player: Player?, metric: string, amount: number?):
 			-- Una mision COMPLETADA que no se reclama nunca volvera a
 			-- completarse, asi que avisar aqui es la unica vez que el
 			-- jugador se entera de que puede reclamarla.
-			Logger.Info(("QuestService: %s completo '%s'"):format(player.Name, tostring(definition.Id)))
+			Logger.Info(
+				("QuestService: %s completo '%s'"):format(player.Name, tostring(definition.Id))
+			)
 		end
 	end
 
@@ -310,7 +334,11 @@ end
 --- @param rewards { [string]: number }
 --- @param questId string
 --- @return { [string]: number } granted lo concedido de verdad
-local function deliver(player: Player, rewards: { [string]: number }, questId: string): { [string]: number }
+local function deliver(
+	player: Player,
+	rewards: { [string]: number },
+	questId: string
+): { [string]: number }
 	local granted: { [string]: number } = {}
 
 	if not Service._economyService then
@@ -339,11 +367,13 @@ local function deliver(player: Player, rewards: { [string]: number }, questId: s
 		if ok then
 			granted[currency] = amount
 		else
-			Logger.Error(("QuestService: no se pudo pagar '%s' a %s: %s"):format(
-				currency,
-				player.Name,
-				tostring(err)
-			))
+			Logger.Error(
+				("QuestService: no se pudo pagar '%s' a %s: %s"):format(
+					currency,
+					player.Name,
+					tostring(err)
+				)
+			)
 		end
 	end
 
@@ -392,15 +422,18 @@ function Service.TryClaimDaily(player: Player?): (boolean, string?, { [string]: 
 	-- confunde al verificador de estructura de `tools/verify-structure.js`,
 	-- que cuenta llaves como si fueran bloques. El codigo es correcto; la
 	-- herramienta no distingue "tabla" de "bloque".
-	local reward = { Coins = Service.DAILY_BASE_COINS * math.min(todayStreak, Service.DAILY_STREAK_CAP) }
+	local reward =
+		{ Coins = Service.DAILY_BASE_COINS * math.min(todayStreak, Service.DAILY_STREAK_CAP) }
 
 	local accepted, rejection, granted, streak = QuestRules.ClaimDaily(state, nowSeconds(), reward)
 
 	if not accepted then
-		Logger.Debug(("QuestService: %s no pudo reclamar el diario: %s"):format(
-			player.Name,
-			tostring(rejection)
-		))
+		Logger.Debug(
+			("QuestService: %s no pudo reclamar el diario: %s"):format(
+				player.Name,
+				tostring(rejection)
+			)
+		)
 		Service.PublishDailyResult(player, false, rejection, nil, streak)
 		return false, rejection, nil, streak
 	end
@@ -455,7 +488,10 @@ end
 --- @return boolean accepted
 --- @return string? rejection
 --- @return { [string]: number }? granted
-function Service.TryClaim(player: Player?, rawQuestId: any): (boolean, string?, { [string]: number }?)
+function Service.TryClaim(
+	player: Player?,
+	rawQuestId: any
+): (boolean, string?, { [string]: number }?)
 	local state = questStateOf(player)
 
 	if not state then
@@ -465,11 +501,7 @@ function Service.TryClaim(player: Player?, rawQuestId: any): (boolean, string?, 
 
 	-- El reclamo ATOMICO marca antes de pagar. Un doble clic o un reintento
 	-- encuentran el hueco ocupado y no pagan dos veces.
-	local accepted, rejection, rewards = QuestRules.Claim(
-		state,
-		rawQuestId,
-		QuestCatalog.GetAll()
-	)
+	local accepted, rejection, rewards = QuestRules.Claim(state, rawQuestId, QuestCatalog.GetAll())
 
 	if not accepted then
 		if rejection == QuestRules.Reject.AlreadyClaimed then
@@ -478,11 +510,13 @@ function Service.TryClaim(player: Player?, rawQuestId: any): (boolean, string?, 
 			Service._stats.rejected += 1
 		end
 
-		Logger.Debug(("QuestService: %s no pudo reclamar '%s': %s"):format(
-			player.Name,
-			tostring(rawQuestId),
-			tostring(rejection)
-		))
+		Logger.Debug(
+			("QuestService: %s no pudo reclamar '%s': %s"):format(
+				player.Name,
+				tostring(rawQuestId),
+				tostring(rejection)
+			)
+		)
 		Service.PublishClaimResult(player, false, rejection, nil)
 		return false, rejection, nil
 	end
@@ -533,7 +567,12 @@ end
 --- @param accepted boolean
 --- @param rejection string?
 --- @param granted { [string]: number }?
-function Service.PublishClaimResult(player: Player, accepted: boolean, rejection: string?, granted: { [string]: number }?)
+function Service.PublishClaimResult(
+	player: Player,
+	accepted: boolean,
+	rejection: string?,
+	granted: { [string]: number }?
+)
 	-- Se escribe en una variable y se publica, en vez de usar una EXPRESION
 	-- `if` dentro de la llamada. El comportamiento es identico, pero la
 	-- expresion depende de que la coma de la llamada se lea como separador,
@@ -556,7 +595,13 @@ end
 --- @param rejection string?
 --- @param granted { [string]: number }?
 --- @param streak number
-function Service.PublishDailyResult(player: Player, accepted: boolean, rejection: string?, granted: { [string]: number }?, streak: number)
+function Service.PublishDailyResult(
+	player: Player,
+	accepted: boolean,
+	rejection: string?,
+	granted: { [string]: number }?,
+	streak: number
+)
 	-- Mismo criterio que en `PublishClaimResult`: variable primero, sin
 	-- expresion `if` dentro de la llamada.
 	local outcome = "rejected"
@@ -587,10 +632,7 @@ function Service.GetProgressText(player: Player?, rawQuestId: any): string
 		return "0|0"
 	end
 
-	return ("%d|%d"):format(
-		QuestRules.GetProgress(state, definition.Id),
-		definition.Target
-	)
+	return ("%d|%d"):format(QuestRules.GetProgress(state, definition.Id), definition.Target)
 end
 
 --- Cuantas misiones del jugador estan listas para reclamar.

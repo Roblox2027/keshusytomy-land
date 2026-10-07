@@ -27,8 +27,7 @@
 	----------
 	    DataVersion = 1   esquema inicial
 	    DataVersion = 2   + `Progression`, + `Settings`
-
-	Cada migracion es una FUNCION de `1 -> 2`, `2 -> 3`, etc. Se aplican
+    DataVersion = 3   + `Achievements`, + `Titles`, + `Bestiary` (mision V2)
 	EN ORDEN y solo las que falten. Un perfil con version 1 guardado hoy
 	llegara a la version 3 pasando por la 2, aunque la 2 ya no se use.
 
@@ -46,7 +45,7 @@ local ProfileSchema = {}
 --- arrancar y avisa si se desincronizan, porque un numero mayor aqui que
 --- alla significa "el codigo nuevo guardara perfiles que el codigo viejo
 --- no sabe leer" y al reves.
-ProfileSchema.CurrentVersion = 2
+ProfileSchema.CurrentVersion = 3
 
 --- Campos obligatorios de un perfil.
 ProfileSchema.RequiredFields =
@@ -130,6 +129,12 @@ function ProfileSchema.NewProfile(playerId: number): any
 			Counts = {},
 		},
 		Secrets = { Discovered = {} },
+		-- Mision V2: logros, titulos y bestiario. Los TOTALES por metrica
+		-- viven aqui y son la fuente de verdad de los logros: un logro
+		-- con su propio contador se desincronizaria del perfil.
+		Achievements = { Totals = {}, Unlocked = {} },
+		Titles = { Unlocked = {}, Equipped = "" },
+		Bestiary = { Species = {} },
 	}
 end
 
@@ -267,6 +272,44 @@ function ProfileSchema.NormalizeSections(profile: any, playerId: number): boolea
 		changed = true
 	end
 
+	-- Mision V2: las tres secciones nuevas se rellenan si faltan.
+	-- NUNCA se tira nada: un perfil v2 conserva su progreso intacto.
+	if type(profile.Achievements) ~= "table" then
+		profile.Achievements = { Totals = {}, Unlocked = {} }
+		changed = true
+	else
+		if type(profile.Achievements.Totals) ~= "table" then
+			profile.Achievements.Totals = {}
+			changed = true
+		end
+		if type(profile.Achievements.Unlocked) ~= "table" then
+			profile.Achievements.Unlocked = {}
+			changed = true
+		end
+	end
+
+	if type(profile.Titles) ~= "table" then
+		profile.Titles = { Unlocked = {}, Equipped = "" }
+		changed = true
+	else
+		if type(profile.Titles.Unlocked) ~= "table" then
+			profile.Titles.Unlocked = {}
+			changed = true
+		end
+		if type(profile.Titles.Equipped) ~= "string" then
+			profile.Titles.Equipped = ""
+			changed = true
+		end
+	end
+
+	if type(profile.Bestiary) ~= "table" then
+		profile.Bestiary = { Species = {} }
+		changed = true
+	elseif type(profile.Bestiary.Species) ~= "table" then
+		profile.Bestiary.Species = {}
+		changed = true
+	end
+
 	return changed
 end
 
@@ -301,6 +344,29 @@ MIGRATIONS[1] = function(profile: any)
 	end
 	profile.DataVersion = 2
 	return profile, { "se creo la seccion persistente de secretos" }
+end
+
+-- version 2 -> 3 (mision V2): logros, titulos y bestiario.
+MIGRATIONS[2] = function(profile: any)
+	local notes = {}
+
+	if type(profile.Achievements) ~= "table" then
+		profile.Achievements = { Totals = {}, Unlocked = {} }
+		table.insert(notes, "se creo Achievements")
+	end
+
+	if type(profile.Titles) ~= "table" then
+		profile.Titles = { Unlocked = {}, Equipped = "" }
+		table.insert(notes, "se creo Titles")
+	end
+
+	if type(profile.Bestiary) ~= "table" then
+		profile.Bestiary = { Species = {} }
+		table.insert(notes, "se creo Bestiary")
+	end
+
+	profile.DataVersion = 3
+	return profile, notes
 end
 
 -- Migracion de ejemplo, comentada a proposito. Se deja escrita para que

@@ -69,6 +69,14 @@ Service._miniBossService = nil
 -- caducan sin pagar, que es una degradacion visible y no un crash.
 Service._eventService = nil
 
+-- LootService: observador de muertes (mision V2, FASE 23/25).
+-- Opcional: sin el, los enemigos no sueltan materiales.
+Service._lootService = nil
+
+-- BestiaryService: observador de muertes (mision V2, FASE 20).
+-- Opcional: sin el, la coleccion no registra especies.
+Service._bestiaryService = nil
+
 local MaidRef = nil
 
 --- Carpeta de monstruos, creada una sola vez.
@@ -127,6 +135,18 @@ end
 --- @param eventService any
 function Service.SetEventService(eventService: any)
 	Service._eventService = eventService
+end
+
+--- Inyecta el `LootService` (mision V2, FASE 23/25).
+--- @param lootService any
+function Service.SetLootService(lootService: any)
+	Service._lootService = lootService
+end
+
+--- Inyecta el `BestiaryService` (mision V2, FASE 20).
+--- @param bestiaryService any
+function Service.SetBestiaryService(bestiaryService: any)
+	Service._bestiaryService = bestiaryService
 end
 
 --- Monstruos vivos ahora mismo.
@@ -947,6 +967,13 @@ function Service.OnMonsterDied(monsterId: number): boolean
 		-- y la ronda continua.
 		if killer and Service._questService ~= nil then
 			Service._questService.RecordMetric(killer, "MonsterDefeated", 1)
+
+			-- BOSS (mision V2): la muerte de un jefe cuenta aparte. Sin
+			-- metrica propia, "derrota 5 jefes" seria indistinguible de
+			-- "derrota 5 slimes".
+			if record.IsBoss then
+				Service._questService.RecordMetric(killer, "BossDefeated", 1)
+			end
 		end
 	end
 
@@ -973,6 +1000,19 @@ function Service.OnMonsterDied(monsterId: number): boolean
 	-- junto al aviso de mini-boss, por el mismo patron opcional.
 	if Service._eventService then
 		pcall(Service._eventService.OnMonsterDied, monsterId, record)
+	end
+
+	-- LOOT (mision V2, FASE 23/25): el drop lo recibe quien MATA.
+	-- Un enemigo que muere por su propia explosion no tiene dueno y
+	-- no suelta nada: es la unica forma de que "farmear" exija jugar.
+	if killer and Service._lootService then
+		pcall(Service._lootService.OnMonsterKilled, killer, record)
+	end
+
+	-- BESTIARIO (mision V2, FASE 20): la especie queda registrada en
+	-- la coleccion del asesino. Mismo patron opcional.
+	if killer and Service._bestiaryService then
+		pcall(Service._bestiaryService.OnMonsterKilled, killer, record)
 	end
 
 	-- Liberacion de referencias. Un registro de muerte que conserve el

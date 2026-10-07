@@ -59,6 +59,11 @@ QuestCatalog.Metric = {
 	PortalUsed = "PortalUsed",
 	ItemPurchased = "ItemPurchased",
 	XPCollected = "XPCollected",
+	-- Metricas que los servicios YA emitian sin estar declaradas aqui
+	-- (mision V2): la frontera tiene que ser veraz o no es frontera.
+	SecretDiscovered = "SecretDiscovered",
+	EventCompleted = "EventCompleted",
+	MiniBossDefeated = "MiniBossDefeated",
 }
 local ALL = {
 	-- --- Mundo (permanentes) ---------------------------------------------

@@ -1404,6 +1404,39 @@ function Controller.Start(maid: any?): boolean
 			end
 		end)
 
+		-- LOGRO / TITULO DESBLOQUEADO (mision V2): el servidor publica el
+		-- texto exacto; el aviso solo lo repite.
+		_maid:Connect(player:GetAttributeChangedSignal("AchievementUnlocked"), function()
+			local label = player:GetAttribute("AchievementUnlocked")
+			if type(label) == "string" and label ~= "" then
+				Controller.Notify(("LOGRO: %s"):format(label), Color3.fromRGB(255, 220, 120))
+			end
+		end)
+
+		_maid:Connect(player:GetAttributeChangedSignal("TitleUnlocked"), function()
+			local title = player:GetAttribute("TitleUnlocked")
+			if type(title) == "string" and title ~= "" then
+				Controller.Notify(("TITULO: %s"):format(title), Color3.fromRGB(200, 170, 255))
+			end
+		end)
+
+		-- BESTIARIO (mision V2, FASE 20): especie NUEVA registrada.
+		_maid:Connect(player:GetAttributeChangedSignal("BestiaryDiscovery"), function()
+			local entry = player:GetAttribute("BestiaryDiscovery")
+			if type(entry) == "string" and entry ~= "" then
+				Controller.Notify(("NUEVA ESPECIE: %s"):format(entry), Color3.fromRGB(140, 220, 255))
+			end
+		end)
+
+		-- DROP DE LOOT (mision V2, FASE 23): el servidor publica QUE cayo
+		-- (`LootDrop`); el aviso lo repite tal cual, sin deducir nada.
+		_maid:Connect(player:GetAttributeChangedSignal("LootDropAt"), function()
+			local drop = player:GetAttribute("LootDrop")
+			if type(drop) == "string" and drop ~= "" then
+				Controller.Notify(("DROP: %s"):format(drop), Color3.fromRGB(170, 255, 140))
+			end
+		end)
+
 		-- INTRO DEL BOSS (mision V2, FASE 10): la aparicion del jefe se
 		-- anuncia grande. El nombre lo publica el servidor con la barra de
 		-- vida, asi que el aviso no puede mentir sobre QUIEN ha salido.

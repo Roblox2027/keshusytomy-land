@@ -473,6 +473,31 @@ local SERVICES = {
 		dependencies = { "ProfileService", "EconomyService", "QuestService" },
 	},
 
+	-- LootService: drops de materiales por muerte (mision V2, FASE 23/25).
+	-- Depende de `InventoryService` (entrega) y `EconomyService` (gemas
+	-- de boss). No tiene hilo: responde a las muertes como observador.
+	{
+		name = "LootService",
+		module = SERVER.Services.LootService,
+		dependencies = { "InventoryService", "EconomyService" },
+	},
+
+	-- AchievementService: logros y titulos (mision V2, FASES 17/19).
+	-- Recibe las metricas por reenvio de `QuestService.RecordMetric`:
+	-- no hay una segunda via de metricas que pueda divergir.
+	{
+		name = "AchievementService",
+		module = SERVER.Services.AchievementService,
+		dependencies = { "ProfileService", "EconomyService" },
+	},
+
+	-- BestiaryService: coleccion de especies (mision V2, FASE 20).
+	{
+		name = "BestiaryService",
+		module = SERVER.Services.BestiaryService,
+		dependencies = { "ProfileService" },
+	},
+
 	-- Herramienta de pruebas. Va al final y NO es critica: sin ella el
 	-- juego es exactamente igual de jugable, solo se pierde la
 	-- capacidad de certificar el camino de entrada del cliente.
@@ -837,6 +862,82 @@ local function wireDependencies(registry: any): { string }
 			service.SetDependencies(profileService, economyService, questService)
 		end
 	)
+
+	-- LootService: entrega por inventario, gemas por economia.
+	connect(
+		"LootService",
+		registry:Get("LootService"),
+		{ "InventoryService", "EconomyService" },
+		function(service: any)
+			service.SetDependencies(inventoryService, economyService)
+		end
+	)
+
+	-- MonsterService -> LootService y MiniBossService -> LootService:
+	-- las flechas inversas que hacen que el drop EXISTA en runtime.
+	-- Mismo patron pcall que el resto de observadores.
+	local lootService = registry:Get("LootService")
+
+	if monsterService and lootService then
+		pcall(function()
+			monsterService.SetLootService(lootService)
+		end)
+		table.insert(report, "[WIRING OK] MonsterService -> LootService")
+	else
+		table.insert(report, "[WIRING FAIL] MonsterService/LootService no disponibles")
+	end
+
+	if miniBossService and lootService then
+		pcall(function()
+			miniBossService.SetLootService(lootService)
+		end)
+		table.insert(report, "[WIRING OK] MiniBossService -> LootService")
+	else
+		table.insert(report, "[WIRING FAIL] MiniBossService/LootService no disponibles")
+	end
+
+	-- AchievementService: perfil y economia; y su UNICA fuente de
+	-- metricas, el reenvio de QuestService.
+	local achievementService = registry:Get("AchievementService")
+
+	connect(
+		"AchievementService",
+		achievementService,
+		{ "ProfileService", "EconomyService" },
+		function(service: any)
+			service.SetDependencies(profileService, economyService)
+		end
+	)
+
+	if questService and achievementService then
+		pcall(function()
+			questService.SetAchievementService(achievementService)
+		end)
+		table.insert(report, "[WIRING OK] QuestService -> AchievementService")
+	else
+		table.insert(report, "[WIRING FAIL] QuestService/AchievementService no disponibles")
+	end
+
+	-- BestiaryService: perfil; observa muertes como el loot.
+	local bestiaryService = registry:Get("BestiaryService")
+
+	connect(
+		"BestiaryService",
+		bestiaryService,
+		{ "ProfileService" },
+		function(service: any)
+			service.SetDependencies(profileService)
+		end
+	)
+
+	if monsterService and bestiaryService then
+		pcall(function()
+			monsterService.SetBestiaryService(bestiaryService)
+		end)
+		table.insert(report, "[WIRING OK] MonsterService -> BestiaryService")
+	else
+		table.insert(report, "[WIRING FAIL] MonsterService/BestiaryService no disponibles")
+	end
 
 	-- PowerupService -> MonsterService: la flecha que hace que CONGELAR
 	-- tenga efecto.
