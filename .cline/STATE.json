@@ -1,1 +1,84 @@
-﻿{"phase": 4, "subphase": "final-local-verification", "task": "Dejar la base local reparada, verificada y publicada; conservar el bloqueo externo de Studio/MCP para Play Test", "done": true, "pending": ["Validacion real de Studio/MCP con Play Test en vivo", "Revision final de gameplay si se habilita la conexion real"], "modified": [], "created": [], "tests": ["npm run verify:structure PASS", "npm run verify:wiring PASS", "npm test PASS (893/893)", "npm run verify PASS", "npm run rojo:build PASS", "git commit PASS (71ee978)", "git push PASS (origin/main actualizada)"], "failures": [], "repairs": ["Se eliminó la referencia activa del HUD a \"NOCHE 1\" y se reemplazó por AMBIENTE en UI generada y cliente.", "Se dejo el ciclo dia/noche como ambiente, sin objetivo activo de 99 noches.", "Se registró el estado real de continuidad del repositorio."], "playtests": ["BLOCKED: no hay MCP/Studio real disponible para Play Test en vivo"], "blockers": ["ROBLOX MCP: BLOCKED - no hay acceso real a Studio/MCP.", "ROBLOX PLAY TEST: BLOCKED - no se puede ejecutar Play Test final sin Studio real.", "GIT PUSH: RESUELTO - el commit fue publicado en origin/main."], "checkpoint": "Local verification green, git published, external Studio/MCP play-test still blocked", "last_action": "Se ejecuto la cadena local completa y se publico el commit final a origin/main.", "next_action": "Si se habilita Studio/MCP real, ejecutar Play Test en vivo para la certificacion final del gameplay.", "commit": "71ee978", "head": "71ee978", "origin": "71ee978"}
+﻿{
+    "phase": 5,
+    "subphase": "reconstruction-and-final-verification",
+    "task": "Reconstruir mundos, integrar secretos/minibosses/audio/IA, verificar todo y ejecutar Play Test real en Studio",
+    "done": true,
+    "pending": [
+        "Subir assets de audio reales al Creator Dashboard para que la musica/ambiente suene (los slots estan cableados pero sin IDs)",
+        "Play Test visual/audio extendido (las sondas de cliente/clienteRuntime hicieron timeout en parte de la sesion)"
+    ],
+    "modified": [
+        "tools/worlds.js",
+        "tools/world-navigation-test.js",
+        "tools/world-structure-test.js",
+        "tools/hud.js",
+        "package.json",
+        "default.project.json",
+        "src/ReplicatedStorage/Shared/Config/AudioConfig.lua",
+        "src/ReplicatedStorage/Shared/Config/GameConfig.lua",
+        "src/ReplicatedStorage/Shared/Libraries/AudioRules.lua",
+        "src/ReplicatedStorage/Shared/Libraries/MiniBossRules.lua",
+        "src/ReplicatedStorage/Shared/Libraries/ProfileSchema.lua",
+        "src/ServerScriptService/ServerMain.server.lua",
+        "src/ServerScriptService/Services/MonsterService.lua",
+        "src/StarterPlayer/StarterPlayerScripts/Controllers/AudioController.lua",
+        "src/StarterPlayer/StarterPlayerScripts/Controllers/EffectsController.lua",
+        "src/StarterPlayer/StarterPlayerScripts/Controllers/PortalController.lua",
+        "src/StarterPlayer/StarterPlayerScripts/Controllers/UIController.lua",
+        "tests/RunTests.lua",
+        "tests/shared/AudioRules.spec.lua",
+        "tests/shared/Profile.spec.lua",
+        ".cline/STATE.json",
+        ".cline/PROGRESS.md",
+        ".cline/NEXT-TASK.md",
+        ".cline/QA.md",
+        ".cline/BLOCKED.md"
+    ],
+    "created": [
+        "src/ReplicatedStorage/Shared/Libraries/SecretRules.lua",
+        "src/ServerScriptService/Services/SecretService.lua",
+        "tests/shared/SecretRules.spec.lua",
+        "tools/world-content-test.js",
+        "tools/audio-ui-contract.js"
+    ],
+    "tests": [
+        "npm run verify:structure PASS",
+        "npm run verify:wiring PASS",
+        "npm test PASS (899/899)",
+        "npm run test:worlds PASS (5/5 mundos, 96/96 zonas con geometria y rol)",
+        "npm run test:world-content PASS (5/5 mundos: miniboss anchor + secret prompt + catalog zones validas)",
+        "npm run test:audio-ui PASS (HUD generado sincronizado, 5 canales de volumen interactivos)",
+        "npm run test:contract PASS (portales, spawn, boss, exit, powerups)",
+        "npm run test:navigation PASS (96/96 centros de zona alcanzables, rutas criticas con alternativa)",
+        "npm run test:spawn PASS (5/5 mundos)",
+        "npm run test:world-edge PASS",
+        "npm run test:monster-access PASS (50/50 spawns de monstruo)",
+        "npm run test:powerup-boss PASS",
+        "npm run verify PASS (cadena completa, VERIFY_EXIT=0)",
+        "npm run rojo:build PASS"
+    ],
+    "failures": [],
+    "repairs": [
+        "Mundos: se eliminaron trampas de navegacion (zonas inalcanzables RuinsOuter/Mine) corrigiendo el generador de destructibles y el rim fallback.",
+        "Mundos: se anadieron ramas de rol real (miniboss, secret, encounter) donde el test semantico de zonas descubrio zonas sin contenido de rol.",
+        "Mundos: SecretService nuevo con ProximityPrompt generados, recompensa persistente idempotente (Secrets.Discovered + ledger de economia).",
+        "Monstruos: MonsterService ahora navega con PathfindingService (waypoints async, limite de concurrencia, reintentos, invalidez en cambio de estado) en vez de movimiento vectorial directo.",
+        "Audio: AudioController ahora tiene mixer de 5 canales (Master/Music/Sfx/Ambience/UI), crossfade acotado, estado dinamico (Lobby/Exploring/Danger/Combat/Boss/Victory/Defeat) y ambiente dia/noche por mundo; UIController expone sliders.",
+        "Perfil: ProfileSchema sube a version 2 con seccion Secrets.Discovered y migracion 1->2 sin perder datos."
+    ],
+    "playtests": [
+        "REAL: instancia Studio `lrh-zvl` con latest.rbxlx abierto, solo_playtest iniciado con roles edit/server/client-1.",
+        "Logs en vivo confirmaron: rondas Countdown->Playing->RoundEnding->Rewards, spawn de monstruos, minibosses (ForestAcechador, IceGolem, IceLobo), viaje por portal a Ice/Volcano, colocacion de bombas, muerte del jugador y reaparicion.",
+        "PARTIAL: algunas sondas eval_client_runtime hicieron request_timeout; el screenshot cayo al fallback de CaptureService."
+    ],
+    "blockers": [
+        "AUDIO ASSETS: PENDING - assets/sounds y assets/music estan vacios y la busqueda de Creator Marketplace devolvio 0 resultados; los IDs no se inventan, asi que el juego suena en silencio hasta subir assets reales.",
+        "analyze.js: FAIL PREEXISTENTE (1444 diagnosticos de baseline, incluidos requires del entorno de pruebas); no introducido por estos cambios."
+    ],
+    "checkpoint": "Mundos reconstruidos, secretos/minibosses/audio/IA integrados, verify completo en verde, Play Test real ejecutado en Studio",
+    "last_action": "Reconstruccion de mundos + integracion de gameplay + verify completo (exit 0) + Play Test real en latest.rbxlx.",
+    "next_action": "Commit final de la fase y push a origin/main; luego subir assets de audio reales para activar la musica.",
+    "commit": "pending",
+    "head": "pending",
+    "origin": "4beb522"
+}

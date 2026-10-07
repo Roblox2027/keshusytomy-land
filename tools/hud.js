@@ -432,7 +432,7 @@ function buildLeftPanel() {
 			BorderSizePixel: 0,
 			Font: "GothamBold",
 			Position: [0, 0, 0, 0],
-			Size: [1, 0, 0, 22],
+			Size: [1, -64, 0, 22],
 			Text: "MISIONES  -",
 			TextColor3: THEME.textDim,
 			TextSize: 11,
@@ -445,6 +445,25 @@ function buildLeftPanel() {
 		},
 	};
 	missionCard.node.Toggle = toggle;
+	missionCard.node.AudioToggle = {
+		$className: "TextButton",
+		$properties: {
+			BackgroundTransparency: 1,
+			BorderSizePixel: 0,
+			Font: "GothamBold",
+			Position: [1, -62, 0, 0],
+			Size: [0, 58, 0, 22],
+			Text: "AUDIO",
+			TextColor3: THEME.accent,
+			TextSize: 10,
+			TextScaled: false,
+			TextXAlignment: "Right",
+			TextYAlignment: "Center",
+			TextWrapped: false,
+			AutoButtonColor: false,
+			ZIndex: 4,
+		},
+	};
 
 	// El CUERPO se separa de la cabecera para que plegarla sea cambiar
 	// `Visible` de un solo hijo, y no reconstruir el panel.
@@ -468,6 +487,103 @@ function buildLeftPanel() {
 	missionCard.node.Body = body;
 	node.Mission = missionCard.node;
 	return node;
+}
+
+function buildAudioSettings() {
+	const panel = card("AudioSettings", {
+		position: [0.5, -150, 0, SIDE_TOP + 102],
+		size: [0, 300, 0, 226],
+	});
+	panel.node.$properties.AnchorPoint = [0.5, 0];
+	panel.node.$properties.Visible = false;
+	panel.node.$properties.ZIndex = 50;
+	panel.node.Scale = { $className: "UIScale", $properties: { Scale: 1 } };
+	panel.node.Title = label("Title", {
+		position: [0, 12, 0, 4],
+		size: [1, -52, 0, 24],
+		text: "AUDIO",
+		tint: THEME.text,
+		size2: 14,
+	});
+	panel.node.Close = {
+		$className: "TextButton",
+		$properties: {
+			BackgroundTransparency: 1,
+			BorderSizePixel: 0,
+			Font: "GothamBold",
+			Position: [1, -34, 0, 3],
+			Size: [0, 24, 0, 24],
+			Text: "X",
+			TextColor3: THEME.textDim,
+			TextSize: 13,
+			TextScaled: false,
+			TextXAlignment: "Center",
+			TextYAlignment: "Center",
+			TextWrapped: false,
+			AutoButtonColor: false,
+			ZIndex: 52,
+		},
+	};
+
+	const channels = [
+		["Master", "MAESTRO"],
+		["Music", "MUSICA"],
+		["Sfx", "EFECTOS"],
+		["Ambience", "AMBIENTE"],
+		["UI", "INTERFAZ"],
+	];
+	channels.forEach(([key, title], index) => {
+		const row = {
+			$className: "Frame",
+			$properties: {
+				BackgroundTransparency: 1,
+				BorderSizePixel: 0,
+				Position: [0, 12, 0, 34 + index * 36],
+				Size: [1, -24, 0, 30],
+				ZIndex: 51,
+			},
+			Label: label("Label", {
+				position: [0, 0, 0, 0],
+				size: [0, 76, 0, 28],
+				text: title,
+				tint: THEME.textDim,
+				size2: 10,
+			}),
+			Slider: {
+				$className: "TextButton",
+				$properties: {
+					BackgroundColor3: color(8, 10, 16),
+					BackgroundTransparency: 0.1,
+					BorderSizePixel: 0,
+					Position: [0, 82, 0, 8],
+					Size: [1, -132, 0, 14],
+					Text: "",
+					AutoButtonColor: false,
+					ZIndex: 52,
+				},
+				Fill: {
+					$className: "Frame",
+					$properties: {
+						BackgroundColor3: THEME.accent,
+						BorderSizePixel: 0,
+						Size: [0.85, 0, 1, 0],
+						ZIndex: 53,
+					},
+				},
+			},
+			Value: label("Value", {
+				position: [1, -44, 0, 0],
+				size: [0, 44, 0, 28],
+				text: "100%",
+				tint: THEME.text,
+				size2: 10,
+				align: "Right",
+			}),
+		};
+		panel.node[key + "Row"] = row;
+	});
+
+	return panel.node;
 }
 
 // ---------------------------------------------------------------------------
@@ -909,6 +1025,7 @@ function buildOverlays() {
 		},
 	};
 	node.DamageVignette = vignette;
+	node.AudioSettings = buildAudioSettings();
 
 	return node;
 }

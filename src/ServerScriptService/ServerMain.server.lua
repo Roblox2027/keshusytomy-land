@@ -34,7 +34,10 @@ local Maid = require(SHARED:WaitForChild("Libraries"):WaitForChild("Maid"))
 -- Modulos indispensables para que el servidor pueda operar.
 local REQUIRED_MODULES = {
 	{ name = "GameConfig", instance = CONFIG:WaitForChild("GameConfig") },
-	{ name = "GameConstants", instance = SHARED:WaitForChild("Constants"):WaitForChild("GameConstants") },
+	{
+		name = "GameConstants",
+		instance = SHARED:WaitForChild("Constants"):WaitForChild("GameConstants"),
+	},
 	{ name = "Logger", instance = UTILS:WaitForChild("Logger") },
 }
 
@@ -196,7 +199,12 @@ end
 --- @param context any?
 --- @return boolean allowed
 --- @return string? reason
-local function Service_CheckRequest(player: Player, channel: string, action: string, context: any?): (boolean, string?)
+local function Service_CheckRequest(
+	player: Player,
+	channel: string,
+	action: string,
+	context: any?
+): (boolean, string?)
 	if not antiExploitService then
 		return true, nil
 	end
@@ -220,17 +228,29 @@ local SERVICES = {
 	-- ProfileService guarda el perfil en memoria. Economy, Inventory,
 	-- Progression y Shop leen y escriben ahi, NUNCA a su propia sesion: por
 	-- eso las cuatro dependen de el y no al reves.
-	{ name = "ProfileService", module = SERVER.Services.ProfileService, dependencies = { "DataService" } },
+	{
+		name = "ProfileService",
+		module = SERVER.Services.ProfileService,
+		dependencies = { "DataService" },
+	},
 
 	-- La economia depende del perfil, no de la progresion: no hay ninguna
 	-- razon por la que una moneda requiera un nivel.
-	{ name = "EconomyService", module = SERVER.Services.EconomyService, dependencies = { "ProfileService" } },
+	{
+		name = "EconomyService",
+		module = SERVER.Services.EconomyService,
+		dependencies = { "ProfileService" },
+	},
 
 	-- El inventario depende del perfil. NO depende de la economia: un item
 	-- se puede conseguir sin pagar (recompensa, codigo), y anadir esa
 	-- dependencia haria que perder la economia dejase al jugador sin
 	-- inventario.
-	{ name = "InventoryService", module = SERVER.Services.InventoryService, dependencies = { "ProfileService" } },
+	{
+		name = "InventoryService",
+		module = SERVER.Services.InventoryService,
+		dependencies = { "ProfileService" },
+	},
 
 	-- La progresion depende del perfil Y de la economia: subir de nivel PAGA
 	-- monedas, asi que necesita poder concederlas.
@@ -275,15 +295,43 @@ local SERVICES = {
 	},
 
 	{ name = "WorldService", module = SERVER.Services.WorldService, dependencies = {} },
-	{ name = "SpawnService", module = SERVER.Services.SpawnService, dependencies = { "WorldService" } },
-	{ name = "DestructionService", module = SERVER.Services.DestructionService, dependencies = { "WorldService" } },
-	{ name = "RoundService", module = SERVER.Services.RoundService, dependencies = { "WorldService" } },
+	{
+		name = "SpawnService",
+		module = SERVER.Services.SpawnService,
+		dependencies = { "WorldService" },
+	},
+	{
+		name = "DestructionService",
+		module = SERVER.Services.DestructionService,
+		dependencies = { "WorldService" },
+	},
+	{
+		name = "RoundService",
+		module = SERVER.Services.RoundService,
+		dependencies = { "WorldService" },
+	},
 	-- CombatService depende de RoundService: sin el estado de ronda no
 	-- puede decidir si el dano es legal (el lobby es zona segura).
-	{ name = "CombatService", module = SERVER.Services.CombatService, dependencies = { "RoundService" } },
-	{ name = "PlayerService", module = SERVER.Services.PlayerService, dependencies = { "RoundService", "CombatService" } },
-	{ name = "ExplosionService", module = SERVER.Services.ExplosionService, dependencies = { "DestructionService", "CombatService" } },
-	{ name = "BombService", module = SERVER.Services.BombService, dependencies = { "RoundService", "ExplosionService" } },
+	{
+		name = "CombatService",
+		module = SERVER.Services.CombatService,
+		dependencies = { "RoundService" },
+	},
+	{
+		name = "PlayerService",
+		module = SERVER.Services.PlayerService,
+		dependencies = { "RoundService", "CombatService" },
+	},
+	{
+		name = "ExplosionService",
+		module = SERVER.Services.ExplosionService,
+		dependencies = { "DestructionService", "CombatService" },
+	},
+	{
+		name = "BombService",
+		module = SERVER.Services.BombService,
+		dependencies = { "RoundService", "ExplosionService" },
+	},
 	-- MatchService NO se declara aqui: se declara mas abajo, despues de
 	-- MonsterService, del que ahora depende para generar la poblacion de la
 	-- ronda. Declararlo en los dos sitios lo registraria DOS veces y el
@@ -292,7 +340,11 @@ local SERVICES = {
 	-- PortalService depende de MatchService: para entrar a un mundo hace
 	-- falta saber a donde se teletransporta al jugador, y MatchService es el
 	-- unico que tiene los marcadores de traslado del mapa.
-	{ name = "PortalService", module = SERVER.Services.PortalService, dependencies = { "WorldService", "MatchService", "RoundService" } },
+	{
+		name = "PortalService",
+		module = SERVER.Services.PortalService,
+		dependencies = { "WorldService", "MatchService", "RoundService" },
+	},
 	-- CoreService va al final: no depende de nadie, pero el resto de
 	-- servicios ya estan cableados cuando arranca, y su difusion usa
 	-- el mismo registro.
@@ -319,7 +371,11 @@ local SERVICES = {
 	-- PowerupService: los objetos que el jugador recoge en la arena. No
 	-- depende de nadie para GENERARLOS (solo del mapa), asi que se declara
 	-- despues de WorldService para no leer `Worlds` antes de que exista.
-	{ name = "PowerupService", module = SERVER.Services.PowerupService, dependencies = { "WorldService" } },
+	{
+		name = "PowerupService",
+		module = SERVER.Services.PowerupService,
+		dependencies = { "WorldService" },
+	},
 	-- MatchService se mueve DESPUES de MonsterService porque ahora genera
 	-- la poblacion al empezar la ronda. La dependencia se declara de forma
 	-- explicita: el registro resuelve el orden topologico y, sin ella,
@@ -343,7 +399,11 @@ local SERVICES = {
 	-- portales y mundos) y enciende las luces de las arenas. Encenderlas
 	-- antes de que el mundo exista las haria perderse: losFolders vacios
 	-- no se recorren.
-	{ name = "VisualService", module = SERVER.Services.VisualService, dependencies = { "WorldService" } },
+	{
+		name = "VisualService",
+		module = SERVER.Services.VisualService,
+		dependencies = { "WorldService" },
+	},
 
 	-- NightService: el reloj de las 99 noches (FASES 8 y 9).
 	--
@@ -396,6 +456,11 @@ local SERVICES = {
 		name = "MiniBossService",
 		module = SERVER.Services.MiniBossService,
 		dependencies = { "MonsterService" },
+	},
+	{
+		name = "SecretService",
+		module = SERVER.Services.SecretService,
+		dependencies = { "ProfileService", "EconomyService", "QuestService" },
 	},
 
 	-- Herramienta de pruebas. Va al final y NO es critica: sin ella el
@@ -454,6 +519,7 @@ local function wireDependencies(registry: any): { string }
 	local hordeService = registry:Get("HordeService")
 	local eventService = registry:Get("EventService")
 	local miniBossService = registry:Get("MiniBossService")
+	local secretService = registry:Get("SecretService")
 
 	-- Los seis de economia, inventario, progresion, perfil, datos y tienda.
 	local dataService = registry:Get("DataService")
@@ -496,10 +562,10 @@ local function wireDependencies(registry: any): { string }
 		end
 
 		if #missing > 0 then
-			table.insert(report, ("[WIRING FAIL] %s sin %s"):format(
-				label,
-				table.concat(missing, ", ")
-			))
+			table.insert(
+				report,
+				("[WIRING FAIL] %s sin %s"):format(label, table.concat(missing, ", "))
+			)
 			return
 		end
 
@@ -507,10 +573,10 @@ local function wireDependencies(registry: any): { string }
 			setter(consumer)
 		end
 
-		table.insert(report, ("[WIRING OK] %s -> %s"):format(
-			label,
-			table.concat(dependencies, ", ")
-		))
+		table.insert(
+			report,
+			("[WIRING OK] %s -> %s"):format(label, table.concat(dependencies, ", "))
+		)
 	end
 
 	-- ExplosionService necesita a CombatService: TODOS los danos pasan
@@ -526,35 +592,35 @@ local function wireDependencies(registry: any): { string }
 	-- `DataService` antes de que ningun otro lo use, y `EconomyService`
 	-- existe antes de que `ProgressionService` lo declare. Un orden
 	-- equivocado aqui deja una dependencia en `nil` sin ningun error rojo.
-	connect("ProfileService", profileService, { "DataService" },
-		function(service: any)
-			service.SetDependencies(dataService, nil)
-		end
-	)
+	connect("ProfileService", profileService, { "DataService" }, function(service: any)
+		service.SetDependencies(dataService, nil)
+	end)
 
-	connect("EconomyService", economyService, { "ProfileService" },
-		function(service: any)
-			service.SetDependencies(profileService)
-		end
-	)
+	connect("EconomyService", economyService, { "ProfileService" }, function(service: any)
+		service.SetDependencies(profileService)
+	end)
 
-	connect("InventoryService", inventoryService, { "ProfileService" },
-		function(service: any)
-			service.SetDependencies(profileService)
-		end
-	)
+	connect("InventoryService", inventoryService, { "ProfileService" }, function(service: any)
+		service.SetDependencies(profileService)
+	end)
 
 	-- `playerService` se inyecta para volcar el nivel del perfil en la sesion
 	-- en memoria. MEDIDO EN PLAY: sin esto, `ProgressionService.AddXP` subia
 	-- el atributo `Level` pero la sesion se quedaba en 1, y como los portales
 	-- leen la sesion, los cuatro mundos con nivel NO se desbloqueaban nunca.
-	connect("ProgressionService", progressionService, { "ProfileService", "EconomyService", "PlayerService" },
+	connect(
+		"ProgressionService",
+		progressionService,
+		{ "ProfileService", "EconomyService", "PlayerService" },
 		function(service: any)
 			service.SetDependencies(profileService, economyService, playerService)
 		end
 	)
 
-	connect("ShopService", shopService, { "ProfileService", "EconomyService" },
+	connect(
+		"ShopService",
+		shopService,
+		{ "ProfileService", "EconomyService" },
 		function(service: any)
 			service.SetDependencies(profileService, economyService)
 		end
@@ -563,7 +629,10 @@ local function wireDependencies(registry: any): { string }
 	-- CodeService lee el perfil para anotar el canje y paga con la
 	-- economia. Es la MISMA pareja que necesita la tienda: por eso se
 	-- cablea aqui y no dentro de su `connect`.
-	connect("CodeService", codeService, { "ProfileService", "EconomyService" },
+	connect(
+		"CodeService",
+		codeService,
+		{ "ProfileService", "EconomyService" },
 		function(service: any)
 			service.SetDependencies(profileService, economyService)
 		end
@@ -571,13 +640,19 @@ local function wireDependencies(registry: any): { string }
 
 	-- QuestService comparte pareja con la tienda y el canje: perfil para
 	-- el estado, economia para el pago.
-	connect("QuestService", questService, { "ProfileService", "EconomyService" },
+	connect(
+		"QuestService",
+		questService,
+		{ "ProfileService", "EconomyService" },
 		function(service: any)
 			service.SetDependencies(profileService, economyService)
 		end
 	)
 
-	connect("ExplosionService", explosionService, { "DestructionService", "CombatService" },
+	connect(
+		"ExplosionService",
+		explosionService,
+		{ "DestructionService", "CombatService" },
 		function(service: any)
 			service.SetDependencies(destructionService, combatService)
 		end
@@ -585,13 +660,19 @@ local function wireDependencies(registry: any): { string }
 
 	-- CombatService notifica las muertes a PlayerService, que es quien
 	-- mantiene el estado de sesion y paga al asesino.
-	connect("CombatService", combatService, { "RoundService", "PlayerService" },
+	connect(
+		"CombatService",
+		combatService,
+		{ "RoundService", "PlayerService" },
 		function(service: any)
 			service.SetDependencies(roundService, playerService)
 		end
 	)
 
-	connect("BombService", bombService, { "RoundService", "ExplosionService" },
+	connect(
+		"BombService",
+		bombService,
+		{ "RoundService", "ExplosionService" },
 		function(service: any)
 			service.SetDependencies(roundService, explosionService)
 			-- El registro de mundos NO es dependencia del ciclo de vida (el
@@ -612,7 +693,10 @@ local function wireDependencies(registry: any): { string }
 	-- sin ellos, las recompensas caen en el camino viejo de la sesion y el
 	-- juego sigue siendo jugable. Exigirlos uniria la ronda a la
 	-- persistencia, y una caida del DataStore no puede tumbar la partida.
-	connect("PlayerService", playerService, { "RoundService", "CombatService", "MatchService", "SpawnService" },
+	connect(
+		"PlayerService",
+		playerService,
+		{ "RoundService", "CombatService", "MatchService", "SpawnService" },
 		function(service: any)
 			service.SetDependencies(
 				roundService,
@@ -627,39 +711,36 @@ local function wireDependencies(registry: any): { string }
 
 	-- SpawnService necesita saber en que zona esta el jugador para
 	-- rescatarlo en el sitio correcto (arena si hay ronda, lobby si no).
-	connect("SpawnService", spawnService, { "RoundService", "MatchService" },
-		function(service: any)
-			service.SetDependencies(roundService, matchService)
-		end
-	)
+	connect("SpawnService", spawnService, { "RoundService", "MatchService" }, function(service: any)
+		service.SetDependencies(roundService, matchService)
+	end)
 
-	connect("MatchService", matchService,
-		{
-			"RoundService",
-			"PlayerService",
-			"BombService",
-			"DestructionService",
-			"CombatService",
-			"MonsterService",
-			"WorldService",
-		},
-		function(service: any)
-			service.SetDependencies(
-				roundService,
-				playerService,
-				bombService,
-				destructionService,
-				combatService,
-				monsterService,
-				worldService
-			)
-		end
-	)
+	connect("MatchService", matchService, {
+		"RoundService",
+		"PlayerService",
+		"BombService",
+		"DestructionService",
+		"CombatService",
+		"MonsterService",
+		"WorldService",
+	}, function(service: any)
+		service.SetDependencies(
+			roundService,
+			playerService,
+			bombService,
+			destructionService,
+			combatService,
+			monsterService,
+			worldService
+		)
+	end)
 
 	-- PortalService necesita el mundo (el catalogo de acceso), el destino (para
 	-- teletransportar), la ronda (para impedir salir durante la partida) y el
 	-- jugador (para diagnostico de nivel; ya NO bloquea por nivel: FASE 3).
-	connect("PortalService", portalService,
+	connect(
+		"PortalService",
+		portalService,
 		{ "WorldService", "MatchService", "RoundService", "PlayerService" },
 		function(service: any)
 			service.SetDependencies(worldService, matchService, roundService, playerService)
@@ -670,7 +751,9 @@ local function wireDependencies(registry: any): { string }
 	-- camino de dano) y jugador (para pagar la recompensa del monstruo). Se
 	-- cablea DESPUES de los tres, que es la unica forma de que las tres
 	-- inyecciones sean `nil` en vez de un servicio a medio construir.
-	connect("MonsterService", monsterService,
+	connect(
+		"MonsterService",
+		monsterService,
 		{ "RoundService", "CombatService", "PlayerService", "WorldService" },
 		function(service: any)
 			service.SetDependencies(roundService, combatService, playerService, worldService)
@@ -680,11 +763,9 @@ local function wireDependencies(registry: any): { string }
 	-- PowerupService: solo necesita el mundo para saber cual es el
 	-- directorio por defecto cuando la ronda no indica otro, y
 	-- `BombService` para que el powerup "+BOMBA" conceda capacidad REAL.
-	connect("PowerupService", powerupService, { "WorldService" },
-		function(service: any)
-			service.SetDependencies(worldService, nil, bombService)
-		end
-	)
+	connect("PowerupService", powerupService, { "WorldService" }, function(service: any)
+		service.SetDependencies(worldService, nil, bombService)
+	end)
 
 	-- HordeService (FASE 14): el reloj decide el tamano, `MonsterService` le
 	-- notifica las bajas y la economia paga el premio.
@@ -694,7 +775,10 @@ local function wireDependencies(registry: any): { string }
 	-- para arrancar, y estos dos no lo son. Sin ellos, las hordas se cuentan y
 	-- se limpian igual y lo unico que falta es el cobro, que espreferible a que
 	-- no haya hordas en absoluto.
-	connect("HordeService", hordeService, { "NightService", "MonsterService" },
+	connect(
+		"HordeService",
+		hordeService,
+		{ "NightService", "MonsterService" },
 		function(service: any)
 			service.SetDependencies(monsterService, nightService, economyService, questService)
 		end
@@ -702,17 +786,22 @@ local function wireDependencies(registry: any): { string }
 
 	-- EventService: el reloj decide si rueda y cuanto dura; jugador y
 	-- misiones van como opcionales por la misma razon que en HordeService.
-	connect("EventService", eventService, { "NightService" },
-		function(service: any)
-			service.SetDependencies(nightService, playerService, questService)
-		end
-	)
+	connect("EventService", eventService, { "NightService" }, function(service: any)
+		service.SetDependencies(nightService, playerService, questService)
+	end)
 
 	-- MiniBossService: necesita a `MonsterService` para invocar el spawn
 	-- de sus NPC dentro de la zona. El resto son opcionales.
-	connect("MiniBossService", miniBossService, { "MonsterService" },
+	connect("MiniBossService", miniBossService, { "MonsterService" }, function(service: any)
+		service.SetDependencies(monsterService, playerService, questService, nightService)
+	end)
+
+	connect(
+		"SecretService",
+		secretService,
+		{ "ProfileService", "EconomyService", "QuestService" },
 		function(service: any)
-			service.SetDependencies(monsterService, playerService, questService, nightService)
+			service.SetDependencies(profileService, economyService, questService)
 		end
 	)
 
@@ -815,9 +904,10 @@ local function wireDependencies(registry: any): { string }
 	-- MatchService necesita conocer el mundo por defecto para validar
 	-- a quien puede entrar en el (FASE 18 lo hara con portales).
 	if worldService then
-		table.insert(report, ("[WIRING OK] mundo por defecto: %s"):format(
-			tostring(worldService.GetDefaultWorldId())
-		))
+		table.insert(
+			report,
+			("[WIRING OK] mundo por defecto: %s"):format(tostring(worldService.GetDefaultWorldId()))
+		)
 	end
 
 	-- El informe se imprime aqui y no solo se devuelve: un fallo de
@@ -893,10 +983,12 @@ local REMOTE_CHANNELS = {
 			})
 
 			if not allowed then
-				Logger.Debug(("bomba rechazada por anti-exploit para %s: %s"):format(
-					player.Name,
-					tostring(reason)
-				))
+				Logger.Debug(
+					("bomba rechazada por anti-exploit para %s: %s"):format(
+						player.Name,
+						tostring(reason)
+					)
+				)
 				return
 			end
 
@@ -904,7 +996,9 @@ local REMOTE_CHANNELS = {
 			if not placed then
 				-- El motivo se registra SIEMPRE: un rechazo sin registro
 				-- es imposible de depurar desde fuera.
-				Logger.Debug(("bomba rechazada para %s: %s"):format(player.Name, tostring(bombReason)))
+				Logger.Debug(
+					("bomba rechazada para %s: %s"):format(player.Name, tostring(bombReason))
+				)
 			end
 		end,
 	},
@@ -1112,10 +1206,9 @@ function ServerMain.Initialize(): boolean
 		return false
 	end
 
-	Logger.Info(("%s v%s | server starting..."):format(
-		Logger.GetGameName(),
-		Logger.GetGameVersion()
-	))
+	Logger.Info(
+		("%s v%s | server starting..."):format(Logger.GetGameName(), Logger.GetGameVersion())
+	)
 
 	-- Un unico registro por servidor. Lo consultan los servicios.
 	local registry = ServiceRegistry.new()
@@ -1151,9 +1244,13 @@ function ServerMain.Initialize(): boolean
 			Logger.Error(message)
 			table.insert(errors, message)
 		else
-			local registered, registerError = registry:Register(entry.name, module, entry.dependencies)
+			local registered, registerError =
+				registry:Register(entry.name, module, entry.dependencies)
 			if not registered then
-				local message = ("no se pudo registrar '%s': %s"):format(entry.name, tostring(registerError))
+				local message = ("no se pudo registrar '%s': %s"):format(
+					entry.name,
+					tostring(registerError)
+				)
 				Logger.Error(message)
 				table.insert(errors, message)
 			end
@@ -1273,11 +1370,15 @@ function ServerMain.Start(): boolean
 			if dataService then
 				local acquired, reason = dataService.AcquireLock(player.UserId)
 				if not acquired then
-					Logger.Warn(("ServerMain: %s no puede cargar su perfil: %s"):format(
-						player.Name,
-						tostring(reason)
-					))
-					player:Kick("Tu perfil esta siendo usado en otro servidor. Intentalo en un momento.")
+					Logger.Warn(
+						("ServerMain: %s no puede cargar su perfil: %s"):format(
+							player.Name,
+							tostring(reason)
+						)
+					)
+					player:Kick(
+						"Tu perfil esta siendo usado en otro servidor. Intentalo en un momento."
+					)
 					return
 				end
 			end
@@ -1317,10 +1418,12 @@ function ServerMain.Start(): boolean
 	gateway:Start()
 	ServerMain.Gateway = gateway
 
-	Logger.Info(("RemoteGateway: %d canales validados (%s)"):format(
-		#registeredChannels,
-		table.concat(registeredChannels, ", ")
-	))
+	Logger.Info(
+		("RemoteGateway: %d canales validados (%s)"):format(
+			#registeredChannels,
+			table.concat(registeredChannels, ", ")
+		)
+	)
 
 	-- Resumen de arranque. Se imprime SIEMPRE, no solo en fallo: sin esto
 	-- no hay forma de saber desde el Output que sistema arranco y cual no.
@@ -1353,9 +1456,10 @@ function ServerMain.GetBootReport(): { string }
 		return report
 	end
 
-	table.insert(report, ("[BOOT] estado del servidor: %s"):format(
-		ServerMain.Registry:GetServerState()
-	))
+	table.insert(
+		report,
+		("[BOOT] estado del servidor: %s"):format(ServerMain.Registry:GetServerState())
+	)
 
 	for _, line in ipairs(ServerMain.Registry:GetReport()) do
 		table.insert(report, ("[BOOT]   %s"):format(line))
@@ -1366,17 +1470,18 @@ function ServerMain.GetBootReport(): { string }
 		local _, state = ServerMain.Registry:GetEntry(name)
 		if tostring(state) ~= GameConstants.ServiceState.Started then
 			failed += 1
-			table.insert(report, ("[BOOT FAIL] %s no arranco (estado: %s)"):format(
-				name,
-				tostring(state)
-			))
+			table.insert(
+				report,
+				("[BOOT FAIL] %s no arranco (estado: %s)"):format(name, tostring(state))
+			)
 		end
 	end
 
 	if failed == 0 then
-		table.insert(report, ("[BOOT] servicios criticos OK (%d)"):format(
-			#ServerMain.CriticalServices
-		))
+		table.insert(
+			report,
+			("[BOOT] servicios criticos OK (%d)"):format(#ServerMain.CriticalServices)
+		)
 	end
 
 	return report

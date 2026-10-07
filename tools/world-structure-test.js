@@ -112,6 +112,7 @@ function analyzeWorld(id, flat) {
 	const prefix = "Workspace.Worlds." + id + ".";
 	const mine = flat.filter((e) => e.path.startsWith(prefix));
 	const problems = [];
+	const layout = Worlds.LAYOUTS[id];
 
 	const zonesEntry = mine.find((e) => e.path === prefix + "Zones");
 	const routesEntry = mine.find((e) => e.path === prefix + "Routes");
@@ -139,15 +140,69 @@ function analyzeWorld(id, flat) {
 		const kids = mine.filter((e) => e.path.startsWith(zprefix));
 		const floor = kids.filter((e) => /_Core$|_Slab_\d+$/.test(e.path));
 		const rim = kids.filter((e) => /_Rim_\d+$/.test(e.path));
-		const solid = kids.filter(
-			(e) => e.className === "Part" && e.node.$properties && e.node.$properties.CanCollide === true
-		);
-		if (floor.length >= 2 && rim.length >= 1 && solid.length >= 5) {
+		const zoneId = zn.replace(/^Zone_[A-Za-z]+_/, "");
+		const zoneSpec = layout.zones.find((zone) => zone.id === zoneId);
+		const core = mine.find((entry) => entry.path === zprefix + zn + "_Core");
+		const coreBounds = core ? require("./world-navigation-test").aabbOf(core) : null;
+		const containsCenter = (entry) => {
+			const position = posOf(entry);
+			return !!(position && coreBounds
+				&& position[0] >= coreBounds.x0 && position[0] <= coreBounds.x1
+				&& position[2] >= coreBounds.z0 && position[2] <= coreBounds.z1);
+		};
+		let roleContent = true;
+		let roleContentReason = "";
+		if (zoneSpec) {
+			switch (zoneSpec.role) {
+				case "encounter":
+				case "intermediate":
+					roleContent = kids.some((entry) => /\.Cover_/.test(entry.path));
+					roleContentReason = "combat cover missing";
+					break;
+				case "destruction": {
+					const blocks = mine.filter((entry) => entry.path.includes(".Blocks.Block_") && containsCenter(entry));
+					roleContent = blocks.length >= 3;
+					roleContentReason = `only ${blocks.length} destructible blocks in zone bounds`;
+					break;
+				}
+				case "reward":
+					roleContent = kids.some((entry) => entry.path.endsWith("Reward_Pedestal_" + id));
+					roleContentReason = "reward pedestal missing";
+					break;
+				case "miniboss":
+					roleContent = kids.some((entry) => entry.path.endsWith("MiniBossSpawn_" + id + "_" + zoneId));
+					roleContentReason = "miniboss spawn marker missing";
+					break;
+				case "secret":
+					roleContent = kids.some((entry) => entry.className === "ProximityPrompt"
+						&& entry.path.includes("SecretPrompt_" + id + "_" + zoneId));
+					roleContentReason = "secret interaction prompt missing";
+					break;
+				case "exit":
+					roleContent = mine.some((entry) => entry.path === prefix + "Exit_" + id && containsCenter(entry));
+					roleContentReason = "exit marker missing or outside zone bounds";
+					break;
+				case "boss":
+					roleContent = mine.some((entry) => entry.path === prefix + "BossSpawn_" + id && containsCenter(entry));
+					roleContentReason = "boss spawn missing or outside zone bounds";
+					break;
+				case "arena":
+					roleContent = mine.some((entry) => entry.path === prefix + "ArenaFloor" && containsCenter(entry));
+					roleContentReason = "arena floor missing or outside zone bounds";
+					break;
+				case "entrance":
+					roleContent = mine.some((entry) => entry.path === prefix + "SpawnPoint_" + id && containsCenter(entry));
+					roleContentReason = "player spawn missing or outside zone bounds";
+					break;
+			}
+		}
+		if (floor.length >= 2 && rim.length >= 1 && roleContent) {
 			zonesWithFloor++;
 		} else {
 			problems.push(
 				`${id}.Zones.${zn}: no es una zona jugable ` +
-				`(suelo ${floor.length}, borde ${rim.length}, solidas ${solid.length})`
+				`(rol ${zoneSpec ? zoneSpec.role : "missing"}, suelo ${floor.length}, borde ${rim.length}, ` +
+				`contenido ${roleContent ? "ok" : roleContentReason})`
 			);
 		}
 	}
@@ -187,7 +242,6 @@ function analyzeWorld(id, flat) {
 	// `LAYOUTS`, y aqui se comprueba que esa secuencia existe en el ARBOL.
 	// Se toma de los papeles reales del rol, no de una lista escrita aqui: si un
 	// mundo dejara de tener zona de recompensa, el test lo notaria.
-	const layout = Worlds.LAYOUTS[id];
 	const byRole = {};
 	for (const z of layout.zones) if (!byRole[z.role]) byRole[z.role] = z;
 

@@ -47,29 +47,134 @@ Rules.ByWorld = {
 		-- que existe en el mapa. Antes decian "Hollow", "Grove" y
 		-- "Rocks", que NO son zonas de Forest, y el mini-boss
 		-- nunca aparecia porque la consulta no encontraba nada.
-		{ Id = "ForestTronk", Name = "Tronco Guardián", Tier = Rules.Tier.Common, Zone = "BogHollow", Health = 320, Scale = 2.0 },
-		{ Id = "ForestArana", Name = "Araña de Ramas", Tier = Rules.Tier.Elite, Zone = "DenseGrove", Health = 420, Scale = 2.1 },
-		{ Id = "ForestAcechador", Name = "Acechador del Claro", Tier = Rules.Tier.Rare, Zone = "RockyRidge", Health = 560, Scale = 2.2 },
+		{
+			Id = "ForestTronk",
+			Name = "Tronco Guardián",
+			Tier = Rules.Tier.Common,
+			Zone = "BogHollow",
+			Health = 320,
+			Scale = 2.0,
+		},
+		{
+			Id = "ForestArana",
+			Name = "Araña de Ramas",
+			Tier = Rules.Tier.Elite,
+			Zone = "DenseGrove",
+			Health = 420,
+			Scale = 2.1,
+		},
+		{
+			Id = "ForestAcechador",
+			Name = "Acechador del Claro",
+			Tier = Rules.Tier.Rare,
+			Zone = "HiddenCabin",
+			Health = 560,
+			Scale = 2.2,
+		},
 	},
 	Desert = {
-		{ Id = "DesertEscorpion", Name = "Escorpión de las Dunas", Tier = Rules.Tier.Common, Zone = "Oasis", Health = 380, Scale = 2.05 },
-		{ Id = "DesertMomia", Name = "Momia del Templo", Tier = Rules.Tier.Elite, Zone = "Ruins", Health = 500, Scale = 2.2 },
-		{ Id = "DesertColmillo", Name = "Colmillo de Arena", Tier = Rules.Tier.Rare, Zone = "Canyon", Health = 640, Scale = 2.3 },
+		{
+			Id = "DesertEscorpion",
+			Name = "Escorpión de las Dunas",
+			Tier = Rules.Tier.Common,
+			Zone = "Oasis",
+			Health = 380,
+			Scale = 2.05,
+		},
+		{
+			Id = "DesertMomia",
+			Name = "Momia del Templo",
+			Tier = Rules.Tier.Elite,
+			Zone = "Ruins",
+			Health = 500,
+			Scale = 2.2,
+		},
+		{
+			Id = "DesertColmillo",
+			Name = "Colmillo de Arena",
+			Tier = Rules.Tier.Rare,
+			Zone = "DuneKeep",
+			Health = 640,
+			Scale = 2.3,
+		},
 	},
 	Ice = {
-		{ Id = "IceGolem", Name = "Gólem de Hielo", Tier = Rules.Tier.Common, Zone = "Lake", Health = 440, Scale = 2.15 },
-		{ Id = "IceLobo", Name = "Lobo Glacial", Tier = Rules.Tier.Elite, Zone = "Narrows", Health = 520, Scale = 2.0 },
-		{ Id = "IceSpecter", Name = "Espectro del Glaciar", Tier = Rules.Tier.Rare, Zone = "Crevasse", Health = 700, Scale = 2.25 },
+		{
+			Id = "IceGolem",
+			Name = "Gólem de Hielo",
+			Tier = Rules.Tier.Common,
+			Zone = "Lake",
+			Health = 440,
+			Scale = 2.15,
+		},
+		{
+			Id = "IceLobo",
+			Name = "Lobo Glacial",
+			Tier = Rules.Tier.Elite,
+			Zone = "Narrows",
+			Health = 520,
+			Scale = 2.0,
+		},
+		{
+			Id = "IceSpecter",
+			Name = "Espectro del Glaciar",
+			Tier = Rules.Tier.Rare,
+			Zone = "Spire",
+			Health = 700,
+			Scale = 2.25,
+		},
 	},
 	Volcano = {
-		{ Id = "VolcanoSlag", Name = "Escoria Ardiente", Tier = Rules.Tier.Common, Zone = "Vents", Health = 520, Scale = 2.1 },
-		{ Id = "VolcanoAshen", Name = "Ashen", Tier = Rules.Tier.Elite, Zone = "Platforms", Health = 640, Scale = 2.2 },
-		{ Id = "VolcanoObsidian", Name = "Guardián de Obsidiana", Tier = Rules.Tier.Rare, Zone = "Fissure", Health = 820, Scale = 2.4 },
+		{
+			Id = "VolcanoSlag",
+			Name = "Escoria Ardiente",
+			Tier = Rules.Tier.Common,
+			Zone = "Vents",
+			Health = 520,
+			Scale = 2.1,
+		},
+		{
+			Id = "VolcanoAshen",
+			Name = "Ashen",
+			Tier = Rules.Tier.Elite,
+			Zone = "Platforms",
+			Health = 640,
+			Scale = 2.2,
+		},
+		{
+			Id = "VolcanoObsidian",
+			Name = "Guardián de Obsidiana",
+			Tier = Rules.Tier.Rare,
+			Zone = "ObsidianGate",
+			Health = 820,
+			Scale = 2.4,
+		},
 	},
 	Cyber = {
-		{ Id = "CyberDrone", Name = "Dron Centinela", Tier = Rules.Tier.Common, Zone = "ServerHall", Health = 620, Scale = 2.1 },
-		{ Id = "CyberEnforcer", Name = "Reforzer", Tier = Rules.Tier.Elite, Zone = "Conduit", Health = 760, Scale = 2.25 },
-		{ Id = "CyberWarden", Name = "Warden del Reactor", Tier = Rules.Tier.Rare, Zone = "Reactor", Health = 980, Scale = 2.4 },
+		{
+			Id = "CyberDrone",
+			Name = "Dron Centinela",
+			Tier = Rules.Tier.Common,
+			Zone = "ServerHall",
+			Health = 620,
+			Scale = 2.1,
+		},
+		{
+			Id = "CyberEnforcer",
+			Name = "Reforzer",
+			Tier = Rules.Tier.Elite,
+			Zone = "Conduit",
+			Health = 760,
+			Scale = 2.25,
+		},
+		{
+			Id = "CyberWarden",
+			Name = "Warden del Reactor",
+			Tier = Rules.Tier.Rare,
+			Zone = "Reactor",
+			Health = 980,
+			Scale = 2.4,
+		},
 	},
 }
 
@@ -216,7 +321,11 @@ Rules.MaxXP = 900
 --- @param night any
 --- @param rewardScale any?
 --- @return { XP: number, Coins: number, Gems: number }
-function Rules.RewardFor(mini: any, night: any, rewardScale: any?): { XP: number, Coins: number, Gems: number }
+function Rules.RewardFor(
+	mini: any,
+	night: any,
+	rewardScale: any?
+): { XP: number, Coins: number, Gems: number }
 	local n = tonumber(night)
 
 	if not n or n ~= n then
@@ -287,28 +396,36 @@ function Rules.Audit(): { string }
 
 		for _, mini in ipairs(list) do
 			if Rules.BossIds[mini.Id] then
-				table.insert(problems, ("%s: '%s' es un boss principal, no un mini-boss")
-					:format(worldId, mini.Id))
+				table.insert(
+					problems,
+					("%s: '%s' es un boss principal, no un mini-boss"):format(worldId, mini.Id)
+				)
 			end
 
 			if mini.Health <= 0 then
-				table.insert(problems, ("%s: '%s' tiene vida %s")
-					:format(worldId, mini.Id, tostring(mini.Health)))
+				table.insert(
+					problems,
+					("%s: '%s' tiene vida %s"):format(worldId, mini.Id, tostring(mini.Health))
+				)
 			end
 
 			-- Dos mini-bosses en la misma zona se pisan: uno nunca aparece, y el
 			-- jugador ve una zona "vacia" sin saber por que.
 			if zones[mini.Zone] then
-				table.insert(problems, ("%s: dos mini-bosses en la zona '%s'")
-					:format(worldId, tostring(mini.Zone)))
+				table.insert(
+					problems,
+					("%s: dos mini-bosses en la zona '%s'"):format(worldId, tostring(mini.Zone))
+				)
 			end
 			zones[mini.Zone] = true
 
 			-- Un mini-boss mas grande que el boss rompe la lectura visual: el
 			-- jugador veria algo enorme y pensaria que es el cierre del mundo.
 			if mini.Scale >= 2.6 then
-				table.insert(problems, ("%s: '%s' escala %.2f, mayor que un boss")
-					:format(worldId, mini.Id, mini.Scale))
+				table.insert(
+					problems,
+					("%s: '%s' escala %.2f, mayor que un boss"):format(worldId, mini.Id, mini.Scale)
+				)
 			end
 		end
 	end

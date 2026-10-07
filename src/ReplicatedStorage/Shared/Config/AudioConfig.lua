@@ -54,6 +54,32 @@ return {
 		Cyber = false,
 	} :: { [string]: string | boolean },
 
+	-- Overrides for states that need a distinct score within each world.
+	-- False keeps the world exploration theme playing until a verified track is uploaded.
+	WorldMusicByState = {
+		Forest = { Danger = false, Combat = false, Boss = false, Victory = false, Defeat = false },
+		Desert = { Danger = false, Combat = false, Boss = false, Victory = false, Defeat = false },
+		Ice = { Danger = false, Combat = false, Boss = false, Victory = false, Defeat = false },
+		Volcano = { Danger = false, Combat = false, Boss = false, Victory = false, Defeat = false },
+		Cyber = { Danger = false, Combat = false, Boss = false, Victory = false, Defeat = false },
+	} :: { [string]: { [string]: string | boolean } },
+
+	LobbyAmbienceId = false :: string | boolean,
+	WorldAmbience = {
+		Forest = false,
+		Desert = false,
+		Ice = false,
+		Volcano = false,
+		Cyber = false,
+	} :: { [string]: string | boolean },
+	WorldAmbienceByPhase = {
+		Forest = { Day = false, Night = false },
+		Desert = { Day = false, Night = false },
+		Ice = { Day = false, Night = false },
+		Volcano = { Day = false, Night = false },
+		Cyber = { Day = false, Night = false },
+	} :: { [string]: { [string]: string | boolean } },
+
 	-- -------------------------------------------------------------------
 	-- EFECTOS
 	-- -------------------------------------------------------------------
@@ -135,7 +161,9 @@ return {
 		GemPickup = { id = nil, category = "Sfx" },
 		LevelUp = { id = nil, category = "Sfx" },
 		QuestComplete = { id = nil, category = "Sfx" },
+		SecretFound = { id = nil, category = "Sfx" },
 		PortalEnter = { id = nil, category = "Sfx" },
+		PortalDenied = { id = nil, category = "Sfx" },
 		WorldExit = { id = nil, category = "Sfx" },
 
 		-- ------------------------------------------------------------ UI
@@ -149,7 +177,7 @@ return {
 		RoundStart = { id = nil, category = "UI" },
 		RoundWin = { id = nil, category = "UI" },
 		RoundLose = { id = nil, category = "UI" },
--- ------------------------------------------------------ MONSTRUOS
+		-- ------------------------------------------------------ MONSTRUOS
 		--
 		-- Cada criatura tiene su PROPIA identidad, no un "sonido de
 		-- monstruo" comun. Es lo que permite reconocer un Guardian por el
@@ -207,6 +235,7 @@ return {
 	MusicByState = {
 		Lobby = false,
 		Exploring = false,
+		Danger = false,
 		Combat = false,
 		Arena = false,
 		Boss = false,

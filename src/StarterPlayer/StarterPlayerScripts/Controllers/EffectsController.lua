@@ -115,14 +115,12 @@ local function spawnNumber(text: string, worldPosition: Vector3, color: Color3, 
 	table.insert(_live, label)
 
 	-- Sube y se desvanece. Corto a proposito: el numero informa, no decora.
-	TweenService:Create(
-		label,
-		TweenInfo.new(0.75, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
-		{
+	TweenService
+		:Create(label, TweenInfo.new(0.75, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
 			Position = UDim2.fromOffset(screenPoint.X, screenPoint.Y - 46),
 			TextTransparency = 1,
-		}
-	):Play()
+		})
+		:Play()
 
 	task.delay(0.8, function()
 		for index, entry in ipairs(_live) do
@@ -262,7 +260,13 @@ local function watchHumanoid(humanoid: Humanoid, isLocalPlayer: boolean)
 			if isLocalPlayer then
 				AudioController.PlayEvent("PlayerDeath")
 			else
-				AudioController.PlayEvent("MonsterDeath", deathPosition)
+				local model = humanoid.Parent
+				if model and model:IsA("Model") and model:GetAttribute("IsBoss") == true then
+					AudioController.PlayEvent("BossDeath", deathPosition)
+					AudioController.SetTransientMusicState("Victory", 6)
+				else
+					AudioController.PlayEvent("MonsterDeath", deathPosition)
+				end
 			end
 
 			_lastHealth[key] = nil
@@ -280,6 +284,9 @@ local function watchRewards()
 
 	local lastXP = player:GetAttribute("XP")
 	local lastCoins = player:GetAttribute("Coins")
+	local lastGems = player:GetAttribute("Gems")
+	local lastLevel = player:GetAttribute("Level")
+	local lastSecrets = player:GetAttribute("SecretsFound")
 
 	--- @param text string
 	--- @param color Color3
@@ -305,9 +312,63 @@ local function watchRewards()
 
 		if type(coins) == "number" and type(lastCoins) == "number" and coins > lastCoins then
 			announce(("+%d"):format(coins - lastCoins), Color3.fromRGB(255, 214, 110))
+			AudioController.PlayEvent("CoinPickup")
 		end
 
 		lastCoins = coins
+	end)
+
+	_maid:Connect(player:GetAttributeChangedSignal("Gems"), function()
+		local gems = player:GetAttribute("Gems")
+		if type(gems) == "number" and type(lastGems) == "number" and gems > lastGems then
+			AudioController.PlayEvent("GemPickup")
+		end
+		lastGems = gems
+	end)
+
+	_maid:Connect(player:GetAttributeChangedSignal("Level"), function()
+		local level = player:GetAttribute("Level")
+		if type(level) == "number" and type(lastLevel) == "number" and level > lastLevel then
+			AudioController.PlayEvent("LevelUp")
+		end
+		lastLevel = level
+	end)
+
+	local lastRoundResult = player:GetAttribute("RoundResult")
+	_maid:Connect(player:GetAttributeChangedSignal("RoundResult"), function()
+		local result = player:GetAttribute("RoundResult")
+		if type(result) ~= "string" or result == lastRoundResult then
+			return
+		end
+		lastRoundResult = result
+		if result == "Ronda perdida" then
+			AudioController.PlayEvent("RoundLose")
+			AudioController.SetTransientMusicState("Defeat", 5)
+		elseif string.find(result, "Ronda completada", 1, true) then
+			AudioController.PlayEvent("RoundWin")
+			AudioController.SetTransientMusicState("Victory", 5)
+		end
+	end)
+
+	_maid:Connect(player:GetAttributeChangedSignal("SecretsFound"), function()
+		local secrets = player:GetAttribute("SecretsFound")
+		if
+			type(secrets) == "number"
+			and type(lastSecrets) == "number"
+			and secrets > lastSecrets
+		then
+			local character = player.Character
+			local root = character and character:FindFirstChild("HumanoidRootPart")
+			local position = if root and root:IsA("BasePart") then root.Position else Vector3.zero
+			spawnNumber(
+				"SECRETO DESCUBIERTO",
+				position + Vector3.new(0, 3, 0),
+				Color3.fromRGB(120, 255, 210),
+				1.1
+			)
+			AudioController.PlayEvent("SecretFound")
+		end
+		lastSecrets = secrets
 	end)
 end
 --- Avisa de las bombas cuando aparecen en el Workspace.
@@ -343,7 +404,12 @@ local function watchBombs()
 			return
 		end
 
-		spawnNumber("BOMBA", root.Position + Vector3.new(0, 4.5, 0), Color3.fromRGB(255, 200, 90), 0.8)
+		spawnNumber(
+			"BOMBA",
+			root.Position + Vector3.new(0, 4.5, 0),
+			Color3.fromRGB(255, 200, 90),
+			0.8
+		)
 
 		lastPosition[instance] = root.Position
 
@@ -495,7 +561,13 @@ local function watchMonsters()
 		-- el jugador no ha tenido tiempo de decidir nada. El sonido de
 		-- aparicion convierte "hay un bicho" en "ha entrado UN bicho aqui".
 		local root = instance.PrimaryPart
-		AudioController.PlayEvent("MonsterSpawn", if root ~= nil then root.Position else nil)
+		if instance:GetAttribute("IsBoss") == true then
+			AudioController.PlayEvent("BossSpawn", if root ~= nil then root.Position else nil)
+			AudioController.PlayEvent("BossIntro", if root ~= nil then root.Position else nil)
+			AudioController.UpdateMusicState()
+		else
+			AudioController.PlayEvent("MonsterSpawn", if root ~= nil then root.Position else nil)
+		end
 	end
 
 	_maid:Connect(folder.ChildAdded, onMonsterAdded)
@@ -574,6 +646,13 @@ local function watchFootsteps(humanoid: Humanoid, rootPart: BasePart)
 	end
 
 	local lastPosition = rootPart.Position
+	_maid:Connect(humanoid.StateChanged, function(_, newState)
+		if newState == Enum.HumanoidStateType.Jumping then
+			AudioController.PlayEvent("Jump")
+		elseif newState == Enum.HumanoidStateType.Landed then
+			AudioController.PlayEvent("Land")
+		end
+	end)
 
 	_maid:Connect(humanoid:GetPropertyChangedSignal("MoveDirection"), function()
 		local direction = humanoid.MoveDirection
@@ -601,7 +680,8 @@ local function watchFootsteps(humanoid: Humanoid, rootPart: BasePart)
 
 		local player = Players.LocalPlayer
 		local worldId = player and player:GetAttribute("World")
-		local stepEvent = AudioController.GetStepEvent(if type(worldId) == "string" then worldId else nil)
+		local stepEvent =
+			AudioController.GetStepEvent(if type(worldId) == "string" then worldId else nil)
 
 		-- Volumen segun la velocidad: correr suena mas fuerte que andar.
 		local speed = humanoid.WalkSpeed
@@ -625,18 +705,18 @@ function Controller.Start(maid: any?): boolean
 	_gui = playerGui and playerGui:WaitForChild(HUD_NAME, 10)
 
 	if not _gui then
-		Logger.Error(("EffectsController: %s no existe; no habra feedback de combate."):format(HUD_NAME))
+		Logger.Error(
+			("EffectsController: %s no existe; no habra feedback de combate."):format(HUD_NAME)
+		)
 		return false
 	end
 
 	-- Las rutas son el CONTRATO con `tools/hud.js`. Un `FindFirstChild` de un
 	-- solo nivel ya no las encuentra: el HUD es un arbol de ZONAS.
-	_numbers = _gui:FindFirstChild("Root")
-		:FindFirstChild("CenterFeedback")
-		:FindFirstChild("DamageNumbers")
-	_vignette = _gui:FindFirstChild("Root")
-		:FindFirstChild("Overlays")
-		:FindFirstChild("DamageVignette")
+	_numbers =
+		_gui:FindFirstChild("Root"):FindFirstChild("CenterFeedback"):FindFirstChild("DamageNumbers")
+	_vignette =
+		_gui:FindFirstChild("Root"):FindFirstChild("Overlays"):FindFirstChild("DamageVignette")
 
 	if not _numbers then
 		Logger.Error("EffectsController: el HUD no tiene el panel DamageNumbers.")

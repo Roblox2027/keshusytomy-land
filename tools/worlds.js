@@ -302,7 +302,7 @@ const LAYOUTS = {
 			zone(["CentralGlade", "exploration", 114.5, 132.7, 37.3, 26.1, 1]),
 
 			// ---- BOSQUE DENSO (noroeste, denso y oscuro) ----
-			zone(["DenseGrove", "scenic", -212.0, 118.6, 69.9, 37.3, 3]),
+			zone(["DenseGrove", "encounter", -212.0, 118.6, 69.9, 37.3, 3]),
 			zone(["DeepThicket", "exploration", -221.2, 47.8, 60.6, 32.6, 4]),
 			zone(["AncientGrove", "encounter", -166.1, -5.5, 51.2, 28.0, 5]),
 
@@ -327,13 +327,13 @@ const LAYOUTS = {
 
 			// ---- ZONA DE CABANAS (dispersas, noroeste y oeste) ----
 			zone(["CabinGrove", "exploration", -161.0, 180.1, 41.9, 28.0, 4]),
-			zone(["HiddenCabin", "scenic", -110.7, -42.3, 32.6, 20.4, 2]),
+			zone(["HiddenCabin", "miniboss", -110.7, -42.3, 32.6, 20.4, 2]),
 			zone(["RangerStation", "reward", -47.1, -87.7, 35.4, 22.4, 3]),
 
 			// ---- ZONA DE RUINAS (suroeste, estructuras antiguas) ----
 			zone(["RuinsOuter", "destruction", -162.4, -100.6, 46.5, 28.0, 2]),
 			zone(["RuinsInner", "intermediate", -139.5, -151.8, 37.3, 23.3, 3]),
-			zone(["ForgottenShrine", "scenic", -113.9, -193.0, 32.6, 18.7, 4]),
+			zone(["ForgottenShrine", "secret", -113.9, -193.0, 32.6, 18.7, 4]),
 
 			// ---- ZONA OSCURA (norte: nido, arena, jefe, salida) ----
 			zone(["DarkNest", "encounter", 62.2, -96.5, 41.9, 23.3, 1]),
@@ -589,8 +589,8 @@ const LAYOUTS = {
 			zone(["Gate", "entrance", 0, 184, 64.09, 40]),
 			zone(["SnowPath", "exploration", 0, 100, 74.78, 32]),
 			zone(["Shards", "encounter", 153.1, 110, 49.85, 24]),
-			zone(["Lake", "scenic", -149.54, 86, 74.78, 34, 1]),
-			zone(["Narrows", "scenic", 0, 24, 39.16, 34, 2]),
+			zone(["Lake", "encounter", -149.54, 86, 74.78, 34, 1]),
+			zone(["Narrows", "encounter", 0, 24, 39.16, 34, 2]),
 			zone(["Cave", "scenic", 153.1, 52, 56.97, 28, 3]),
 			zone(["Crevasse", "destruction", 178.03, -30, 64.09, 30, 4]),
 			zone(["Cache", "intermediate", -163.79, 4, 64.09, 30]),
@@ -663,7 +663,7 @@ const LAYOUTS = {
 			zone(["Gate", "entrance", 0, 186, 64.63, 40]),
 			zone(["LavaPath", "exploration", 0, 100, 75.41, 32]),
 			zone(["Caldera", "encounter", -165.19, 128, 50.28, 24]),
-			zone(["Platforms", "scenic", 158, 72, 57.46, 28, 4]),
+			zone(["Platforms", "encounter", 158, 72, 57.46, 28, 4]),
 			zone(["Rocks", "scenic", -165.19, 72, 61.04, 28, 2]),
 			zone(["Bridge", "scenic", -17.96, 30, 64.63, 18, 8]),
 			zone(["Fissure", "intermediate", 53.87, -40, 53.87, 26]),
@@ -738,7 +738,7 @@ const LAYOUTS = {
 			zone(["Corridor", "exploration", 0, 104, 86.16, 28]),
 			zone(["ServerHall", "encounter", -172.32, 86, 67.43, 28, 2]),
 			zone(["Platforms", "scenic", 168.57, 80, 59.93, 26, 6]),
-			zone(["Conduit", "scenic", 18.74, 32, 52.45, 30, 3]),
+			zone(["Conduit", "encounter", 18.74, 32, 52.45, 30, 3]),
 			zone(["BlastDoors", "destruction", -172.32, 4, 56.19, 26, 1]),
 			zone(["Energy", "scenic", 172.32, 20, 59.93, 28, 4]),
 			zone(["Core", "intermediate", -74.92, -40, 63.68, 28]),
@@ -1060,11 +1060,11 @@ function normalizeLayout(layout) {
 // sin solapamientos, y reescalarlas aqui vuelve a mezclar los suelos.
 const LAYOUT_SCALES = {};
 for (const id of Object.keys(LAYOUTS)) {
- 	if (id === "Forest") {
- 		LAYOUT_SCALES[id] = { sx: 1, sz: 1 };
- 	} else {
- 		LAYOUT_SCALES[id] = normalizeLayout(LAYOUTS[id]);
- 	}
+	if (id === "Forest") {
+		LAYOUT_SCALES[id] = { sx: 1, sz: 1 };
+	} else {
+		LAYOUT_SCALES[id] = normalizeLayout(LAYOUTS[id]);
+	}
 }
 
 /**
@@ -1295,11 +1295,11 @@ function zoneRim(api, z, P, seedBase, name, openings, keepAngles) {
 	// que comerse mas de tres segmentos: los que quedaban a los lados rotaban
 	// su caja dentro del hueco. Medido: el borde de Forest apretaba la entrada
 	// de la arena y las tres legs criticas caian a 5 studs.
-//
-// El objetivo es un segmento de unos 8 studs, constante en los cinco mundos:
-// ahi un hueco de 16 studs limpia exactamente los segmentos que cubren y el
-// borde deja de invadirlo.
-const segs = rimSegments(z);
+	//
+	// El objetivo es un segmento de unos 8 studs, constante en los cinco mundos:
+	// ahi un hueco de 16 studs limpia exactamente los segmentos que cubren y el
+	// borde deja de invadirlo.
+	const segs = rimSegments(z);
 
 	// EL ANGULO, EN POLAR Y NO EN PARAMETRO DE ELIPSE
 	// -------------------------------------------------
@@ -1391,11 +1391,8 @@ const segs = rimSegments(z);
 		}));
 	}
 
-	// Fallback garantizado: si la interseccion de las puertas cubre el perimetro
-	// completo, la zona queda abierta y no genera ningun segmento de borde. Asegurarnos
-	// al menos un segmento real, porque el test de estructura exige `rim >= 1` para
-	// todo mundo jugable. Este segmento es decorativo y no puede bloquear una ruta
-	// (siempre se coloca en la mitad opuesta al primer angulo de vecino).
+	// Fallback visual para una zona tan conectada que no conserva borde. No puede
+	// bloquear el paso ni convertir la salida de una ruta en una pared.
 	if (out.length === 0 && keepAngles && keepAngles.length) {
 		let bestA = keepAngles[0];
 		let bestDist = -Infinity;
@@ -1417,7 +1414,7 @@ const segs = rimSegments(z);
 		const zz = z.z + Math.sin(a) * rr;
 		const h = vary(seedBase, 0, 9, 17);
 		const segW = ((Math.PI * 2) / segs) * rr * 1.15;
-		out.push(part(name + "_Rim_999", {
+		out.push(decor(name + "_Rim_999", {
 			position: [x, z.y + h / 2, zz],
 			size: [segW, h, 3],
 			material: P.structureMaterial,
@@ -1497,8 +1494,8 @@ function routePath(api, r, a, b, P, seedBase, idx) {
 
 	const deckMat = r.style === "bridge" ? "WoodPlanks"
 		: r.style === "catwalk" ? "Metal"
-		: r.style === "tunnel" ? P.floorMaterial
-		: "Ground";
+			: r.style === "tunnel" ? P.floorMaterial
+				: "Ground";
 
 	let maxDeckW = deckW;
 	for (let i = 0; i <= steps; i++) {
@@ -1777,7 +1774,8 @@ function destructibleCluster(api, z, P, blockState, defId) {
 		const s = SHAPES[blockState.count % SHAPES.length];
 		const bx = z.x + Math.cos(a) * z.rx * r;
 		const bz = z.z + Math.sin(a) * z.rz * r;
-		if (onRoute(z, bx, bz)) continue;
+		const footprint = Math.sqrt(s.size[0] * s.size[0] + s.size[2] * s.size[2]) / 2 + 2;
+		if (!safeBlockPosition(z, bx, bz, footprint)) continue;
 		make(bx, z.y + s.size[1] / 2, bz, 1, i);
 	}
 
@@ -1786,17 +1784,19 @@ function destructibleCluster(api, z, P, blockState, defId) {
 	for (let i = 0; i < pillars; i++) {
 		const a = (i / pillars) * Math.PI * 2 + 0.4;
 		const s = SHAPES[blockState.count % SHAPES.length];
-		const bx = z.x + Math.cos(a) * z.rx * 0.3;
-		const bz = z.z + Math.sin(a) * z.rz * 0.3;
-		if (onRoute(z, bx, bz)) continue;
+		const bx = z.x + Math.cos(a) * z.rx * 0.55;
+		const bz = z.z + Math.sin(a) * z.rz * 0.55;
+		const footprint = Math.sqrt(s.size[0] * s.size[0] + s.size[2] * s.size[2]) * 0.8 / 2 + 2;
+		if (!safeBlockPosition(z, bx, bz, footprint)) continue;
 		make(bx, z.y + s.size[1] / 2, bz, 0.8, ring + i);
 	}
 
 	// Pila de dos alturas: verticalidad y mas superficie donde pensar la bomba.
 	const s = SHAPES[blockState.count % SHAPES.length];
-	const ax = z.x + z.rx * 0.42;
-	const az = z.z - z.rz * 0.42;
-	const base = onRoute(z, ax, az)
+	const ax = z.x + z.rx * 0.6;
+	const az = z.z - z.rz * 0.6;
+	const footprint = Math.sqrt(s.size[0] * s.size[0] + s.size[2] * s.size[2]) / 2 + 2;
+	const base = !safeBlockPosition(z, ax, az, footprint)
 		? [0, 0, 0]
 		: make(ax, z.y + s.size[1] / 2, az, 1, ring + pillars);
 	if (base[1]) make(ax, z.y + s.size[1] + base[1] / 2, az, 0.7, ring + pillars + 1);
@@ -1816,12 +1816,20 @@ function destructibleCluster(api, z, P, blockState, defId) {
  * @param {number} zz
  * @returns {boolean}
  */
-function onRoute(z, x, zz) {
+function onRoute(z, x, zz, clearance) {
 	if (!z.keepOut) return false;
 	for (const k of z.keepOut) {
-		if (distToSegment(x, zz, k.ax, k.az, k.bx, k.bz) < k.half) return true;
+		if (distToSegment(x, zz, k.ax, k.az, k.bx, k.bz) < k.half + (clearance || 0)) return true;
 	}
 	return false;
+}
+
+function safeBlockPosition(z, x, zz, clearance) {
+	if (Math.hypot(x - z.x, zz - z.z) < clearance + 4) return false;
+	// keepOut already includes the route deck plus WALL_GAP; only the footprint
+	// that exceeds that existing margin needs additional clearance.
+	const extraRouteClearance = Math.max(0, clearance - WALL_GAP);
+	return !onRoute(z, x, zz, extraRouteClearance);
 }
 
 /**
@@ -2664,7 +2672,7 @@ function probeObstructedAround(solids, x, z, floorY) {
  * @param {object} def {id, cx, cz, seedBase}
  * @returns {{name:string, node:object}} carpeta del mundo
  */
- function buildWorld(api, def) {
+function buildWorld(api, def) {
 	const { part, decor, marker, folder, light } = api;
 	const P = PALETTES[def.id];
 	const layout = LAYOUTS[def.id];
@@ -2867,29 +2875,29 @@ function probeObstructedAround(solids, x, z, floorY) {
 			// una homonima se sobrescribe en silencio y la geometria desaparece.
 			const tag = z.id + "_";
 			// La cobertura se registra ADEMAS como lista de discos: el spawn del
-		// monstruo tiene que apartarse de ella, y `coverField` solo devuelve las
-		// cajas montadas, no donde se han plantado.
-		//
-		// El disco es el radio de la caja en su eje MAYOR: para `Cover_Pillar` y
-		// `Cover_Monolith` coincide con el medio ancho, y para `Cover_Slab` es el
-		// medio largo. Con el radio pequeno el spawn acaba pegado al extremo largo
-		// de la losa, que es donde se apoya el remate.
-		z.cover = [];
-		const covers = coverField(api, z, P, seedBase + z.lx, z.role === "intermediate" ? 7 : 5, tag);
-		for (const p of covers) kids.push(p);
-		for (const p of covers) {
-			const pr = p.node && p.node.$properties;
-			if (!pr || !Array.isArray(pr.Position) || !Array.isArray(pr.Size)) continue;
-			z.cover.push({
-				x: pr.Position[0],
-				z: pr.Position[2],
-				half: Math.max(pr.Size[0], pr.Size[2]) / 2,
-			});
-		}
-		for (const p of hazardField(api, z, P, seedBase + z.lz, z.role === "intermediate" ? 2 : 1, tag)) {
-			hazardParts.push(p);
-		}
-	} else if (z.role === "destruction") {
+			// monstruo tiene que apartarse de ella, y `coverField` solo devuelve las
+			// cajas montadas, no donde se han plantado.
+			//
+			// El disco es el radio de la caja en su eje MAYOR: para `Cover_Pillar` y
+			// `Cover_Monolith` coincide con el medio ancho, y para `Cover_Slab` es el
+			// medio largo. Con el radio pequeno el spawn acaba pegado al extremo largo
+			// de la losa, que es donde se apoya el remate.
+			z.cover = [];
+			const covers = coverField(api, z, P, seedBase + z.lx, z.role === "intermediate" ? 7 : 5, tag);
+			for (const p of covers) kids.push(p);
+			for (const p of covers) {
+				const pr = p.node && p.node.$properties;
+				if (!pr || !Array.isArray(pr.Position) || !Array.isArray(pr.Size)) continue;
+				z.cover.push({
+					x: pr.Position[0],
+					z: pr.Position[2],
+					half: Math.max(pr.Size[0], pr.Size[2]) / 2,
+				});
+			}
+			for (const p of hazardField(api, z, P, seedBase + z.lz, z.role === "intermediate" ? 2 : 1, tag)) {
+				hazardParts.push(p);
+			}
+		} else if (z.role === "destruction") {
 			for (const p of destructibleCluster(api, z, P, blockState, def.id)) blocks.push(p);
 		} else if (z.role === "reward") {
 			kids.push(part("Reward_Pedestal_" + def.id, {
@@ -2922,6 +2930,52 @@ function probeObstructedAround(solids, x, z, floorY) {
 					[z.x + Math.cos(a) * 13, z.y + 1.4, z.z + Math.sin(a) * 13],
 					{ color: P.energy, size: [2.4, 0.2, 2.4] }));
 			}
+		} else if (z.role === "miniboss") {
+			kids.push(marker("MiniBossSpawn_" + def.id + "_" + z.id,
+				[z.x, z.y + 0.3, z.z], { color: P.hazard, size: [5, 0.2, 5] }));
+			for (let i = 0; i < 4; i++) {
+				const a = (i / 4) * Math.PI * 2 + Math.PI / 4;
+				const x = z.x + Math.cos(a) * z.rx * 0.62;
+				const zz = z.z + Math.sin(a) * z.rz * 0.62;
+				if (onRoute(z, x, zz, 3)) continue;
+				const height = 5 + hash01(seedBase, i + z.lx * 17) * 3;
+				kids.push(part("MiniBossPillar_" + def.id + "_" + z.id + "_" + i, {
+					position: [x, z.y + height / 2, zz],
+					size: [3.2, height, 3.2],
+					material: P.structureMaterial,
+					color: P.structureDark,
+				}));
+			}
+		} else if (z.role === "secret") {
+			const secretName = "SecretPrompt_" + def.id + "_" + z.id;
+			let cachePosition = { x: z.x, z: z.z };
+			for (let i = 0; i < 24; i++) {
+				const a = (i / 24) * Math.PI * 2;
+				const x = z.x + Math.cos(a) * z.rx * 0.58;
+				const zz = z.z + Math.sin(a) * z.rz * 0.58;
+				if (!onRoute(z, x, zz, 3)) {
+					cachePosition = { x: x, z: zz };
+					break;
+				}
+			}
+			const cache = part("SecretCache_" + def.id + "_" + z.id, {
+				position: [cachePosition.x, z.y + 2, cachePosition.z],
+				size: [8, 4, 6],
+				material: P.structureMaterial,
+				color: P.structureDark,
+			});
+			cache.node[secretName] = {
+				$className: "ProximityPrompt",
+				$properties: {
+					ActionText: "Descubrir",
+					ObjectText: "Hallazgo oculto",
+					HoldDuration: 1.1,
+					MaxActivationDistance: 9,
+					RequiresLineOfSight: false,
+					Enabled: true,
+				},
+			};
+			kids.push(cache);
 		} else if (z.role === "boss") {
 			bossParts.push(part("BossSpawn_" + def.id, {
 				position: [z.x, z.y + 0.3, z.z],
@@ -3309,22 +3363,22 @@ function probeObstructedAround(solids, x, z, floorY) {
 	// entonces se colocan. Ese orden es el que garantiza que un spawn este en el
 	// mismo espacio que el jugador: la medida se hace sobre el arbol ya completo,
 	// con la cobertura, los muros de zona y las rutas ya puestos.
- 	const worldShell = folder(def.id, arenaParts.concat(
- 		[spawn],
- 		gateParts,
- 		bossParts,
- 		exitParts,
- 		folder("Zones", zoneFolders),
- 		folder("Routes", routeFolders),
- 		folder("Blocks", def.id === "Forest" && blocks.length > 48 ? blocks.slice(0, 48) : blocks),
- 		folder("CentralStructure", centralBlocks),
- 		folder("Terrain", terrainParts),
- 		folder("Hazards", hazardParts),
- 		folder("Decoration", decoParts),
- 		folder("Border", borderParts),
- 		folder("Keshusy", keshusyParts),
- 		folder("PowerupSpawns", powerupParts)
- 	));
+	const worldShell = folder(def.id, arenaParts.concat(
+		[spawn],
+		gateParts,
+		bossParts,
+		exitParts,
+		folder("Zones", zoneFolders),
+		folder("Routes", routeFolders),
+		folder("Blocks", def.id === "Forest" && blocks.length > 48 ? blocks.slice(0, 48) : blocks),
+		folder("CentralStructure", centralBlocks),
+		folder("Terrain", terrainParts),
+		folder("Hazards", hazardParts),
+		folder("Decoration", decoParts),
+		folder("Border", borderParts),
+		folder("Keshusy", keshusyParts),
+		folder("PowerupSpawns", powerupParts)
+	));
 
 	const spawnPos = spawn.node.$properties.Position;
 	monsterSpawnParts.push(...resolveMonsterSpawns(
@@ -3336,23 +3390,23 @@ function probeObstructedAround(solids, x, z, floorY) {
 		{ x: spawnPos[0], z: spawnPos[2] }
 	));
 
- 	return folder(def.id, arenaParts.concat(
- 		[spawn],
- 		gateParts,
- 		bossParts,
- 		exitParts,
- 		folder("Zones", zoneFolders),
- 		folder("Routes", routeFolders),
- 		folder("Blocks", def.id === "Forest" && blocks.length > 48 ? blocks.slice(0, 48) : blocks),
- 		folder("CentralStructure", centralBlocks),
- 		folder("Terrain", terrainParts),
- 		folder("Hazards", hazardParts),
- 		folder("Decoration", decoParts),
- 		folder("Border", borderParts),
- 		folder("Keshusy", keshusyParts),
- 		folder("MonsterSpawns", monsterSpawnParts),
- 		folder("PowerupSpawns", powerupParts)
- 	));
+	return folder(def.id, arenaParts.concat(
+		[spawn],
+		gateParts,
+		bossParts,
+		exitParts,
+		folder("Zones", zoneFolders),
+		folder("Routes", routeFolders),
+		folder("Blocks", def.id === "Forest" && blocks.length > 48 ? blocks.slice(0, 48) : blocks),
+		folder("CentralStructure", centralBlocks),
+		folder("Terrain", terrainParts),
+		folder("Hazards", hazardParts),
+		folder("Decoration", decoParts),
+		folder("Border", borderParts),
+		folder("Keshusy", keshusyParts),
+		folder("MonsterSpawns", monsterSpawnParts),
+		folder("PowerupSpawns", powerupParts)
+	));
 }
 
 // --------------------------------------------------- BORDE NATURAL DEL MUNDO
@@ -3430,7 +3484,7 @@ function naturalEdge(api, zones, corridors, P, seedBase) {
 	// P1: Aumentamos RING_OUTER a 60 para cubrir mas perimetro.
 	const RING_INNER = 16;
 	const RING_OUTER = 60;
-// Extremos de la nube de zonas: el anillo se siembra alrededor de la
+	// Extremos de la nube de zonas: el anillo se siembra alrededor de la
 	// SILUETA, no de un cuadrado. Es la misma idea que hacia `worldEdge`, pero
 	// el resultado ya no es una linea continua sino piezas sueltas.
 	let minX = Infinity, maxX = -Infinity, minZ = Infinity, maxZ = -Infinity;
@@ -3580,7 +3634,8 @@ function scatterInZone(z, seedBase, salt, minR, maxR) {
 }
 
 /** FOREST: arboles de tronco y copa, arbustos, hongos y cristales. */
-function sceneryForest(api, z, P, seedBase, out) {	const { decor } = api;
+function sceneryForest(api, z, P, seedBase, out) {
+	const { decor } = api;
 	const tree = (name, x, zz, h, tint) => {
 		const trunk = hash01(seedBase + name.length, 5) > 0.5 ? P.barkDark : P.barkMid;
 		out.deco.push(decor("Tree_Trunk_" + name, {

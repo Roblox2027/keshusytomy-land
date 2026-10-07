@@ -63,6 +63,30 @@ local _folder: Folder? = nil
 -- Pista de musica actual. Una sola a la vez: dos musicas superpuestas
 -- en un juego de arena es ruido, no ambiente.
 local _music: Sound? = nil
+local _fadingMusic: Sound? = nil
+local _musicFadeTween: any = nil
+local _musicFadeGeneration = 0
+local _ambience: Sound? = nil
+local _fadingAmbience: Sound? = nil
+local _ambienceFadeTween: any = nil
+local _ambienceFadeGeneration = 0
+local _ambientWorldId: string? = nil
+local _ambientPhase: string? = nil
+local _musicWorldId: string? = nil
+local _musicState: string? = nil
+local _transientMusicState: string? = nil
+local _transientMusicUntil = 0
+local _transientMusicGeneration = 0
+
+local _soundGroups: { [string]: any } = {}
+local _ownedSoundGroups: { any } = {}
+local _userVolumes: { [string]: number } = {
+	Master = 1,
+	Music = 1,
+	Sfx = 1,
+	Ambience = 1,
+	UI = 1,
+}
 
 -- Conjunto de efectos prestables. Las ranuras las decide `AudioPool`,
 -- que es logica pura y se prueba de verdad con `luau.exe`.
@@ -90,10 +114,85 @@ local _lastPlayedAt: { [string]: number } = {}
 -- de verdad o si el catalogo esta lleno de eventos sin asset.
 local _playCount = 0
 
+local SOUND_GROUP_CONFIG: { [string]: { Name: string, BaseVolume: number } } = {
+	Music = { Name = "KeshusyMusic", BaseVolume = AudioConfig.MusicVolume },
+	Sfx = { Name = "KeshusySfx", BaseVolume = AudioConfig.SfxVolume },
+	Ambience = { Name = "KeshusyAmbience", BaseVolume = AudioRules.Volume.Ambient },
+	UI = { Name = "KeshusyUI", BaseVolume = AudioRules.Volume.UI },
+}
+
+local CATEGORY_GROUP = {
+	Music = "Music",
+	Ambient = "Ambience",
+	UI = "UI",
+	Voice = "Sfx",
+	Sfx = "Sfx",
+}
+
+local function applyGroupVolumes()
+	local master = AudioRules.MasterVolume * _userVolumes.Master
+	for channel, config in pairs(SOUND_GROUP_CONFIG) do
+		local group = _soundGroups[channel]
+		if group then
+			group.Volume = math.clamp(config.BaseVolume * master * _userVolumes[channel], 0, 1)
+		end
+	end
+end
+
+local function ensureSoundGroups()
+	for channel, config in pairs(SOUND_GROUP_CONFIG) do
+		local existing = SoundService:FindFirstChild(config.Name)
+		local group: any
+
+		if existing and existing:IsA("SoundGroup") then
+			group = existing
+		else
+			group = Instance.new("SoundGroup")
+			group.Name = config.Name
+			group.Parent = SoundService
+			table.insert(_ownedSoundGroups, group)
+		end
+
+		_soundGroups[channel] = group
+	end
+	applyGroupVolumes()
+end
+
+local function groupForCategory(category: string): any
+	local groupName = CATEGORY_GROUP[category] or "Sfx"
+	return _soundGroups[groupName]
+end
+
+--- Adjusts one client-side mix channel. Channels are Master, Music, Sfx, Ambience, and UI.
+--- @param channel string
+--- @param volume number
+--- @return boolean
+function Controller.SetVolume(channel: string, volume: number): boolean
+	if _userVolumes[channel] == nil or type(volume) ~= "number" or volume ~= volume then
+		return false
+	end
+
+	_userVolumes[channel] = math.clamp(volume, 0, 1)
+	applyGroupVolumes()
+	return true
+end
+
+--- @return { [string]: number }
+function Controller.GetVolumes(): { [string]: number }
+	return {
+		Master = _userVolumes.Master,
+		Music = _userVolumes.Music,
+		Sfx = _userVolumes.Sfx,
+		Ambience = _userVolumes.Ambience,
+		UI = _userVolumes.UI,
+	}
+end
+
 --- Crea el contenedor y el conjunto de efectos.
 --- Es idempotente: si ya existe, lo reutiliza.
 --- @return Folder?
 local function ensureFolder(): Folder?
+	ensureSoundGroups()
 	if _folder then
 		return _folder
 	end
@@ -101,11 +200,11 @@ local function ensureFolder(): Folder?
 	local folder = Instance.new("Folder")
 	folder.Name = "KeshusyAudio"
 	folder.Parent = SoundService
-
 	for index = 1, _cursor.size do
 		local sound = Instance.new("Sound")
 		sound.Name = ("Sfx_%d"):format(index)
-		sound.Volume = AudioConfig.SfxVolume
+		sound.Volume = 1
+		sound.SoundGroup = _soundGroups.Sfx
 		-- El pool se prestara con `SoundId`: una `Sound` con la ID puesta
 		-- no se oye sola, y por eso pueden convivir en la misma carpeta.
 		sound.Parent = folder
@@ -148,13 +247,14 @@ function Controller.PlaySfx(assetId: string?, volume: number?): boolean
 	local sound = _pool[index]
 
 	if recycled and sound.IsPlaying then
-	-- Se corta el sonido anterior: el feedback de la explosion mas
-	-- reciente pesa mas que terminar el anterior.
+		-- Se corta el sonido anterior: el feedback de la explosion mas
+		-- reciente pesa mas que terminar el anterior.
 		sound:Stop()
 	end
 
 	sound.SoundId = assetId
-	sound.Volume = volume or AudioConfig.SfxVolume
+	sound.Volume = math.clamp(volume or 1, 0, 1)
+	sound.SoundGroup = _soundGroups.Sfx
 	sound:Play()
 
 	AudioPool.MarkPlayed(_cursor)
@@ -184,7 +284,7 @@ function Controller.PlayEvent(eventName: string, position: Vector3?, volume: num
 		return false
 	end
 
-	local event = AudioConfig.Events[eventName]
+	local event = AudioConfig.Events[eventName] :: { id: string?, category: string }?
 
 	-- Un evento desconocido NO se ignora en silencio: se avisa, porque
 	-- significa que el codigo llama a un sonido que nadie declaro.
@@ -257,7 +357,7 @@ function Controller.PlayEvent(eventName: string, position: Vector3?, volume: num
 		sound:Stop()
 	end
 
-	local finalVolume = AudioRules.ResolveVolume(category, volume)
+	local finalVolume = if type(volume) == "number" then math.clamp(volume, 0, 1) else 1
 
 	-- El maestro se aplica aqui y no en `AudioPool`: el pool decide QUE
 	-- ranura usar, no a que volumen suena.
@@ -267,6 +367,7 @@ function Controller.PlayEvent(eventName: string, position: Vector3?, volume: num
 
 	sound.SoundId = assetId
 	sound.Volume = finalVolume
+	sound.SoundGroup = groupForCategory(category)
 
 	-- ESPACIAL O NO.
 	--
@@ -330,6 +431,39 @@ end
 --- un fallo de audio y no como un cambio de escena.
 --- @param assetId string? ID de la pista, o nil para silencio
 --- @return boolean started
+local function clearFadingMusic()
+	_musicFadeGeneration += 1
+	if _musicFadeTween then
+		_musicFadeTween:Cancel()
+		_musicFadeTween = nil
+	end
+	if _fadingMusic then
+		_fadingMusic:Stop()
+		_fadingMusic:Destroy()
+		_fadingMusic = nil
+	end
+end
+
+local function fadeOutMusic(sound: Sound)
+	clearFadingMusic()
+	_musicFadeGeneration += 1
+	local generation = _musicFadeGeneration
+	_fadingMusic = sound
+	local tween =
+		TweenService:Create(sound, TweenInfo.new(AudioConfig.MusicFadeTime), { Volume = 0 })
+	_musicFadeTween = tween
+	tween.Completed:Connect(function()
+		if generation ~= _musicFadeGeneration or _fadingMusic ~= sound then
+			return
+		end
+		sound:Stop()
+		sound:Destroy()
+		_fadingMusic = nil
+		_musicFadeTween = nil
+	end)
+	tween:Play()
+end
+
 function Controller.PlayMusic(assetId: string?): boolean
 	if not Controller.IsActive then
 		return false
@@ -340,12 +474,12 @@ function Controller.PlayMusic(assetId: string?): boolean
 		return false
 	end
 
-	-- Salir a silencio: se detiene y se libera la pista anterior.
+	-- Salir a silencio: desvanece y libera la pista anterior.
 	if not assetId or assetId == "" then
 		if _music then
-			_music:Stop()
-			_music:Destroy()
+			local previous = _music
 			_music = nil
+			fadeOutMusic(previous)
 		end
 		return false
 	end
@@ -356,38 +490,134 @@ function Controller.PlayMusic(assetId: string?): boolean
 		return true
 	end
 
-	-- La pista anterior se desvanece y se destruye al terminar.
+	-- Keep at most one intentional crossfade pair. Rapid state changes retire
+	-- the older outgoing track before a new pair is created.
 	if _music then
 		local previous = _music
-		TweenService:Create(
-			previous,
-			TweenInfo.new(AudioConfig.MusicFadeTime),
-			{ Volume = 0 }
-		):Play()
-		task.delay(AudioConfig.MusicFadeTime, function()
-			if previous.Parent then
-				previous:Destroy()
-			end
-		end)
+		_music = nil
+		fadeOutMusic(previous)
+	else
+		clearFadingMusic()
 	end
 
 	local music = Instance.new("Sound")
 	music.Name = "Music"
 	music.SoundId = assetId
 	music.Looped = true
-	music.Volume = AudioConfig.MusicVolume
+	music.Volume = 0
+	music.SoundGroup = _soundGroups.Music
 	music.Parent = folder
 	music:Play()
 
-	-- Entra con el mismo fundido, para que no haya un salto al arrancar.
-	TweenService:Create(
-		music,
-		TweenInfo.new(AudioConfig.MusicFadeTime),
-		{ Volume = AudioConfig.MusicVolume }
-	):Play()
+	-- Crossfade: both tracks are controlled, with no hard cut.
+	TweenService:Create(music, TweenInfo.new(AudioConfig.MusicFadeTime), { Volume = 1 }):Play()
 
 	_music = music
 	return true
+end
+
+local function clearFadingAmbience()
+	_ambienceFadeGeneration += 1
+	if _ambienceFadeTween then
+		_ambienceFadeTween:Cancel()
+		_ambienceFadeTween = nil
+	end
+	if _fadingAmbience then
+		_fadingAmbience:Stop()
+		_fadingAmbience:Destroy()
+		_fadingAmbience = nil
+	end
+end
+
+local function fadeOutAmbience(sound: Sound)
+	clearFadingAmbience()
+	_ambienceFadeGeneration += 1
+	local generation = _ambienceFadeGeneration
+	_fadingAmbience = sound
+	local tween =
+		TweenService:Create(sound, TweenInfo.new(AudioConfig.MusicFadeTime), { Volume = 0 })
+	_ambienceFadeTween = tween
+	tween.Completed:Connect(function()
+		if generation ~= _ambienceFadeGeneration or _fadingAmbience ~= sound then
+			return
+		end
+		sound:Stop()
+		sound:Destroy()
+		_fadingAmbience = nil
+		_ambienceFadeTween = nil
+	end)
+	tween:Play()
+end
+
+function Controller.PlayAmbience(assetId: string?): boolean
+	if not Controller.IsActive then
+		return false
+	end
+	local folder = ensureFolder()
+	if not folder then
+		return false
+	end
+	if type(assetId) ~= "string" or assetId == "" then
+		if _ambience then
+			local previous = _ambience
+			_ambience = nil
+			fadeOutAmbience(previous)
+		end
+		return false
+	end
+	if _ambience and _ambience.SoundId == assetId and _ambience.IsPlaying then
+		return true
+	end
+	if _ambience then
+		local previous = _ambience
+		_ambience = nil
+		fadeOutAmbience(previous)
+	else
+		clearFadingAmbience()
+	end
+
+	local sound = Instance.new("Sound")
+	sound.Name = "WorldAmbience"
+	sound.SoundId = assetId
+	sound.Looped = true
+	sound.Volume = 0
+	sound.SoundGroup = _soundGroups.Ambience
+	sound.Parent = folder
+	sound:Play()
+	TweenService:Create(sound, TweenInfo.new(AudioConfig.MusicFadeTime), { Volume = 1 }):Play()
+	_ambience = sound
+	return true
+end
+
+function Controller.SetAmbientScene(worldId: string?, phase: string): boolean
+	local world = if type(worldId) == "string" and worldId ~= "Lobby" then worldId else nil
+	local ambience: any
+	if not world then
+		ambience = AudioConfig.LobbyAmbienceId
+	else
+		local phaseTracks = AudioConfig.WorldAmbienceByPhase[world]
+		ambience = phaseTracks and phaseTracks[phase]
+		if type(ambience) ~= "string" then
+			ambience = AudioConfig.WorldAmbience[world]
+		end
+	end
+	_ambientWorldId = world
+	_ambientPhase = phase
+	return Controller.PlayAmbience(if type(ambience) == "string" then ambience else nil)
+end
+
+function Controller.UpdateAmbientScene(): boolean
+	local player = Players.LocalPlayer
+	local worldId = player and player:GetAttribute("World")
+	if type(worldId) ~= "string" or worldId == "Lobby" then
+		worldId = nil
+	end
+	local nightPhase = player and player:GetAttribute("NightPhase")
+	local phase = if nightPhase == "Night" or nightPhase == "Dawn" then "Night" else "Day"
+	if worldId == _ambientWorldId and phase == _ambientPhase then
+		return false
+	end
+	return Controller.SetAmbientScene(worldId, phase)
 end
 
 --- Cambia la musica segun la zona en la que esta el jugador.
@@ -397,15 +627,7 @@ end
 --- @param worldId string? nil para el lobby
 --- @return boolean started
 function Controller.SetZoneMusic(worldId: string?): boolean
-	if not worldId then
-		return Controller.PlayMusic(AudioConfig.LobbyMusicId)
-	end
-
-	-- `WorldMusic` puede traer `false` ("este mundo aun no tiene musica
-	-- subida") o `nil` ("no existe la entrada"). `PlayMusic` trata ambos
-	-- como silencio, asi que se le pasa tal cual sin inventar nada.
-	local entry = AudioConfig.WorldMusic[worldId]
-	return Controller.PlayMusic(if type(entry) == "string" then entry else nil)
+	return Controller.SetSceneMusic(worldId, if worldId then "Exploring" else "Lobby")
 end
 
 --- Cambia la musica segun el ESTADO de juego (no el mundo).
@@ -417,18 +639,155 @@ end
 --- @param state string clave de `AudioConfig.MusicByState`
 --- @return boolean started
 function Controller.SetStateMusic(state: string): boolean
-	local entry = AudioConfig.MusicByState[state]
+	return Controller.SetSceneMusic(_musicWorldId, state)
+end
 
-	if entry == nil then
-		-- Estado desconocido: no es un error grave, pero si revela que
-		-- alguien cambio el estado sin actualizar el catalogo.
-		Logger.Warn(("AudioController: estado de musica desconocido: %s"):format(state))
-		return Controller.PlayMusic(nil)
+--- Picks the most specific verified track, falling back to the current world's exploration track.
+--- @param worldId string?
+--- @param state string
+--- @return boolean started
+function Controller.SetSceneMusic(worldId: string?, state: string): boolean
+	local world = if type(worldId) == "string" and worldId ~= "Lobby" then worldId else nil
+	local scene = if world then state else "Lobby"
+	local entry: any = nil
+
+	if world and scene == "Exploring" then
+		entry = AudioConfig.WorldMusic[world]
+	elseif world then
+		local worldStates = AudioConfig.WorldMusicByState[world]
+		entry = worldStates and worldStates[scene]
 	end
 
-	-- `false` significa "aun no hay pista subida"; se trata como silencio
-	-- en vez de inventarse un ID.
-	return Controller.PlayMusic(if type(entry) == "string" then entry else nil)
+	if type(entry) ~= "string" then
+		entry = AudioConfig.MusicByState[scene]
+	end
+	if type(entry) ~= "string" and world then
+		entry = AudioConfig.WorldMusic[world]
+	end
+	if type(entry) ~= "string" and not world then
+		entry = AudioConfig.LobbyMusicId
+	end
+
+	if AudioConfig.MusicByState[scene] == nil then
+		Logger.Warn(("AudioController: estado de musica desconocido: %s"):format(scene))
+		scene = if world then "Exploring" else "Lobby"
+	end
+
+	if type(entry) ~= "string" then
+		if _musicWorldId ~= world then
+			Controller.PlayMusic(nil)
+		end
+		_musicWorldId = world
+		_musicState = scene
+		return false
+	end
+
+	local started = Controller.PlayMusic(entry)
+	_musicWorldId = world
+	_musicState = scene
+	return started
+end
+
+local function nearbyThreats(): (boolean, boolean)
+	local player = Players.LocalPlayer
+	local character = player and player.Character
+	local root: BasePart? = nil
+	if character then
+		local rootInstance = character:FindFirstChild("HumanoidRootPart")
+		if rootInstance and rootInstance:IsA("BasePart") then
+			root = rootInstance
+		end
+	end
+	local monsters: Instance? = workspace:FindFirstChild("Monsters")
+	if not root or not root:IsA("BasePart") or not monsters then
+		return false, false
+	end
+
+	local danger = false
+	local combat = false
+	for _, candidate in ipairs(monsters:GetChildren()) do
+		local monster = candidate :: Instance
+		if not monster:IsA("Model") then
+			continue
+		end
+		local model = monster :: Model
+		local humanoid = model:FindFirstChildOfClass("Humanoid") :: Humanoid?
+		local monsterRoot: BasePart? = model.PrimaryPart
+		if not humanoid or humanoid.Health <= 0 or not monsterRoot then
+			continue
+		end
+		if (monsterRoot.Position - root.Position).Magnitude > 110 then
+			continue
+		end
+
+		local state = model:GetAttribute("AIState")
+		if state == "Warning" or state == "Charge" then
+			combat = true
+		elseif state == "Chase" then
+			danger = true
+		end
+	end
+	return danger, combat
+end
+
+--- Re-evaluates music from replicated world/boss state and nearby server-driven AI states.
+--- @return boolean started
+function Controller.UpdateMusicState(): boolean
+	if not Controller.IsActive then
+		return false
+	end
+
+	local player = Players.LocalPlayer
+	local worldId = player and player:GetAttribute("World")
+	if type(worldId) ~= "string" or worldId == "Lobby" then
+		worldId = nil
+	end
+	Controller.UpdateAmbientScene()
+
+	local danger, combat = nearbyThreats()
+	local now = os.clock()
+	local override = if now < _transientMusicUntil then _transientMusicState else nil
+	if override == nil then
+		_transientMusicState = nil
+		_transientMusicUntil = 0
+	end
+	local state = AudioRules.SelectMusicState({
+		WorldId = worldId,
+		Danger = danger,
+		Combat = combat,
+		Boss = player ~= nil and type(player:GetAttribute("BossName")) == "string",
+		Victory = override == "Victory",
+		Defeat = override == "Defeat",
+	})
+
+	if state == _musicState and worldId == _musicWorldId then
+		return false
+	end
+	return Controller.SetSceneMusic(worldId, state)
+end
+
+--- Plays a short victory/defeat score override, then resumes the current scene state.
+--- @param state string
+--- @param duration number
+--- @return boolean
+function Controller.SetTransientMusicState(state: string, duration: number): boolean
+	if state ~= "Victory" and state ~= "Defeat" then
+		return false
+	end
+	_transientMusicGeneration += 1
+	local generation = _transientMusicGeneration
+	_transientMusicState = state
+	_transientMusicUntil = os.clock() + math.clamp(duration, 1, 20)
+	Controller.UpdateMusicState()
+	task.delay(math.clamp(duration, 1, 20), function()
+		if generation ~= _transientMusicGeneration or not Controller.IsActive then
+			return
+		end
+		_transientMusicState = nil
+		_transientMusicUntil = 0
+		Controller.UpdateMusicState()
+	end)
+	return true
 end
 
 --- Sonido de superficie para un mundo dado.
@@ -457,7 +816,7 @@ end
 function Controller.GetStats(): { [string]: number }
 	local pending = 0
 
-	for _, event in pairs(AudioConfig.Events) do
+	for _, event in pairs(AudioConfig.Events :: { [string]: { id: string?, category: string } }) do
 		if event.id == nil then
 			pending += 1
 		end
@@ -490,9 +849,14 @@ function Controller.Start(maid: any?): boolean
 	-- suena sin tocar este archivo.
 	ensureFolder()
 
-	-- La musica de la zona actual. Sin ID, `PlayMusic` sale por la rama de
-	-- silencio y no se queda colgada ninguna pista.
-	Controller.SetStateMusic("Lobby")
+	-- Initial scene and threat state are read from server-published attributes.
+	Controller.UpdateMusicState()
+	task.spawn(function()
+		while Controller.IsActive do
+			Controller.UpdateMusicState()
+			task.wait(0.4)
+		end
+	end)
 
 	-- Las dos tablas de estado se vacian aqui y no solo en `Destroy`: un
 	-- `Start` posterior tras un `Stop` debe empezar sin marcas de
@@ -510,11 +874,21 @@ end
 --- @return boolean success
 function Controller.Destroy(): boolean
 	Controller.IsActive = false
+	_transientMusicGeneration += 1
+	_transientMusicState = nil
+	_transientMusicUntil = 0
+	clearFadingMusic()
+	clearFadingAmbience()
 
 	if _music then
 		_music:Stop()
 		_music:Destroy()
 		_music = nil
+	end
+	if _ambience then
+		_ambience:Stop()
+		_ambience:Destroy()
+		_ambience = nil
 	end
 
 	-- Se destruye la carpeta entera en vez de vaciar el pool a mano: es la
@@ -524,6 +898,13 @@ function Controller.Destroy(): boolean
 		_folder:Destroy()
 		_folder = nil
 	end
+	for _, group in ipairs(_ownedSoundGroups) do
+		if group.Parent then
+			group:Destroy()
+		end
+	end
+	table.clear(_ownedSoundGroups)
+	table.clear(_soundGroups)
 
 	table.clear(_pool)
 	AudioPool.Reset(_cursor)
@@ -535,6 +916,10 @@ function Controller.Destroy(): boolean
 	table.clear(_poolCategory)
 	table.clear(_lastPlayedAt)
 	_playCount = 0
+	_musicWorldId = nil
+	_musicState = nil
+	_ambientWorldId = nil
+	_ambientPhase = nil
 
 	return true
 end

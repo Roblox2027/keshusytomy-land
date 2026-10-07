@@ -55,6 +55,7 @@ local GameConstants = require(CONSTANTS:WaitForChild("GameConstants"))
 local GameConfig = require(CONFIG:WaitForChild("GameConfig"))
 local Logger = require(UTILS:WaitForChild("Logger"))
 local UIController = require(CONTROLLERS:WaitForChild("UIController"))
+local AudioController = require(CONTROLLERS:WaitForChild("AudioController"))
 
 local RemoteAction = GameConstants.RemoteAction
 
@@ -317,6 +318,7 @@ local function onServerVerdict(
 	end
 
 	_pendingWorld = nil
+	AudioController.PlayEvent(if _accepted == true then "PortalEnter" else "PortalDenied")
 	showFeedback(_worldId, _accepted == true, humanizeReason(_reason), _requiredLevel)
 end
 
@@ -407,7 +409,9 @@ function Controller.Start(maid: any?): boolean
 	local remote = remotes:FindFirstChild(RemoteAction.Portal)
 
 	if not remote or not remote:IsA("RemoteEvent") then
-		Logger.Error("PortalController: ReplicatedStorage.Remotes." .. RemoteAction.Portal .. " no existe.")
+		Logger.Error(
+			"PortalController: ReplicatedStorage.Remotes." .. RemoteAction.Portal .. " no existe."
+		)
 		return false
 	end
 
@@ -422,7 +426,9 @@ function Controller.Start(maid: any?): boolean
 	if found == 0 then
 		-- Sin portales el lobby es un pasillo. Se avisa con claridad
 		-- porque es un fallo de MAPA, no del controller.
-		Logger.Error("PortalController: no hay portales en Workspace.Lobby; el lobby no tiene salidas.")
+		Logger.Error(
+			"PortalController: no hay portales en Workspace.Lobby; el lobby no tiene salidas."
+		)
 	else
 		Logger.Info(("PortalController: %d portales en el lobby."):format(found))
 	end
@@ -431,24 +437,21 @@ function Controller.Start(maid: any?): boolean
 
 	-- Veredicto del servidor por el mismo `PortalAction`.
 	if _maid then
-		_maid:Connect(portalRemote.OnClientEvent, function(
-			action: any,
-			worldId: any,
-			accepted: any,
-			reason: any,
-			requiredLevel: any
-		)
-			if action ~= "Result" or typeof(worldId) ~= "string" then
-				return
-			end
+		_maid:Connect(
+			portalRemote.OnClientEvent,
+			function(action: any, worldId: any, accepted: any, reason: any, requiredLevel: any)
+				if action ~= "Result" or typeof(worldId) ~= "string" then
+					return
+				end
 
-			onServerVerdict(
-				worldId,
-				accepted == true,
-				if typeof(reason) == "string" then reason else nil,
-				if typeof(requiredLevel) == "number" then requiredLevel else nil
-			)
-		end)
+				onServerVerdict(
+					worldId,
+					accepted == true,
+					if typeof(reason) == "string" then reason else nil,
+					if typeof(requiredLevel) == "number" then requiredLevel else nil
+				)
+			end
+		)
 	end
 
 	-- Tecla de interaccion. Se escucha `InputBegan`, la MISMA senal que

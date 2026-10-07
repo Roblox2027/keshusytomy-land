@@ -1057,12 +1057,12 @@ function widestPath(grid, free, a, b) {
 	// `best[b] <= 0` declaraba "sin ruta" a caminos que si existen.
 	if (best[b] === -Infinity) {
 		// Diagnostico: el destino no se ha visitado. Solo se imprime con `--why`,
-			// porque es la unica linea que distingue "no hay camino" de "el
-			// algoritmo se ha quedado sin pasos".
-			if (process.argv.includes("--why")) {
-				console.log(`  DIAG: destino sin visitar, procesadas ${countVisited}, cola ${queue.length}`);
-			}
-			return { ok: false, width: 0, length: 0, cells: null };
+		// porque es la unica linea que distingue "no hay camino" de "el
+		// algoritmo se ha quedado sin pasos".
+		if (process.argv.includes("--why")) {
+			console.log(`  DIAG: destino sin visitar, procesadas ${countVisited}, cola ${queue.length}`);
+		}
+		return { ok: false, width: 0, length: 0, cells: null };
 	}
 
 	// Reconstruccion del camino. Se limita a `n` celdas porque `from` usa un
@@ -1492,7 +1492,7 @@ function analyzeWorld(id, flat) {
 					}
 				}
 
-				zoneReach.push({
+				const zoneResult = {
 					zone: zn.replace(/^Zone_[A-Za-z]+_/, ""),
 					ok: c >= 0 && c < reach.seen.length && reach.seen[c] === 1,
 					withFloor: withFloor,
@@ -1500,7 +1500,12 @@ function analyzeWorld(id, flat) {
 					reached: got,
 					nearest: nearestOffset === Infinity ? null : Math.round(nearestOffset * 10) / 10,
 					first: first,
-				});
+				};
+				zoneReach.push(zoneResult);
+
+				if (!zoneResult.ok) {
+					problems.push(`ZONE INACCESSIBLE: ${id}.${zoneResult.zone} center is not walkable from spawn`);
+				}
 			}
 		}
 	}
@@ -1617,7 +1622,7 @@ function analyzeWorld(id, flat) {
 		const d = diskStats(grid, reach.seen, centerCell, ARENA_RADIUS);
 		return d.nearestCell >= 0 ? d.nearestCell : centerCell;
 	}
-// SPAWN TRAP: el jugador no puede aparecer encerrado.
+	// SPAWN TRAP: el jugador no puede aparecer encerrado.
 	const spawnDisk = diskStats(grid, reach.seen, spawn, SPAWN_TRAP_RADIUS);
 	const spawnRatio = spawnDisk.total > 0 ? spawnDisk.open / spawnDisk.total : 0;
 	if (spawnRatio < MIN_SPAWN_OPEN_RATIO) {

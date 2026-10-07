@@ -1,17 +1,21 @@
 # BLOCKED
-## ROBLOX MCP: BLOCKED
-- Evidencia actual: la validacion de codigo y la build han pasado, pero la capa real de Studio/MCP no responde en este entorno.
-- No hay servidor MCP escuchando en el puerto configurado ni acceso real a un DataModel abierto de Roblox Studio.
-- Desbloqueo: activar manualmente el plugin MCP dentro de Roblox Studio y confirmar la conexion a la instancia del proyecto.
 
-## ROBLOX PLAY TEST: BLOCKED
-- Sin acceso real a Studio/MCP no se puede ejecutar Play Test ni inspeccionar el DataModel en vivo.
-- Por tanto no se declara `PLAY TEST PASS` ni `MAP PASS`.
+## ROBLOX MCP: RESUELTO (esta sesion)
+- Se abrio `latest.rbxlx` en Studio y MCP conecto la instancia `lrh-zvl` con peers edit/server/client-1.
+- El DataModel real (Workspace.Worlds con los 5 mundos) se inspecciono en vivo.
 
-## GIT PUSH: RESUELTO
-- El push final se ejecutó correctamente y el repositorio quedo publicado en `origin/main`.
-- Commit efectivo: `71ee978`.
+## ROBLOX PLAY TEST: EJECUTADO (esta sesion)
+- `solo_playtest start` real sobre la instancia generada.
+- Logs en vivo confirmaron: rondas completas, spawn de monstruos, minibosses (ForestAcechador, IceGolem, IceLobo), viaje por portal a Ice/Volcano, colocacion de bombas, muerte y reaparicion del jugador.
+- Nota: parte de las sondas `eval_client_runtime` hicieron timeout y el screenshot cayo al fallback de CaptureService; no se oculta.
 
-## CERTIFICACION FINAL: PARCIAL
-- La base de codigo esta verificada y el repositorio fue publicado.
-- La validacion definitiva en Studio/MCP sigue siendo el unico bloqueo real para una certificacion de juego en vivo.
+## AUDIO ASSETS: BLOCKED_EXTERNAL
+- `assets/sounds` y `assets/music` estan vacios; la busqueda de Creator Marketplace devolvio 0 resultados verificables.
+- No se inventaron IDs. El sistema de audio queda cableado (mixer, estados, dia/noche, sliders) y listo para IDs reales.
+- Desbloqueo: subir pistas reales al Creator Dashboard y pegar los IDs en `AudioConfig`.
+
+## ANALYZE BASELINE: PREEXISTENTE
+- `node tools/analyze.js` reporta 1444 diagnosticos de baseline (incluye falsos positivos del entorno de pruebas); no fue introducido por esta fase y no bloquea `npm run verify`.
+
+## GIT PUSH
+- Push de la fase final: pendiente en esta sesion (se ejecuta tras el commit).

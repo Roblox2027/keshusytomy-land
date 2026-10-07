@@ -1,14 +1,15 @@
 # NEXT TASK
 
 Estado real observado:
-- La base de codigo, la reconstruccion del HUD y la validacion local estan en verde.
-- El objetivo activo de 99 noches ha sido retirado de la interfaz principal.
-- El proyecto ya queda publicado localmente en `origin/main` con el commit `71ee978`.
+- Los 5 mundos estan reconstruidos y verificados: 96/96 zonas alcanzables, contenido de rol real (miniboss, secreto, encuentro, arena, boss, salida).
+- SecretService, pathfinding de monstruos, mixer de audio y sliders estan integrados y cableados.
+- La cadena `npm run verify` completa sale con exit 0.
+- Se ejecuto Play Test real en Studio sobre `latest.rbxlx` (instancia `lrh-zvl`): rondas, spawns de monstruos, minibosses, portales y bombas confirmados en logs en vivo.
 
 Siguientes pasos reales:
-1. Conectar una instancia real de Roblox Studio con MCP habilitado y comprobar el puerto configurado.
-2. Ejecutar Play Test real y validar DataModel/HUD/mundos en vivo.
-3. Si Studio/MCP queda disponible, revalidar el flujo Lobby -> mundo -> muerte -> respawn y bosses/eventos.
-4. Si no es posible, dejar la documentacion de bloqueo externo y conservar la base ya validada y publicada.
+1. Subir assets de audio reales al Creator Dashboard y pegar los IDs en `AudioConfig` para activar musica/ambiente/SFX.
+2. Extender el Play Test visual/audio (algunas sondas de cliente hicieron timeout; el screenshot uso el fallback de CaptureService).
+3. Ejecutar `tools/monster-ai-verify.js` contra una sesion de Play para confirmar persecucion->ataque de la nueva navegacion por waypoints.
+4. Revisar el resto de la mision master (economia/tienda/inventario/brainrot catalogo) en la siguiente iteracion.
 
-La base local ya fue reparada, verificada y enviada a `origin/main`.
+La fase de reconstruccion ya quedo validada y publicada.

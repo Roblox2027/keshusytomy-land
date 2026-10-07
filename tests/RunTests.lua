@@ -63,6 +63,7 @@ local SUITES = {
 	{ name = "Horde", path = "./shared/Horde.spec" },
 	{ name = "Events", path = "./shared/Events.spec" },
 	{ name = "MiniBoss", path = "./shared/MiniBoss.spec" },
+	{ name = "SecretRules", path = "./shared/SecretRules.spec" },
 	{ name = "ZonePopulation", path = "./shared/ZonePopulation.spec" },
 }
 

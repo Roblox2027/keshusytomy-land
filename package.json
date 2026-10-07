@@ -6,6 +6,8 @@
   "scripts": {
     "test": "tools\\luau\\luau.exe tests\\RunTests.lua",
     "test:worlds": "node tools/world-structure-test.js",
+    "test:world-content": "node tools/world-content-test.js",
+    "test:audio-ui": "node tools/audio-ui-contract.js",
     "test:contract": "node tools/world-contract-source.js",
     "test:navigation": "node tools/world-navigation-test.js",
     "test:spawn": "node tools/world-spawn-audit.js",
@@ -24,6 +26,6 @@
     "runtime:scan": "node tools/diagnostics/runtime-scan.js",
     "mcp:list": "node tools/studio-mcp.js list",
     "context": "node tools/generate-ai-context.js",
-    "verify": "npm run verify:structure && npm run verify:wiring && npm test && npm run test:worlds && npm run test:contract && npm run test:navigation && npm run test:spawn && npm run test:world-edge && npm run test:monster-access && npm run test:bomb-grid && npm run test:powerup-boss && npm run rojo:build && npm run verify:env && npm run context"
+    "verify": "npm run verify:structure && npm run verify:wiring && npm test && npm run test:worlds && npm run test:world-content && npm run test:audio-ui && npm run test:contract && npm run test:navigation && npm run test:spawn && npm run test:world-edge && npm run test:monster-access && npm run test:bomb-grid && npm run test:powerup-boss && npm run rojo:build && npm run verify:env && npm run context"
   }
 }

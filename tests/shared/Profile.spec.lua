@@ -37,7 +37,8 @@ return function()
 		end)
 
 		Harness.it("empieza con cero saldo y sin items", function()
-			local EconomyRules = require("../../src/ReplicatedStorage/Shared/Libraries/EconomyRules")
+			local EconomyRules =
+				require("../../src/ReplicatedStorage/Shared/Libraries/EconomyRules")
 			local profile = ProfileSchema.NewProfile(1)
 
 			-- El saldo se consulta por la economia, no leyendo el campo a
@@ -139,7 +140,8 @@ return function()
 			-- usar `{ Coins = 0 }`, la economia rechazaria TODAS sus
 			-- operaciones con "estado invalido" y el jugador tendria saldo
 			-- cero para siempre, sin ningun error visible.
-			local EconomyRules = require("../../src/ReplicatedStorage/Shared/Libraries/EconomyRules")
+			local EconomyRules =
+				require("../../src/ReplicatedStorage/Shared/Libraries/EconomyRules")
 			local profile = ProfileSchema.NewProfile(1)
 
 			expect.toBe(type(profile.Currencies.Balances), "table")
@@ -153,7 +155,8 @@ return function()
 		end)
 
 		Harness.it("un perfil nuevo tiene la forma que espera el inventario", function()
-			local InventoryRules = require("../../src/ReplicatedStorage/Shared/Libraries/InventoryRules")
+			local InventoryRules =
+				require("../../src/ReplicatedStorage/Shared/Libraries/InventoryRules")
 			local ItemCatalog = require("../../src/ReplicatedStorage/Shared/Config/ItemCatalog")
 			local profile = ProfileSchema.NewProfile(1)
 
@@ -167,7 +170,8 @@ return function()
 			-- Un perfil guardado antes de que la economia tuviera ledger
 			-- tiene `{ Coins = 500 }` en vez de `{ Balances = {...} }`.
 			-- Perder ese saldo seria perder la partida del jugador.
-			local EconomyRules = require("../../src/ReplicatedStorage/Shared/Libraries/EconomyRules")
+			local EconomyRules =
+				require("../../src/ReplicatedStorage/Shared/Libraries/EconomyRules")
 			local legacy = {
 				DataVersion = ProfileSchema.CurrentVersion,
 				Currencies = { Coins = 500, Gems = 12 },
@@ -227,6 +231,22 @@ return function()
 			local migrated, _, err = ProfileSchema.Migrate("basura")
 			expect.toBe(migrated, nil)
 			expect.toContain(tostring(err), "tabla")
+		end)
+
+		Harness.it("migra secretos sin perder inventario ni saldo", function()
+			local legacy = ProfileSchema.NewProfile(21)
+			legacy.DataVersion = 1
+			legacy.Inventory.Items.Token_Old = { Quantity = 2 }
+			legacy.Currencies.Balances.Coins = 340
+			legacy.Secrets = nil
+
+			local migrated, _, err = ProfileSchema.Migrate(legacy)
+			expect.toBe(err, nil)
+			expect.toBe(migrated.DataVersion, ProfileSchema.CurrentVersion)
+			expect.toBe(migrated.Inventory.Items.Token_Old.Quantity, 2)
+			expect.toBe(migrated.Currencies.Balances.Coins, 340)
+			expect.toBe(type(migrated.Secrets.Discovered), "table")
+			expect.toBe(legacy.DataVersion, 1)
 		end)
 	end)
 end

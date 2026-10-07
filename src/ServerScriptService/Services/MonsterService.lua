@@ -9,6 +9,7 @@
 ]]
 
 local Players = game:GetService("Players")
+local PathfindingService = game:GetService("PathfindingService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 local Workspace = game:GetService("Workspace")
@@ -21,8 +22,10 @@ local FeatureConfig = require(CONFIG:WaitForChild("FeatureConfig"))
 local GameConfig = require(CONFIG:WaitForChild("GameConfig"))
 local PerformanceConfig = require(CONFIG:WaitForChild("PerformanceConfig"))
 local AIService = require(SHARED:WaitForChild("Libraries"):WaitForChild("AIService"))
-local MonsterDeathRules = require(SHARED:WaitForChild("Libraries"):WaitForChild("MonsterDeathRules"))
-local MonsterScaleRules = require(SHARED:WaitForChild("Libraries"):WaitForChild("MonsterScaleRules"))
+local MonsterDeathRules =
+	require(SHARED:WaitForChild("Libraries"):WaitForChild("MonsterDeathRules"))
+local MonsterScaleRules =
+	require(SHARED:WaitForChild("Libraries"):WaitForChild("MonsterScaleRules"))
 local VisualKit = require(SHARED:WaitForChild("Libraries"):WaitForChild("VisualKit"))
 local MonsterDefinitions = require(SHARED:WaitForChild("MonsterDefinitions"))
 local Logger = require(UTILS:WaitForChild("Logger"))
@@ -310,11 +313,11 @@ local function playDeathVfx(record: { [string]: any })
 
 	local light = Instance.new("PointLight")
 	light.Color = model:GetAttribute("AccentR")
-		and Color3.fromRGB(
-			math.floor(model:GetAttribute("AccentR") * 255),
-			math.floor(model:GetAttribute("AccentG") * 255),
-			math.floor(model:GetAttribute("AccentB") * 255)
-		)
+			and Color3.fromRGB(
+				math.floor(model:GetAttribute("AccentR") * 255),
+				math.floor(model:GetAttribute("AccentG") * 255),
+				math.floor(model:GetAttribute("AccentB") * 255)
+			)
 		or Color3.fromRGB(255, 220, 160)
 	light.Brightness = 4
 	light.Range = 20
@@ -457,7 +460,9 @@ local function syncBossBar(record: { [string]: any })
 		-- boss: el HUD ya lo sabe pintar y no hace falta un panel nuevo. Es lo
 		-- que hace que el jugador lea "FURIA" sin instrucciones.
 		local suffix = BOSS_PHASES[phase].Name
-		record.DisplayName = if suffix ~= "" then ("%s - %s"):format(record.Def.Name, suffix) else record.Def.Name
+		record.DisplayName = if suffix ~= ""
+			then ("%s - %s"):format(record.Def.Name, suffix)
+			else record.Def.Name
 
 		if humanoid.DisplayName ~= record.DisplayName then
 			humanoid.DisplayName = record.DisplayName
@@ -635,6 +640,13 @@ function Service.Spawn(definitionId: string, position: Vector3, worldId: string?
 		PatrolTarget = nil,
 		PatrolIndex = 0,
 		PatrolRetargetAt = 0,
+		Path = nil,
+		PathIndex = 0,
+		PathGoal = nil,
+		PathPending = false,
+		PathGeneration = 0,
+		PathRefreshAt = 0,
+		PathRetryAt = 0,
 
 		-- Boss. `IsBoss` NO se deduce del tamano: lo declara la definicion.
 		-- `WorldId` se guarda porque la barra del HUD se publica por mundo, y
@@ -694,13 +706,15 @@ function Service.Spawn(definitionId: string, position: Vector3, worldId: string?
 		MaidRef:Add(connection)
 	end
 
-	Logger.Debug(("monstruo %d (%s) creado en (%.0f, %.0f, %.0f)"):format(
-		monsterId,
-		definitionId,
-		position.X,
-		position.Y,
-		position.Z
-	))
+	Logger.Debug(
+		("monstruo %d (%s) creado en (%.0f, %.0f, %.0f)"):format(
+			monsterId,
+			definitionId,
+			position.X,
+			position.Y,
+			position.Z
+		)
+	)
 
 	return monsterId
 end
@@ -808,12 +822,9 @@ function Service.OnMonsterDied(monsterId: number): boolean
 
 		if killer and Service._playerService then
 			Service._playerService.AddRewards(killer, def.XP, def.Coins)
-			Logger.Debug(("%s mato a %s: +%d XP +%d monedas"):format(
-				killer.Name,
-				def.Id,
-				def.XP,
-				def.Coins
-			))
+			Logger.Debug(
+				("%s mato a %s: +%d XP +%d monedas"):format(killer.Name, def.Id, def.XP, def.Coins)
+			)
 		end
 
 		-- El progreso de mision va DENTRO del bloque del asesino, y no
@@ -882,8 +893,12 @@ function Service.SweepDead(): number
 
 			if broken and Service.OnMonsterDied(monsterId) then
 				swept += 1
-				Logger.Debug(("barrido: monstruo %d figuraba vivo con %.0f de vida; muerte forzada")
-					:format(monsterId, health))
+				Logger.Debug(
+					("barrido: monstruo %d figuraba vivo con %.0f de vida; muerte forzada"):format(
+						monsterId,
+						health
+					)
+				)
 			end
 		end
 	end
@@ -902,7 +917,6 @@ function Service.IsMonsterHumanoid(humanoid: Humanoid): boolean
 	end
 	return false
 end
-
 
 --- Aplica dano a un monstruo.
 ---
@@ -926,9 +940,7 @@ function Service.ApplyDamageToMonster(
 	end
 
 	for _, record in pairs(Service._monsters) do
-		if record.Humanoid == humanoid
-			and MonsterDeathRules.CanAct(record.DeathState)
-		then
+		if record.Humanoid == humanoid and MonsterDeathRules.CanAct(record.DeathState) then
 			-- ATRIBUCION ANTES DEL DANO.
 			--
 			-- `TakeDamage` dispara `Died` de forma SINCRONA cuando baja la
@@ -999,7 +1011,6 @@ function Service.FindNearestPlayer(origin: Vector3, radius: number): Player?
 	return best
 end
 
-
 -- ------------------------------------------------------- CONSTANTES DE IA
 --
 -- Separadas del cuerpo de `StepAI` para que el balance de la IA se lea de un
@@ -1007,6 +1018,13 @@ end
 local AI_PATROL_RADIUS_STUDS = 26
 local AI_PATROL_RETARGET_SECONDS = 4.5
 local AI_PATROL_ARRIVE_STUDS = 4
+local AI_PATH_REFRESH_SECONDS = 1.6
+local AI_PATH_TARGET_SHIFT_STUDS = 14
+local AI_PATH_RETRY_SECONDS = 1.25
+local AI_PATH_GLOBAL_INTERVAL = 0.1
+local AI_PATH_MAX_CONCURRENT = 2
+local _activePathComputations = 0
+local _nextPathRequestAt = 0
 
 local AI_SLOW_FACTOR = 0.6
 local AI_SLOW_DURATION = 2.0
@@ -1047,7 +1065,7 @@ end
 local function patrolStep(record: { [string]: any }, now: number)
 	local root = record.RootPart
 	if not root then
-		return { Move = false, Direction = { x = 0, y = 0, z = 0 }, Distance = 0 }
+		return { Move = false, Target = nil, Distance = 0 }
 	end
 
 	local anchor = record.AnchorPosition or root.Position
@@ -1069,15 +1087,107 @@ local function patrolStep(record: { [string]: any }, now: number)
 
 	if flat.Magnitude < AI_PATROL_ARRIVE_STUDS then
 		-- Llego: no se mueve este frame; el siguiente recalcula destino.
+		return { Move = false, Target = record.PatrolTarget, Distance = 0 }
+	end
+
+	return {
+		Move = true,
+		Target = record.PatrolTarget,
+		Distance = flat.Magnitude,
+	}
+end
+
+local function requestPath(record: { [string]: any }, destination: Vector3, now: number)
+	local root = record.RootPart
+	if not root or not root.Parent or record.PathPending or now < (record.PathRetryAt or 0) then
+		return
+	end
+
+	local previousGoal = record.PathGoal
+	local goalShifted = not previousGoal
+		or (destination - previousGoal).Magnitude >= AI_PATH_TARGET_SHIFT_STUDS
+	local pathMissing = not record.Path or (record.PathIndex or 0) > #record.Path
+	local expired = now >= (record.PathRefreshAt or 0)
+	if not pathMissing and not goalShifted and not expired then
+		return
+	end
+	if _activePathComputations >= AI_PATH_MAX_CONCURRENT or now < _nextPathRequestAt then
+		return
+	end
+
+	record.PathGeneration = (record.PathGeneration or 0) + 1
+	local generation = record.PathGeneration
+	record.PathPending = true
+	record.PathGoal = destination
+	record.PathRefreshAt = now + AI_PATH_REFRESH_SECONDS
+	_activePathComputations += 1
+	_nextPathRequestAt = now + AI_PATH_GLOBAL_INTERVAL
+
+	local start = root.Position
+	local body = record.Model and record.Model:FindFirstChild("Body")
+	local bodySize = if body and body:IsA("BasePart") then body.Size else root.Size
+	local radius =
+		math.clamp(math.max(root.Size.X, root.Size.Z, bodySize.X, bodySize.Z) * 0.5 + 0.5, 1.5, 7)
+	local height = math.max(root.Size.Y, bodySize.Y, 5)
+	task.spawn(function()
+		local path: any = nil
+		local ok = pcall(function()
+			path = PathfindingService:CreatePath({
+				AgentRadius = radius,
+				AgentHeight = height,
+				AgentCanJump = false,
+				AgentCanClimb = false,
+				WaypointSpacing = 8,
+			})
+			path:ComputeAsync(start, destination)
+		end)
+		_activePathComputations = math.max(0, _activePathComputations - 1)
+
+		if Service._monsters[record.Id] ~= record or record.PathGeneration ~= generation then
+			return
+		end
+		record.PathPending = false
+		if ok and path and path.Status == Enum.PathStatus.Success then
+			local waypoints = path:GetWaypoints()
+			if #waypoints >= 2 then
+				record.Path = waypoints
+				record.PathIndex = 2
+				return
+			end
+		end
+
+		record.Path = nil
+		record.PathIndex = 0
+		record.PathRefreshAt = 0
+		record.PathRetryAt = os.clock() + AI_PATH_RETRY_SECONDS
+	end)
+end
+
+local function pathStep(record: { [string]: any }, destination: Vector3, now: number)
+	requestPath(record, destination, now)
+	local root = record.RootPart
+	local waypoints = record.Path
+	if not root or type(waypoints) ~= "table" then
 		return { Move = false, Direction = { x = 0, y = 0, z = 0 }, Distance = 0 }
 	end
 
-	local unit = flat.Unit
-	return {
-		Move = true,
-		Direction = { x = unit.X, y = 0, z = unit.Z },
-		Distance = flat.Magnitude,
-	}
+	local index = record.PathIndex or 2
+	while index <= #waypoints do
+		local offset = waypoints[index].Position - root.Position
+		local horizontal = Vector3.new(offset.X, 0, offset.Z)
+		if horizontal.Magnitude >= AI_PATROL_ARRIVE_STUDS or math.abs(offset.Y) > 4 then
+			break
+		end
+		index += 1
+	end
+	record.PathIndex = index
+	if index > #waypoints then
+		record.Path = nil
+		return { Move = false, Direction = { x = 0, y = 0, z = 0 }, Distance = 0 }
+	end
+	local step = AIService.Step(root.Position, waypoints[index].Position, math.huge)
+	step.TargetY = waypoints[index].Position.Y + root.Size.Y * 0.5
+	return step
 end
 
 --- Cambio de estado del monstruo: lo que el JUGADOR tiene que ver.
@@ -1094,6 +1204,14 @@ end
 --- @param state string
 --- @param def any
 local function onStateChanged(record: { [string]: any }, state: string, def: any)
+	record.PathGeneration = (record.PathGeneration or 0) + 1
+	record.PathPending = false
+	record.Path = nil
+	record.PathIndex = 0
+	record.PathGoal = nil
+	record.PathRefreshAt = 0
+	record.PathRetryAt = 0
+
 	local model = record.Model
 	if not model or not model.Parent then
 		return
@@ -1115,8 +1233,7 @@ local function onStateChanged(record: { [string]: any }, state: string, def: any
 			local remaining = AIService.TimeLeftInState(state, 0, def)
 			label.Text = if AIService.IsTelegraph(state)
 				then ("!%.1f"):format(remaining)
-				elseif state == AIService.States.Recovery
-				then "-"
+				elseif state == AIService.States.Recovery then "-"
 				else ""
 			label.Visible = label.Text ~= ""
 		end
@@ -1140,7 +1257,13 @@ end
 --- @param hasTarget boolean
 --- @param now number
 --- @param dt number
-local function tickPersonality(record: { [string]: any }, def: any, hasTarget: boolean, now: number, dt: number)
+local function tickPersonality(
+	record: { [string]: any },
+	def: any,
+	hasTarget: boolean,
+	now: number,
+	dt: number
+)
 	local model = record.Model
 
 	if not model or not model.Parent or not def.Vanishes then
@@ -1153,9 +1276,7 @@ local function tickPersonality(record: { [string]: any }, def: any, hasTarget: b
 	end
 
 	local alpha = tonumber(body:GetAttribute("FlickerAlpha")) or 0.1
-	local goal = if hasTarget
-		then (math.sin(now * AI_FADING_HZ) + 1) * 0.25 + 0.25
-		else 0.1
+	local goal = if hasTarget then (math.sin(now * AI_FADING_HZ) + 1) * 0.25 + 0.25 else 0.1
 
 	alpha += (goal - alpha) * math.min(1, dt * 4)
 	alpha = math.clamp(alpha, 0.1, 0.75)
@@ -1241,8 +1362,7 @@ local function applyMonsterHit(record: { [string]: any }, targetHumanoid: Humano
 					return
 				end
 
-				local base = humanoid:GetAttribute("BaseWalkSpeed")
-					or GameConfig.DefaultPlayerSpeed
+				local base = humanoid:GetAttribute("BaseWalkSpeed") or GameConfig.DefaultPlayerSpeed
 
 				humanoid:SetAttribute("BaseWalkSpeed", base)
 				humanoid.WalkSpeed = base * AI_SLOW_FACTOR
@@ -1302,7 +1422,8 @@ function Service.StepAI(dt: number)
 	local now = os.clock()
 
 	for _, record in pairs(Service._monsters) do
-		if MonsterDeathRules.CanAct(record.DeathState)
+		if
+			MonsterDeathRules.CanAct(record.DeathState)
 			and record.RootPart
 			and record.RootPart.Parent
 		then
@@ -1339,13 +1460,8 @@ function Service.StepAI(dt: number)
 			-- con `os.clock()`: al cambiar de estado hay que ponerlo a cero, y
 			-- con dos relojes eso se olvida una vez y el monstruo ataca sin
 			-- cooldown para siempre.
-			local nextState = AIService.Think(
-				record.State,
-				record.TimeInState or 0,
-				def,
-				hasTarget,
-				distance
-			)
+			local nextState =
+				AIService.Think(record.State, record.TimeInState or 0, def, hasTarget, distance)
 
 			if nextState ~= record.State then
 				record.State = nextState
@@ -1361,13 +1477,23 @@ function Service.StepAI(dt: number)
 			-- los estados en los que el monstruo esta PARADO a proposito, y por
 			-- eso son la ventana de reaccion del jugador.
 			local speed = AIService.StateSpeed(def, record.State)
-			local step = if hasTarget and targetRoot
-				then AIService.Step(origin, targetRoot.Position, math.huge)
-				else patrolStep(record, now)
+			local patrol = if not hasTarget then patrolStep(record, now) else nil
+			local destination = if hasTarget and targetRoot
+				then targetRoot.Position
+				else patrol and patrol.Move and patrol.Target or nil
+			local step = if AIService.CanMove(record.State) and destination
+				then pathStep(record, destination, now)
+				else { Move = false, Direction = { x = 0, y = 0, z = 0 }, Distance = 0 }
 
 			if AIService.CanMove(record.State) and step.Move and speed > 0 and step.Direction then
-				local moved = origin
-					+ Vector3.new(step.Direction.x, 0, step.Direction.z) * speed * dt
+				local planar = Vector3.new(step.Direction.x, 0, step.Direction.z) * speed * dt
+				local targetY = if type(step.TargetY) == "number" then step.TargetY else origin.Y
+				local verticalRate = math.min(speed * 0.35, 3)
+				local moved = Vector3.new(
+					origin.X + planar.X,
+					origin.Y + math.clamp(targetY - origin.Y, -verticalRate * dt, verticalRate * dt),
+					origin.Z + planar.Z
+				)
 
 				-- BUG CORREGIDO (medido en PLAY): esto movia SOLO `RootPart`.
 				-- `Body` es hermano de la raiz, no hijo, y se quedaba en el
@@ -1377,7 +1503,7 @@ function Service.StepAI(dt: number)
 				-- Ahora se mueve el MODELO ENTERO (`PivotTo`), que es lo que el
 				-- jugador ve, y se orienta hacia el objetivo para que los ojos
 				-- miren a donde va.
-				local lookAt = if hasTarget and targetRoot then targetRoot.Position else nil
+				local lookAt = destination
 
 				if lookAt and (lookAt - moved).Magnitude > 0.5 then
 					record.Model:PivotTo(CFrame.lookAt(moved, lookAt))
@@ -1393,7 +1519,8 @@ function Service.StepAI(dt: number)
 			-- la opcion de salir, y si salio, el golpe falla. Ese es el
 			-- CONTRATO del telegraph, y por eso la distancia se comprueba
 			-- DESPUES de la carga y no antes.
-			if record.State == AIService.States.Attack
+			if
+				record.State == AIService.States.Attack
 				and (record.TimeInState or 0) < dt * 2
 				and targetHumanoid
 			then
@@ -1402,8 +1529,9 @@ function Service.StepAI(dt: number)
 				else
 					-- Escapaste. Es un resultado VALIDO del ataque, no un fallo
 					-- del sistema, y no se registra como error.
-					Logger.Debug(("%s cargo y fallo: el jugador salio de su alcance")
-						:format(def.Id))
+					Logger.Debug(
+						("%s cargo y fallo: el jugador salio de su alcance"):format(def.Id)
+					)
 				end
 			end
 
@@ -1426,7 +1554,6 @@ function Service.StepAI(dt: number)
 	end
 end
 
-
 --- Estado de un monstruo, para pruebas y diagnostico.
 --- @param monsterId number
 --- @return table?
@@ -1436,7 +1563,6 @@ function Service.GetMonster(monsterId: number): any?
 	if not record then
 		return nil
 	end
-
 
 	return {
 		Id = record.Id,
@@ -1503,9 +1629,9 @@ function Service.Init(maid: any?): boolean
 	end
 
 	Service.IsInitialized = true
-	Logger.Info(("MonsterService: %d definiciones de monstruo"):format(
-		#MonsterDefinitions.GetIds()
-	))
+	Logger.Info(
+		("MonsterService: %d definiciones de monstruo"):format(#MonsterDefinitions.GetIds())
+	)
 
 	-- Se comprueba el BALANCE al arrancar, no en un test aparte.
 	--
@@ -1521,8 +1647,11 @@ function Service.Init(maid: any?): boolean
 	end
 
 	if #problems == 0 then
-		Logger.Info(("MonsterService: balance de velocidad correcto frente a un jugador de %d studs/s")
-			:format(GameConfig.DefaultPlayerSpeed))
+		Logger.Info(
+			("MonsterService: balance de velocidad correcto frente a un jugador de %d studs/s"):format(
+				GameConfig.DefaultPlayerSpeed
+			)
+		)
 	end
 
 	return true
@@ -1554,7 +1683,6 @@ function Service.Start(): boolean
 	return true
 end
 
-
 --- @return boolean success
 function Service.Destroy(): boolean
 	Service.ClearAll()
@@ -1576,4 +1704,3 @@ function Service.Destroy(): boolean
 end
 
 return Service
-

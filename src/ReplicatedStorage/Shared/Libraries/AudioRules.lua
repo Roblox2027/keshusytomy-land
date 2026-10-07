@@ -33,6 +33,40 @@
 
 local Rules = {}
 
+export type MusicContext = {
+	WorldId: string?,
+	Danger: boolean?,
+	Combat: boolean?,
+	Boss: boolean?,
+	Victory: boolean?,
+	Defeat: boolean?,
+}
+
+--- Selects the highest-priority music state from server-published gameplay context.
+--- @param context MusicContext
+--- @return string
+function Rules.SelectMusicState(context: MusicContext): string
+	if type(context.WorldId) ~= "string" or context.WorldId == "Lobby" then
+		return "Lobby"
+	end
+	if context.Defeat == true then
+		return "Defeat"
+	end
+	if context.Victory == true then
+		return "Victory"
+	end
+	if context.Boss == true then
+		return "Boss"
+	end
+	if context.Combat == true then
+		return "Combat"
+	end
+	if context.Danger == true then
+		return "Danger"
+	end
+	return "Exploring"
+end
+
 --- CATEGORIAS de audio.
 ---
 --- No son etiquetas: cada una tiene volumen y prioridad, y las dos se

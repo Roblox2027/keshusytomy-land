@@ -62,7 +62,9 @@ local REQUIRED_EVENTS = {
 	"GemPickup",
 	"LevelUp",
 	"QuestComplete",
+	"SecretFound",
 	"PortalEnter",
+	"PortalDenied",
 	"WorldExit",
 
 	-- Interfaz.
@@ -97,10 +99,7 @@ local function describeAudioRules()
 		Harness.it("el SFX suena MAS FUERTE que la musica", function()
 			-- Si la musica igualara al efecto, taparia la explosion, que es
 			-- la informacion mas importante del juego.
-			expect.toBe(
-				Rules.ResolveVolume("Sfx", 1, 1) > Rules.ResolveVolume("Music", 1, 1),
-				true
-			)
+			expect.toBe(Rules.ResolveVolume("Sfx", 1, 1) > Rules.ResolveVolume("Music", 1, 1), true)
 		end)
 
 		Harness.it("el ambiente NUNCA tapa a un efecto", function()
@@ -149,15 +148,13 @@ local function describeAudioRules()
 		Harness.it("los pasos NO pueden tapar a la explosion", function()
 			-- Traduce literalmente "los pasos, el viento y las particulas no
 			-- pueden tapar bomba, ataque, dano, boss ni victoria".
-			local loudest = math.max(
-				Rules.ResolveVolume("Ambient", 1, 1),
-				Rules.ResolveVolume("Voice", 1, 1)
-			)
+			local loudest =
+				math.max(Rules.ResolveVolume("Ambient", 1, 1), Rules.ResolveVolume("Voice", 1, 1))
 
 			expect.toBe(loudest < Rules.ResolveVolume("Sfx", 1, 1), true)
 		end)
 	end)
-Harness.describe("AudioRules: distancia", function()
+	Harness.describe("AudioRules: distancia", function()
 		Harness.it("un sonido de efectos se oye MAS LEJOS que el ambiente", function()
 			expect.toBe(Rules.GetMaxDistance("Sfx") > Rules.GetMaxDistance("Ambient"), true)
 		end)
@@ -267,7 +264,7 @@ Harness.describe("AudioRules: distancia", function()
 			expect.toBe(played > 0, true)
 		end)
 	end)
-Harness.describe("AudioConfig: el catalogo de eventos esta COMPLETO", function()
+	Harness.describe("AudioConfig: el catalogo de eventos esta COMPLETO", function()
 		Harness.it("existe CADA evento obligatorio", function()
 			-- La asercion que traduce "todo lo que tenga una accion, un
 			-- movimiento o una presencia importante debe tener feedback
@@ -396,6 +393,7 @@ Harness.describe("AudioConfig: el catalogo de eventos esta COMPLETO", function()
 			local expected = {
 				"Lobby",
 				"Exploring",
+				"Danger",
 				"Combat",
 				"Arena",
 				"Boss",
@@ -417,7 +415,29 @@ Harness.describe("AudioConfig: el catalogo de eventos esta COMPLETO", function()
 				count += 1
 			end
 
-			expect.toBe(count, 7)
+			expect.toBe(count, 8)
+		end)
+
+		Harness.it("la musica dinamica respeta prioridad y estado del mundo", function()
+			expect.toBe(Rules.SelectMusicState({ WorldId = nil, Boss = true }), "Lobby")
+			expect.toBe(Rules.SelectMusicState({ WorldId = "Forest" }), "Exploring")
+			expect.toBe(Rules.SelectMusicState({ WorldId = "Forest", Danger = true }), "Danger")
+			expect.toBe(
+				Rules.SelectMusicState({ WorldId = "Forest", Danger = true, Combat = true }),
+				"Combat"
+			)
+			expect.toBe(
+				Rules.SelectMusicState({ WorldId = "Cyber", Boss = true, Combat = true }),
+				"Boss"
+			)
+			expect.toBe(
+				Rules.SelectMusicState({ WorldId = "Forest", Boss = true, Victory = true }),
+				"Victory"
+			)
+			expect.toBe(
+				Rules.SelectMusicState({ WorldId = "Forest", Victory = true, Defeat = true }),
+				"Defeat"
+			)
 		end)
 
 		Harness.it("los cinco mundos tienen entrada en `WorldMusic`", function()
@@ -425,6 +445,17 @@ Harness.describe("AudioConfig: el catalogo de eventos esta COMPLETO", function()
 			-- entrar por ese portal sin avisar.
 			for _, worldId in ipairs({ "Forest", "Desert", "Ice", "Volcano", "Cyber" }) do
 				expect.toBe(Config.WorldMusic[worldId] ~= nil, true)
+				expect.toBe(type(Config.WorldMusicByState[worldId]), "table")
+				expect.toBe(Config.WorldMusicByState[worldId].Boss, false)
+			end
+		end)
+
+		Harness.it("los cinco mundos declaran musica y ambiente para cada fase", function()
+			for _, worldId in ipairs({ "Forest", "Desert", "Ice", "Volcano", "Cyber" }) do
+				expect.toBe(Config.WorldMusic[worldId] ~= nil, true)
+				expect.toBe(Config.WorldAmbience[worldId] ~= nil, true)
+				expect.toBe(Config.WorldAmbienceByPhase[worldId].Day ~= nil, true)
+				expect.toBe(Config.WorldAmbienceByPhase[worldId].Night ~= nil, true)
 			end
 		end)
 	end)

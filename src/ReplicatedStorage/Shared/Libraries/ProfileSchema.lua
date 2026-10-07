@@ -46,17 +46,19 @@ local ProfileSchema = {}
 --- arrancar y avisa si se desincronizan, porque un numero mayor aqui que
 --- alla significa "el codigo nuevo guardara perfiles que el codigo viejo
 --- no sabe leer" y al reves.
-ProfileSchema.CurrentVersion = 1
+ProfileSchema.CurrentVersion = 2
 
 --- Campos obligatorios de un perfil.
-ProfileSchema.RequiredFields = { "DataVersion", "Currencies", "Inventory", "Progression" }
+ProfileSchema.RequiredFields =
+	{ "DataVersion", "Currencies", "Inventory", "Progression", "Secrets" }
 
 --- Secciones que un perfil debe tener siempre, aunque esten vacias.
 ---
 --- Se guardan SIEMPRE presentes, aunque valgan `{}`: una clave ausente y
 --- una clave vacia obligan a todos los lectores a preguntar "ya existe?".
 --- Un perfil con la seccion siempre presente se lee sin `if`.
-ProfileSchema.Sections = { "Currencies", "Inventory", "Progression", "Settings", "Stats", "Codes" }
+ProfileSchema.Sections =
+	{ "Currencies", "Inventory", "Progression", "Settings", "Stats", "Codes", "Secrets" }
 
 --- Crea un perfil NUEVO, listo para la version actual.
 --- @param playerId number
@@ -92,7 +94,14 @@ function ProfileSchema.NewProfile(playerId: number): any
 			Entries = {},
 		},
 
-		Inventory = { PlayerId = playerId, Items = {}, Equipped = {}, Requests = {}, Entries = {}, Sequence = 0 },
+		Inventory = {
+			PlayerId = playerId,
+			Items = {},
+			Equipped = {},
+			Requests = {},
+			Entries = {},
+			Sequence = 0,
+		},
 		Progression = {
 			PlayerId = playerId,
 			XP = 0,
@@ -120,6 +129,7 @@ function ProfileSchema.NewProfile(playerId: number): any
 			Redemptions = {},
 			Counts = {},
 		},
+		Secrets = { Discovered = {} },
 	}
 end
 
@@ -162,13 +172,13 @@ function ProfileSchema.NormalizeSections(profile: any, playerId: number): boolea
 
 		profile.Currencies.Balances = legacy
 		profile.Currencies.Sequence = type(profile.Currencies.Sequence) == "number"
-			and profile.Currencies.Sequence
+				and profile.Currencies.Sequence
 			or 0
 		profile.Currencies.Requests = type(profile.Currencies.Requests) == "table"
-			and profile.Currencies.Requests
+				and profile.Currencies.Requests
 			or {}
 		profile.Currencies.Entries = type(profile.Currencies.Entries) == "table"
-			and profile.Currencies.Entries
+				and profile.Currencies.Entries
 			or {}
 		changed = true
 	end
@@ -191,7 +201,10 @@ function ProfileSchema.NormalizeSections(profile: any, playerId: number): boolea
 		profile.Progression = defaults.Progression
 		changed = true
 	else
-		if type(profile.Progression.XP) ~= "number" or profile.Progression.XP ~= profile.Progression.XP then
+		if
+			type(profile.Progression.XP) ~= "number"
+			or profile.Progression.XP ~= profile.Progression.XP
+		then
 			profile.Progression.XP = 0
 			changed = true
 		end
@@ -246,6 +259,14 @@ function ProfileSchema.NormalizeSections(profile: any, playerId: number): boolea
 		end
 	end
 
+	if type(profile.Secrets) ~= "table" then
+		profile.Secrets = { Discovered = {} }
+		changed = true
+	elseif type(profile.Secrets.Discovered) ~= "table" then
+		profile.Secrets.Discovered = {}
+		changed = true
+	end
+
 	return changed
 end
 
@@ -271,6 +292,16 @@ end
 -- no tiene; declarar solo la migracion deja el numero viejo y la
 -- migracion vuelve a aplicarse en cada carga.
 local MIGRATIONS: { [number]: (any) -> (any, { string }) } = {}
+
+MIGRATIONS[1] = function(profile: any)
+	if type(profile.Secrets) ~= "table" then
+		profile.Secrets = { Discovered = {} }
+	elseif type(profile.Secrets.Discovered) ~= "table" then
+		profile.Secrets.Discovered = {}
+	end
+	profile.DataVersion = 2
+	return profile, { "se creo la seccion persistente de secretos" }
+end
 
 -- Migracion de ejemplo, comentada a proposito. Se deja escrita para que
 -- la siguiente persona copie la forma exacta en vez de inventarse una.
@@ -300,7 +331,10 @@ local MIGRATIONS: { [number]: (any) -> (any, { string }) } = {}
 --- @return any? migrated
 --- @return { string } notes que se hizo (para el log y para el soporte)
 --- @return string? errorReason
-function ProfileSchema.Migrate(profile: any, options: { targetVersion: number? }?): (any?, { string }, string?)
+function ProfileSchema.Migrate(
+	profile: any,
+	options: { targetVersion: number? }?
+): (any?, { string }, string?)
 	local notes: { string } = {}
 
 	if type(profile) ~= "table" then
@@ -308,12 +342,14 @@ function ProfileSchema.Migrate(profile: any, options: { targetVersion: number? }
 	end
 
 	local resolved: { targetVersion: number? } = options or {}
-	local target = resolved.targetVersion or ProfileSchema.CurrentVersion
+	local target: number = if type(resolved.targetVersion) == "number"
+		then resolved.targetVersion
+		else ProfileSchema.CurrentVersion
 
 	-- Sin `DataVersion` se trata como version 1. Un perfil tan viejo que no
 	-- tiene ni el numero tendria cero secciones, y empezar en 1 es lo
 	-- unico que puede reconstruirse sin inventar datos.
-	local version = type(profile.DataVersion) == "number" and profile.DataVersion or 1
+	local version: number = if type(profile.DataVersion) == "number" then profile.DataVersion else 1
 	local working = table.clone(profile)
 
 	-- Red de seguridad: un perfil con una version FANTASMA (mayor que el
@@ -353,7 +389,9 @@ function ProfileSchema.Migrate(profile: any, options: { targetVersion: number? }
 		local ok, result, migrationNotes = pcall(migration, working)
 
 		if not ok then
-			return nil, notes, ("la migracion %d lanzo un error: %s"):format(version, tostring(result))
+			return nil,
+				notes,
+				("la migracion %d lanzo un error: %s"):format(version, tostring(result))
 		end
 
 		working = result
