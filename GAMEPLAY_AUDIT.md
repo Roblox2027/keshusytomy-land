@@ -1,9 +1,76 @@
 # GAMEPLAY AUDIT — KeshusyTomy-LanD
 
-> FASE 1 de la MASTER MISSION V2.
-> Auditoría de diversión sobre el estado real del código (commit `ed18f24`).
+> FASE 1 (re-auditoría V2, 2026-10-07, HEAD `06727a7` = origin/main, árbol SUCIO con Bloques 1-5 sin commitear).
 > Cada entrada: problema, ubicación, causa, impacto, solución propuesta, prioridad.
 > Prioridades: **P0** (mata la diversión hoy), **P1** (limita retención), **P2** (profundidad/largo plazo).
+
+---
+
+## ESTADO DE RESOLUCIÓN (2026-10-07, tras Bloques 1-5 en árbol)
+## FASE 1 RE-AUDIT (2026-10-07) — ESTADO REAL MEDIDO
+
+### 1. Continuidad y Git (NO inventado)
+- `.cline/STATE.json` declara phase M2-BLOQUE5, commit/head/origin `09007f3` — DESACTUALIZADO (ese commit no existe aquí).
+- Real: `HEAD = 06727a7`, `origin/main = 06727a7`, árbol SUCIO con ~20 modificados + 3 nuevos (PuzzleRules, PuzzleService, PuzzleRules.spec = Bloque 5).
+- Conclusión: Bloques 1-5 existen en el árbol pero NO commiteados; riesgo de pérdida CRITICAL (proceso).
+
+### 2. Verificación base (esta sesión, real)
+- `verify:structure` PASS (43/43). `verify:wiring` PASS (34 tabla, 23 conexiones, 48 llamadas).
+- `npm test` PASS (973/973, 55 suites). `rojo:build` PASS.
+- `test:worlds` PASS (Forest 28/60 rutas; resto 17 zonas; 0 probl). `test:world-content` PASS (5/5 miniboss+secreto). `test:audio-ui` PASS. `test:contract` PASS. `test:navigation` PASS (96/96). `test:spawn` PASS. `test:world-edge` PASS. `test:monster-access` PASS (60/60). `test:powerup-boss` PASS (9 powerups, 5 bosses). `test:bomb-grid` PASS.
+- `npm run verify` completo / `analyze.js` NO ejecutados (cadena larga + FAIL baseline preexistente).
+
+### 3. Gameplay loop ACTUAL (medido)
+- ENTRAR → EXPLORAR (96 zonas) → MATAR (bomba; melee/dash/habilidad solo árbol sucio) → XP/monedas → EVENTO con cuerpo (solo árbol) → HAZARD por mundo (solo árbol) → SECRETO (1/mundo) → MINIBOSS (3/mundo) → BOSS (fases numéricas; ritual solo árbol) → SIGUIENTE MUNDO.
+- Faltan: DESCUBRIR con panel, MEJORAR con equipo real (árbol), DESBLOQUEAR (mundos abiertos nv1), desafíos múltiples, secretos múltiples, recompensa especial (árbol), coleccionables físicos, retorno fuerte.
+
+### 4. Puntos de aburrimiento (problema/causa/impacto/solución/prioridad)
+- P1. Árbol sucio sin commit (Bloques 1-5 no publicados). Causa: sin commit/push. Impacto: pérdida potencial. Solución: commit por bloque + push. **CRITICAL**.
+- P2. STATE desactualizado (`09007f3` fantasma). Solución: sincerar a `06727a7`+dirty. **CRITICAL**.
+- P3. Audio = silencio (`AudioConfig` nil/false, carpetas vacías). Solución: assets reales, nunca inventar IDs. **HIGH** (BLOCKED_EXTERNAL).
+- P4. Recompensa monocromática en HEAD (XP/monedas); loot dinámico solo árbol. **HIGH**.
+- P5. Boss = HP escalado en HEAD (900→3800, mismo esqueleto IA); ritual solo árbol. **HIGH**.
+- P6. Mundos iguales en HEAD (presión 0.55→0.98 + geometría); hazards solo árbol; tramos largos sin actividad (Forest 396 studs). **HIGH**.
+- P7. Misiones un tipo en HEAD (12 contadores); +5 V2 y cadenas pendientes (árbol/parcial). **HIGH**.
+- P8. Sin razón fuerte de retorno en HEAD (1 secreto solo monedas). **MEDIUM**.
+- P9. Multiplayer stub (Party/Matchmaking); solo puzzle 8 s como co-op (árbol). **MEDIUM**.
+- P10. Noche numérica en HEAD; Lighting tween solo árbol. **MEDIUM**.
+- P11. Monstruos CON roles (Vanishes/LeavesBomb/Slow/Burn/BlocksDestroy/Reflect) pero sin soporte/invocador/huida/emboscador; telegraph legible. **MEDIUM** (fortaleza parcial).
+- P12. UI sin World Completion; equipo cosmético en HEAD (stats en árbol). **MEDIUM**.
+- P13. Progresión lineal sin gating (5 mundos nv1). **LOW**.
+
+### 5. Mundos / monstruos / bosses / misiones / recompensas / replay / multi
+- Mundos: Forest tutorial 28 zonas; resto 17 zonas con presión y personae distintas pero sin NPC/arena dedicada/coleccionables/eventos propios. Ninguno tiene identidad jugable completa en HEAD.
+- Monstruos: 8 fauna + 15 minibosses + 5 bosses, IA estados + pathfinding + telegraph ≥0.8 s. Faltan soporte/invocador/huida/emboscador.
+- Boss: 5 con fases numéricas en HEAD; ritual parcial en árbol; sin arena/cámara/música/VFX propios.
+- Misiones: 12 HEAD + 5 árbol; sin cadenas ni tipos escolta/sobrevive/puzzle.
+- Recompensas HEAD: XP/Coins; árbol: materiales + gemas boss + logros/títulos + bestiario.
+- Replay HEAD: farm/cooldown; ganchos en árbol (material por mundo, logros, bestiario, hordas, puzzle 300 s cd).
+- Multi: mundial pero sin party; co-op justo solo puzzle doble (árbol).
+
+### 6. Oportunidades / orden
+1. Commit+push Bloques 1-5 + sincerar STATE. 2. Panel World Completion + cadenas + cofres. 3. Ritual boss completo. 4. Secundario por mundo (2.º secreto, coleccionables, eventos propios). 5. Party real sin bloquear solitario. 6. Audio real (externo).
+
+---
+
+| Hallazgo | Estado | Evidencia |
+|---|---|---|
+| A1 Combate de una sola herramienta | **RESUELTO** | `CombatRules` + `CombatService.TryMelee/TryDash/TryAbility` + canal `CombatAction` + `CombatController` + bindings (click/E/X, Q/B, R/Y) + combos con ventana y especial x1.8. Validado en runtime (gate de ronda correcto). |
+| A2 Eventos sin cuerpo | **RESUELTO** | `EventRules.Bodies` (Hunt/Boss/Survive/Reward) + `WorldInvasion`; spawns por zona, objetivo y cleanup. Validado en vivo: 4 enemigos generados, objetivo publicado, cleanup completo. |
+| A3 Mundos sin mecánica propia | **RESUELTO** | `HazardRules`/`HazardService`: emboscada (Forest), arenas movedizas (Desert), rachas de viento (Ice), lava DOT (Volcano), láser telegrafiado (Cyber). Validado en vivo: 4 zonas construidas en Forest. |
+| A4 Recompensas monocromáticas | **RESUELTO** | `LootRules`/`LootService`: 5 materiales de mundo, drops monster 15 % / miniboss siempre (a veces doble) / boss siempre + 2 gemas (primera fuente gratuita de gemas por habilidad). |
+| A5 Sin logros/colección/discovery | **RESUELTO (parcial UI)** | `AchievementRules`/`AchievementService` (10 logros, títulos, perfil v3) + `BestiaryService` (colección de especies persistente). Datos y publicación hechos; PANEL de World Completion pendiente. |
+| B1 Boss sin ritual | **RESUELTO (parcial)** | Telegraph de área rojo, adds en fase 2, debilidad x1.4 en fase 3, intro "JEFE" en UI. Arena dedicada e intro de cámara pendientes. |
+| B2 Misiones de un solo tipo | **RESUELTO (parcial)** | 5 misiones nuevas (secreto/evento/miniboss/boss/powerup). Cadenas con prerrequisito pendientes (QuestRules no lo soporta). |
+| B3 Equipamiento sin efecto | **RESUELTO** | `EquipmentRules` + 3 piezas con stats (velocidad/vida/cooldown), topes acotados, reaplicado al reaparecer; tienda de monedas (sink). |
+| B4 Brainrot sin función jugable | **RESUELTO (como colección)** | Bestiario de especies persistente con rareza funcional. Compañeros (FASE 22) pendientes de evaluación. Diseños visuales intactos. |
+| B5 Hordas/arenas dormidas | **RESUELTO** | Terminales de arena por código disparan `HordeService.StartHorde`; estado de oleada publicado al HUD. |
+| B6 Noche sin dientes | **RESUELTO (ambiental)** | `EffectsController` traduce `NightPhase` a Lighting con tween; ciclo ambiental sin progreso por noches. |
+| C1 Cooperativo | **PARCIAL** | Puzzle de doble interruptor por mundo (ventana 8 s: 2 jugadores fácil, 1 posible). Party/Matchmaking siguen stub. |
+| C2 Puzzles | **RESUELTO (1 tipo)** | `PuzzleRules`/`PuzzleService`: doble interruptor con cooldown anti-granja. |
+| C3+ (coleccionables físicos, home, vehículos, NPC, reputación) | **PENDIENTE** | Documentado en `.cline/NEXT-TASK.md`. |
+
+**Validación runtime (Studio, playtest real):** 43 servicios y 12 controllers presentes; los 5 servicios nuevos `initialized=true`; evento de caza con cuerpo verificado en vivo; hazards construidos al entrar al mundo; combate con gate de ronda correcto; playtest detenido limpio.
 
 ---
 

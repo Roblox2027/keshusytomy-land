@@ -1,3 +1,5 @@
+## FASE 1 RE-AUDIT (2026-10-07): PASS — structure/wiring/tests/rojo/mundos/navegacion/spawn/edge/monstruos/powerups/bombas PASS; GAMEPLAY_AUDIT.md con seccion RE-AUDIT; arbol sucio pendiente de commit (CRITICAL proceso); audio BLOCKED_EXTERNAL; Brainrot visual intacto.
+
 # QA
 
 ## MASTER MISSION V2
@@ -6,7 +8,9 @@
 - BLOQUE 1 Mundo vivo: PASS local (eventos con cuerpo A2, hazards por mundo A3, luz de noche B6; 919/919 tests, wiring/estructura/build PASS). Playtest Studio: PENDIENTE.
 - BLOQUE 2 Combate: PASS local (A1 melee/dash/habilidad/combos server-authoritative via CombatAction; B1 telegraph de area, adds fase 2, debilidad fase 3, intro UI; 935/935 tests, build PASS). Playtest Studio: PENDIENTE.
 - BLOQUE 3 Progresion: PASS local (A4 drops de materiales por mundo + gemas de boss; A5 AchievementService + titulos + perfil v3 migrado; B4 BestiaryService coleccion persistente; 959/959 tests, build PASS). Playtest Studio: PENDIENTE.
-- BLOQUE 4 Contenido: PASS local (B2 5 misiones nuevas con metricas reales; B5 terminales de arena -> hordas con HUD; B3 equipo con stats reales acotados; 966/966 tests, build PASS). Playtest Studio: PENDIENTE.
+- BLOQUE 4 Contenido: PASS local (B2 5 misiones nuevas con metricas reales; B5 terminales de arena -> hordas con HUD; B3 equipo con stats reales acotados; 966/966 tests, build PASS).
+- BLOQUE 5 Social/cierre: PASS local (PuzzleService doble interruptor cooperativo justo; 973/973 tests, build PASS).
+- PLAYTEST REAL (mision V2): PASS — sondas server-runtime en vivo: servicios V2 inicializados, evento de caza con cuerpo (4 spawns, objetivo publicado, cleanup), 4 hazards en Forest, combate con gate de ronda. Playtest detenido limpio.
 - Bloques 2-5: NO INICIADOS
 - Criterio de terminacion V2: pendiente (ninguna categoria certificada aun)
 

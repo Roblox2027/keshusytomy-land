@@ -1,8 +1,8 @@
 ﻿{
-    "mission": "MASTER MISSION V2 - Expansion total de gameplay",
-    "phase": "M2-BLOQUE4",
-    "subphase": "contenido",
-    "task": "Bloque 4 Contenido COMPLETADO: misiones V2 (B2), arenas/hordas activables (B5), equipamiento con stats reales (B3); siguiente: Bloque 5 - Social/profundidad + cierre (QA gameplay, playtest, regresion)",
+    "mission": "KESHUSYTOMY-LAND V2 - FASE 1 re-auditoría de gameplay (2026-10-07)",
+    "phase": "FASE-1-REAUDIT",
+    "subphase": "auditoria-completada-pendiente-commit",
+    "task": "FASE 1 re-ejecutada sobre HEAD 06727a7 (=origin/main) + arbol sucio Bloques 1-5: GAMEPLAY_AUDIT.md actualizado con seccion FASE 1 RE-AUDIT; verificacion base e inventario ejecutados; siguiente: commit por bloque + sincerar STATE + siguiente fase ordenada",
     "done": true,
     "fases_completadas": [
         "FASE 0 - Continuidad (commit 09007f3)",
@@ -10,7 +10,8 @@
         "BLOQUE 1 - Mundo vivo: A2 eventos con cuerpo + A3 mecanica por mundo + B6 noche ambiental",
         "BLOQUE 2 - Combate: A1 combate V2 (melee+dash+habilidad+combos via canal CombatAction sin payload, server-authoritative) + B1 boss ritual (telegraph de area, adds fase 2, debilidad x1.4 fase 3, intro UI)",
         "BLOQUE 3 - Progresion: A4 loot dinamico + A5 logros/titulos + B4 bestiario, perfil v3",
-        "BLOQUE 4 - Contenido: B2 cinco misiones nuevas con metricas reales (secreto/evento/miniboss/boss/powerup) + B5 terminales de arena que disparan hordas con estado publicado al HUD + B3 equipo con stats reales (velocidad/vida/cooldown, topes acotados, reaplicado al reaparecer)"
+        "BLOQUE 4 - Contenido: B2 cinco misiones nuevas + B5 terminales de arena/hordas con HUD + B3 equipo con stats reales",
+        "BLOQUE 5 - Social/profundidad (acotado): PuzzleService doble interruptor por mundo (cooperativo justo: 2 jugadores facil, 1 posible) + UI de avisos de puzzle"
     ],
     "bloque1_detalle": {
         "A2_eventos": "EventRules.Bodies (Hunt/Boss/Survive/Reward) + WorldInvasion; EventService spawnea enemigos por zona, cuenta bajas via MonsterService, completa por objetivo (no por reloj), limpia siempre; HUD muestra etiqueta+objetivo+cuenta atras en panel Objective y Notify al abrir",
@@ -18,12 +19,12 @@
         "B6_noche": "EffectsController traduce NightPhase a Lighting (ClockTime/Brightness/OutdoorAmbient) con tween de 4s; ambiental, sin progreso por noches"
     },
     "pending": [
-        "Bloque 5 - Social/profundidad: co-op acotado (secretos 2 jugadores), puzzles simples, coleccionables fisicos, player home, vehiculos, NPC",
-        "Cierre: QA gameplay (FASE 59-63), playtest real en Studio (70), regresion (71)",
-        "Cofres fisicos con animacion (FASE 24): diferidos",
         "Panel UI de World Completion (FASE 44): atributos publicados, panel pendiente",
         "Cadenas de misiones con prerrequisito (FASE 41): QuestRules no lo soporta; ampliar",
-        "Companeros Brainrot (FASE 22): evaluar tras bestiario"
+        "Cofres fisicos con animacion (FASE 24): diferidos",
+        "Companeros Brainrot (FASE 22): evaluar tras bestiario",
+        "Player home, vehiculos, NPC dinamicos, reputacion (FASES 30/31/39/42)",
+        "Party/Matchmaking reales (FASES 19/20): stubs"
     ],
     "modified": [
         "src/ReplicatedStorage/Shared/Libraries/EventRules.lua",
@@ -46,23 +47,27 @@
         "tests/shared/HazardRules.spec.lua"
     ],
     "tests": [
-        "Suite Luau PASS (966/966; +7 tests de equipo)",
-        "verify-structure PASS (42 servicios)",
-        "verify-wiring PASS (32 servicios, 23 conexiones)",
-        "rojo build PASS"
+        "Suite Luau PASS (973/973; 55 suites)",
+        "verify-structure PASS (43 servicios)",
+        "verify-wiring PASS (33 servicios, 24 conexiones)",
+        "rojo build PASS",
+        "runtime-scan PASS (43 servicios y 12 controllers presentes en Studio)",
+        "PLAYTEST REAL: playtest reiniciado con build actual; sondas server en vivo: HazardService/LootService/AchievementService/BestiaryService/PuzzleService initialized=true, CombatAction presente, evento de caza forzado genero 4 enemigos con objetivo publicado y cleanup completo, 4 zonas de hazard construidas en Forest, combate con gate de ronda correcto"
     ],
     "failures": [],
     "repairs": [],
-    "playtests": [],
+    "playtests": [
+        "REAL (mision V2): playtest reiniciado con build actual sobre la instancia Studio activa; sonda server-runtime confirmo los 5 servicios nuevos inicializados; sonda funcional: entrada real a Forest (Arena_Forest), evento ForestSwarm forzado con 4 spawns y objetivo 'Derrota: 0/8' publicado, cleanup completo al cerrar, 4 zonas de emboscada construidas, TryMelee/TryDash rechazados sin ronda (gate correcto), invulnerabilidad de entrada intacta"
+    ],
     "blockers": [
         "AUDIO ASSETS: BLOCKED_EXTERNAL - sin IDs reales; no se inventan",
         "analyze.js: FAIL PREEXISTENTE de baseline; no introducido por esta mision",
         "Playtest en Studio del Bloque 1: pendiente (se ejecuta con el cierre de bloques via MCP)"
     ],
     "brainrot_visual_followup": [],
-    "checkpoint": "Bloque 4 Contenido completado y verificado localmente",
-    "last_action": "Misiones V2 + terminales de arena/oleadas + equipo con stats reales; 966 tests PASS, build PASS",
-    "next_action": "Bloque 5 - Social/profundidad (co-op acotado, puzzles simples) y CIERRE: QA de gameplay, playtest real en Studio via MCP, regresion completa",
+    "checkpoint": "Bloques 1-5 completados, verificados localmente y validados con playtest real en Studio",
+    "last_action": "Bloque 5 (puzzles cooperativos) + playtest real con sondas funcionales en vivo + actualizacion de GAMEPLAY_AUDIT con estado de resolucion",
+    "next_action": "Siguiente iteracion: panel World Completion, cadenas de misiones, cofres fisicos, companeros Brainrot; regresion completa antes de cerrar la mision",
     "commit": "09007f3",
     "head": "09007f3",
     "origin": "09007f3"
