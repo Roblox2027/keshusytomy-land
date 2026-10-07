@@ -921,14 +921,9 @@ local function wireDependencies(registry: any): { string }
 	-- BestiaryService: perfil; observa muertes como el loot.
 	local bestiaryService = registry:Get("BestiaryService")
 
-	connect(
-		"BestiaryService",
-		bestiaryService,
-		{ "ProfileService" },
-		function(service: any)
-			service.SetDependencies(profileService)
-		end
-	)
+	connect("BestiaryService", bestiaryService, { "ProfileService" }, function(service: any)
+		service.SetDependencies(profileService)
+	end)
 
 	if monsterService and bestiaryService then
 		pcall(function()

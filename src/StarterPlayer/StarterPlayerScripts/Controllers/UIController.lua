@@ -986,14 +986,29 @@ local function refresh()
 	end
 
 	-- ------------------------------------------------------------ Objective
-	-- Con evento activo (mision V2) el panel muestra el EVENTO: etiqueta,
-	-- objetivo y cuenta atras, todo publicado por el servidor. Sin evento,
-	-- el mundo (que ademas ya esta en la TopBar). La UI no inventa reglas
-	-- de juego ni calcula objetivos propios: compone atributos publicados.
+	-- Prioridad de LO QUE PASA AHORA: una horda activa manda sobre el
+	-- evento, y el evento manda sobre el nombre del mundo (que ademas ya
+	-- esta en la TopBar). Todo son atributos publicados por el servidor:
+	-- la UI no inventa reglas ni calcula objetivos propios.
 	local eventLabel = attr("EventLabel")
 	local eventRemaining = attr("EventRemaining")
+	local hordeActive = attr("HordeActive")
 
-	if type(eventLabel) == "string" and eventLabel ~= "" then
+	if hordeActive == true then
+		local remaining = attr("HordeRemaining")
+		local total = attr("HordeTotal")
+
+		setText(
+			"Objective",
+			"Text",
+			("HORDA: %d/%d"):format(
+				if type(remaining) == "number" and type(total) == "number"
+					then total - remaining
+					else 0,
+				if type(total) == "number" then total else 0
+			)
+		)
+	elseif type(eventLabel) == "string" and eventLabel ~= "" then
 		local objective = attr("EventObjective")
 		local objectiveText = if type(objective) == "string" and objective ~= ""
 			then ("  ·  %s"):format(objective)
@@ -1424,7 +1439,10 @@ function Controller.Start(maid: any?): boolean
 		_maid:Connect(player:GetAttributeChangedSignal("BestiaryDiscovery"), function()
 			local entry = player:GetAttribute("BestiaryDiscovery")
 			if type(entry) == "string" and entry ~= "" then
-				Controller.Notify(("NUEVA ESPECIE: %s"):format(entry), Color3.fromRGB(140, 220, 255))
+				Controller.Notify(
+					("NUEVA ESPECIE: %s"):format(entry),
+					Color3.fromRGB(140, 220, 255)
+				)
 			end
 		end)
 

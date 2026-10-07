@@ -26,12 +26,14 @@
 ]]
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Players = game:GetService("Players")
 
 local SHARED = ReplicatedStorage:WaitForChild("Shared")
 local UTILS = SHARED:WaitForChild("Utils")
 
 local ItemCatalog = require(SHARED:WaitForChild("Config"):WaitForChild("ItemCatalog"))
 local InventoryRules = require(SHARED:WaitForChild("Libraries"):WaitForChild("InventoryRules"))
+local EquipmentRules = require(SHARED:WaitForChild("Libraries"):WaitForChild("EquipmentRules"))
 local Logger = require(UTILS:WaitForChild("Logger"))
 
 local Service = {}
@@ -81,14 +83,48 @@ function Service.Start(maid: any?): boolean
 	-- despues no se puede equipar.
 	local problems = ItemCatalog.Validate()
 	if #problems > 0 then
-		Logger.Error(("InventoryService: el catalogo tiene %d problemas: %s"):format(
-			#problems,
-			table.concat(problems, "; ")
-		))
+		Logger.Error(
+			("InventoryService: el catalogo tiene %d problemas: %s"):format(
+				#problems,
+				table.concat(problems, "; ")
+			)
+		)
 		return false
 	end
 
-	Logger.Info(("InventoryService: inventario listo (%d items en catalogo)"):format(#ItemCatalog.GetAllIds()))
+	Logger.Info(
+		("InventoryService: inventario listo (%d items en catalogo)"):format(
+			#ItemCatalog.GetAllIds()
+		)
+	)
+
+	-- El equipo se REAPLICA en cada reaparicion: el personaje nuevo nace
+	-- con la vida y la velocidad de serie, y sin esto el jugador perdia
+	-- sus stats cada vez que moria hasta reequipar a mano.
+	local maid = maid or MaidRef
+
+	if maid then
+		local function onCharacter(player: Player)
+			-- Defer: el Humanoid del personaje nuevo puede no existir en el
+			-- mismo instante de la senal.
+			task.defer(function()
+				Service.ApplyEquipmentStats(player)
+			end)
+		end
+
+		maid:Connect(Players.PlayerAdded, function(player: Player)
+			maid:Connect(player.CharacterAdded, function()
+				onCharacter(player)
+			end)
+		end)
+
+		for _, player in ipairs(Players:GetPlayers()) do
+			maid:Connect(player.CharacterAdded, function()
+				onCharacter(player)
+			end)
+		end
+	end
+
 	return true
 end
 
@@ -226,7 +262,11 @@ end
 --- @return boolean success
 --- @return any? definition definicion del item consumido
 --- @return string? errorReason
-function Service.UseItem(player: Player?, itemId: string, requestId: string?): (boolean, any?, string?)
+function Service.UseItem(
+	player: Player?,
+	itemId: string,
+	requestId: string?
+): (boolean, any?, string?)
 	local state = inventoryStateOf(player)
 	if not state then
 		Service._stats.rejected += 1
@@ -241,7 +281,13 @@ function Service.UseItem(player: Player?, itemId: string, requestId: string?): (
 		-- interesante que puede mandar un cliente. Se registra con nombre
 		-- de jugador, sin conexion: registrar el evento es lo primero, y
 		-- expulsar por el es una decision posterior.
-		Logger.Warn(("Inventory: %s intento usar '%s': %s"):format(player.Name, tostring(itemId), tostring(err)))
+		Logger.Warn(
+			("Inventory: %s intento usar '%s': %s"):format(
+				player.Name,
+				tostring(itemId),
+				tostring(err)
+			)
+		)
 		return false, nil, err
 	end
 
@@ -282,10 +328,17 @@ function Service.EquipItem(player: Player?, itemId: string, requestId: string?):
 		-- attribute type" DESPUES de haber equipado. El item quedaria
 		-- equipado y el jugador veria un error en vez de su sombrero.
 		player:SetAttribute("Equipped", Service.GetEquippedSummary(player))
+		Service.ApplyEquipmentStats(player)
 		Logger.Debug(("Inventory: %s equipa '%s'"):format(player.Name, itemId))
 	else
 		Service._stats.rejected += 1
-		Logger.Warn(("Inventory: %s no pudo equipar '%s': %s"):format(player.Name, tostring(itemId), tostring(err)))
+		Logger.Warn(
+			("Inventory: %s no pudo equipar '%s': %s"):format(
+				player.Name,
+				tostring(itemId),
+				tostring(err)
+			)
+		)
 	end
 
 	return ok, err
@@ -312,10 +365,54 @@ function Service.UnequipItem(player: Player?, slot: string): (boolean, string?, 
 	if ok then
 		Service._profileService.MarkDirty(player)
 		player:SetAttribute("Equipped", Service.GetEquippedSummary(player))
+		Service.ApplyEquipmentStats(player)
 		Logger.Debug(("Inventory: %s unequip '%s'"):format(player.Name, tostring(previous)))
 	end
 
 	return ok, previous, err
+end
+
+--- Aplica los stats del equipamiento al personaje y los publica.
+---
+--- La verdad la calcula `EquipmentRules` sobre el equipamiento REAL del
+--- perfil, y se publica como atributos: `CombatService` lee el
+--- multiplicador de cooldown de ahi, y la arena movediza restaura la
+--- velocidad CON equipo, no la base pelada. Asi ningun servicio pisa el
+--- equipo por accidente.
+--- @param player Player?
+function Service.ApplyEquipmentStats(player: Player?)
+	if not player then
+		return
+	end
+
+	local stats = EquipmentRules.ComputeStats(Service.GetEquipped(player), ItemCatalog)
+
+	player:SetAttribute("WalkSpeedMult", stats.WalkSpeedMult)
+	player:SetAttribute("AbilityCooldownMult", stats.AbilityCooldownMult)
+	player:SetAttribute("MaxHealthBonus", stats.MaxHealthBonus)
+
+	local character = player.Character
+	local humanoid = character and character:FindFirstChildOfClass("Humanoid")
+
+	if humanoid then
+		-- La vida maxima sube CON la vida actual: equipar la placa no
+		-- deberia dejar al jugador con la barra a medio llenar.
+		local newMax = 100 + stats.MaxHealthBonus
+
+		if humanoid.MaxHealth ~= newMax then
+			local ratio = if humanoid.MaxHealth > 0 then humanoid.Health / humanoid.MaxHealth else 1
+			humanoid.MaxHealth = newMax
+			humanoid.Health = math.clamp(newMax * ratio, 1, newMax)
+		end
+
+		-- La arena movediza pisa WalkSpeed mientras el jugador este
+		-- dentro; el equipo se reaplica al SALIR (HazardService lee el
+		-- mismo atributo). Aqui no se escribe WalkSpeed directamente para
+		-- no pelear con ella en el mismo instante.
+		if not player:GetAttribute("HazardSlowed") then
+			humanoid.WalkSpeed = 16 * stats.WalkSpeedMult
+		end
+	end
 end
 
 --- Ranuras ocupadas como CADENA "ranura=itemId" separada por comas.

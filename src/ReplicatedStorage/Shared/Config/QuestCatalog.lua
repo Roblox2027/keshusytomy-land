@@ -104,6 +104,58 @@ local ALL = {
 		Rewards = { Coins = 120 },
 	},
 
+	-- --- Misiones V2 (mision master, FASE 40) ---------------------------
+	--
+	-- Las misiones dejan de ser solo "mata X monstruos": explorar,
+	-- descubrir, sobrevivir a eventos y derrotar elites y jefes. Todas usan
+	-- metricas que los servicios YA emiten de verdad; una mision con una
+	-- metrica sin emisor seria imposible y pareceria un bug.
+	{
+		Id = "WORLD_SECRET_1",
+		Title = "Zonas ocultas",
+		Description = "Descubre 1 secreto.",
+		Type = QuestCatalog.QuestType.World,
+		Metric = QuestCatalog.Metric.SecretDiscovered,
+		Target = 1,
+		Rewards = { Coins = 120 },
+	},
+	{
+		Id = "WORLD_EVENT_2",
+		Title = "El mundo esta vivo",
+		Description = "Completa 2 eventos del mundo.",
+		Type = QuestCatalog.QuestType.World,
+		Metric = QuestCatalog.Metric.EventCompleted,
+		Target = 2,
+		Rewards = { Coins = 150 },
+	},
+	{
+		Id = "WORLD_MINIBOSS_1",
+		Title = "Elite",
+		Description = "Derrota 1 mini-boss.",
+		Type = QuestCatalog.QuestType.World,
+		Metric = QuestCatalog.Metric.MiniBossDefeated,
+		Target = 1,
+		Rewards = { Coins = 200 },
+	},
+	{
+		Id = "WORLD_BOSS_1",
+		Title = "El jefe",
+		Description = "Derrota 1 jefe de mundo.",
+		Type = QuestCatalog.QuestType.World,
+		Metric = QuestCatalog.Metric.BossDefeated,
+		Target = 1,
+		Rewards = { Coins = 300 },
+	},
+	{
+		Id = "WORLD_POWERUP_5",
+		Title = "Avido",
+		Description = "Recoge 5 powerups.",
+		Type = QuestCatalog.QuestType.World,
+		Metric = QuestCatalog.Metric.PowerupCollected,
+		Target = 5,
+		Rewards = { Coins = 100 },
+	},
+
 	-- --- Achievements (logro interno, ver spec 28) ----------------------
 	--
 	-- Se separan de los logros de Roblox Badge a proposito: estos son
@@ -330,7 +382,10 @@ function QuestCatalog.Validate(questRules: any?): { string }
 	-- lista vacia diria "el catalogo esta bien" cuando en realidad no se ha
 	-- comprobado nada, y eso es peor que un fallo visible.
 	if not rules then
-		table.insert(problems, "QuestCatalog.Configure no se ha llamado; el catalogo esta sin comprobar")
+		table.insert(
+			problems,
+			"QuestCatalog.Configure no se ha llamado; el catalogo esta sin comprobar"
+		)
 		return problems
 	end
 
@@ -343,26 +398,32 @@ function QuestCatalog.Validate(questRules: any?): { string }
 
 	for key, definition in pairs(index()) do
 		if rules.NormalizeId(definition.Id) ~= key then
-			table.insert(problems, ("'%s': la clave '%s' no es la forma normalizada"):format(
-				tostring(definition.Id),
-				key
-			))
+			table.insert(
+				problems,
+				("'%s': la clave '%s' no es la forma normalizada"):format(
+					tostring(definition.Id),
+					key
+				)
+			)
 		end
 
 		local valid, reason = rules.IsDefinitionValid(definition)
 
 		if not valid then
-			table.insert(problems, ("'%s': definicion invalida (%s)"):format(
-				tostring(definition.Id),
-				tostring(reason)
-			))
+			table.insert(
+				problems,
+				("'%s': definicion invalida (%s)"):format(tostring(definition.Id), tostring(reason))
+			)
 		end
 
 		if not knownMetrics[definition.Metric] then
-			table.insert(problems, ("'%s': metrica desconocida ('%s'); la mision no progresara"):format(
-				tostring(definition.Id),
-				tostring(definition.Metric)
-			))
+			table.insert(
+				problems,
+				("'%s': metrica desconocida ('%s'); la mision no progresara"):format(
+					tostring(definition.Id),
+					tostring(definition.Metric)
+				)
+			)
 		end
 	end
 

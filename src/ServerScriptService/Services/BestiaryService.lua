@@ -97,7 +97,10 @@ function Service.OnMonsterKilled(killer: any, record: any)
 		Service._discoveries += 1
 
 		local rarity = BestiaryRules.RarityOf(record.Def)
-		killer:SetAttribute("BestiaryDiscovery", ("%s (%s)"):format(tostring(record.Def.Name or defId), rarity))
+		killer:SetAttribute(
+			"BestiaryDiscovery",
+			("%s (%s)"):format(tostring(record.Def.Name or defId), rarity)
+		)
 
 		Logger.Info(("BestiaryService: %s registro '%s' (nuevo)"):format(killer.Name, defId))
 	end

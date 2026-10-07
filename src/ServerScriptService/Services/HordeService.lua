@@ -31,6 +31,8 @@
 ]]
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Players = game:GetService("Players")
+local Workspace = game:GetService("Workspace")
 
 local SHARED = ReplicatedStorage:WaitForChild("Shared")
 local UTILS = SHARED:WaitForChild("Utils")
@@ -186,8 +188,14 @@ function Service.StartHorde(worldId: string, night: any?): any?
 
 	Service._hordes[id] = horde
 
-	Logger.Info(("HordeService: '%s' iniciada en %s (noche %d, %d enemigos)")
-		:format(worldId, worldId, horde.Night, horde.Total))
+	Logger.Info(
+		("HordeService: '%s' iniciada en %s (noche %d, %d enemigos)"):format(
+			worldId,
+			worldId,
+			horde.Night,
+			horde.Total
+		)
+	)
 
 	return horde
 end
@@ -227,8 +235,7 @@ function Service.HandleMonsterDeath(hordeId: number): boolean
 		Service.PayReward(horde, reward)
 	end
 
-	Logger.Info(("HordeService: '%s' completada (%d enemigos)")
-		:format(horde.WorldId, horde.Total))
+	Logger.Info(("HordeService: '%s' completada (%d enemigos)"):format(horde.WorldId, horde.Total))
 
 	return true
 end
@@ -309,8 +316,13 @@ function Service.Tick(now: any?): number
 
 				-- `Fail` NO paga. El jugador no termino la horda, y si pagara
 				-- igual el limite de tiempo no significaria nada.
-				Logger.Info(("HordeService: '%s' fallo por tiempo (%d/%d)")
-					:format(horde.WorldId, horde.Killed, horde.Total))
+				Logger.Info(
+					("HordeService: '%s' fallo por tiempo (%d/%d)"):format(
+						horde.WorldId,
+						horde.Killed,
+						horde.Total
+					)
+				)
 
 				closed += 1
 			end
@@ -329,7 +341,118 @@ function Service.Tick(now: any?): number
 		end
 	end
 
+	-- Terminales y estado publico: el mapa se construye por DEMANDA (un
+	-- mundo sin carpeta no produce terminal ni error; se reintenta en el
+	-- siguiente paso).
+	for _, player in ipairs(Players:GetPlayers()) do
+		local worldId = player:GetAttribute("World")
+
+		if type(worldId) == "string" then
+			Service.BuildTerminal(worldId)
+		end
+	end
+
+	Service.Publish()
+
 	return closed
+end
+
+-- ---------------------------------------------------------------------------
+-- TERMINALES DE ARENA (mision V2, FASES 36/37)
+-- ---------------------------------------------------------------------------
+--
+-- La horda EXISTIA pero nada la disparaba: era una maquina de oleadas sin
+-- boton. La terminal es un pedestal generado POR CODIGO en el centro de la
+-- zona `Arena` del mundo (mismo contrato de generador que los hazards: la
+-- losa `_Core`). Activarla arranca la horda del mundo para TODOS los
+-- presentes, porque la horda es mundial por diseno.
+
+--- Cache de terminales construidas: worldId -> true.
+Service._terminals = {}
+
+--- Construye la terminal de arena de un mundo. Idempotente.
+--- @param worldId string
+--- @return boolean built
+function Service.BuildTerminal(worldId: string): boolean
+	if Service._terminals[worldId] then
+		return false
+	end
+
+	local worlds = Workspace:FindFirstChild("Worlds")
+	local worldFolder = worlds and worlds:FindFirstChild(worldId)
+	local zones = worldFolder and worldFolder:FindFirstChild("Zones")
+	local zone = zones and zones:FindFirstChild(("Zone_%s_Arena"):format(worldId))
+	local core = zone and zone:FindFirstChild(zone.Name .. "_Core")
+
+	if not core or not core:IsA("BasePart") then
+		return false
+	end
+
+	-- El pedestal: un bloque bajo y visible, con el prompt encima.
+	local pedestal = Instance.new("Part")
+	pedestal.Name = ("ArenaTerminal_%s"):format(worldId)
+	pedestal.Size = Vector3.new(4, 2, 4)
+	pedestal.Position = core.Position + Vector3.new(0, 1, 0)
+	pedestal.Anchored = true
+	pedestal.CanCollide = true
+	pedestal.Color = Color3.fromRGB(255, 180, 70)
+	pedestal.Material = Enum.Material.Neon
+	pedestal:SetAttribute("ArenaTerminal", worldId)
+	pedestal.Parent = Workspace
+
+	local prompt = Instance.new("ProximityPrompt")
+	prompt.ActionText = "Iniciar oleadas"
+	prompt.ObjectText = "ARENA"
+	prompt.HoldDuration = 0.5
+	prompt.MaxActivationDistance = 12
+	prompt.Parent = pedestal
+
+	prompt.Triggered:Connect(function(player: Player)
+		-- El servidor decide SI arranca: la horda por mundo es unica y
+		-- `StartHorde` devuelve la existente si ya hay una, asi que dos
+		-- jugadores no pueden abrir dos arenas en el mismo mundo.
+		Service.StartHorde(worldId)
+	end)
+
+	Service._terminals[worldId] = true
+	Logger.Info(("HordeService: terminal de arena construida en %s"):format(worldId))
+	return true
+end
+
+--- Publica el estado de la horda a los jugadores de cada mundo.
+---
+--- Tres atributos escalares (activa, restantes, total) escritos SOLO cuando
+--- cambian: el contador de una oleada cambia con cada baja, no con cada
+--- frame, y la UI lo lee sin sondeo.
+--- @return number atributos escritos
+function Service.Publish(): number
+	local written = 0
+
+	for _, player in ipairs(Players:GetPlayers()) do
+		local worldId = player:GetAttribute("World")
+		local horde = if type(worldId) == "string" then Service.GetByWorld(worldId) else nil
+
+		local active = horde ~= nil
+		local remaining = if horde then HordeRules.GetRemaining(horde) else 0
+		local total = if horde then horde.Total else 0
+
+		if player:GetAttribute("HordeActive") ~= active then
+			player:SetAttribute("HordeActive", active)
+			written += 1
+		end
+
+		if player:GetAttribute("HordeRemaining") ~= remaining then
+			player:SetAttribute("HordeRemaining", remaining)
+			written += 1
+		end
+
+		if player:GetAttribute("HordeTotal") ~= total then
+			player:SetAttribute("HordeTotal", total)
+			written += 1
+		end
+	end
+
+	return written
 end
 
 --- Cierra TODAS las hordas, sin pagar.

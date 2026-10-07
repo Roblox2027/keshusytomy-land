@@ -364,6 +364,67 @@ local ITEMS: { [string]: any } = {
 		Available = false,
 		Description = "Material raro del mundo cyber. Lo sueltan sus criaturas.",
 	},
+
+	-- --- Equipo de aventurero (mision V2, FASE 29) ---------------------
+	--
+	-- Piezas con STATS REALES, no cosmeticas: cada una modifica algo que
+	-- cambia como se juega. Se compran con MONEDAS (la moneda que se gana
+	-- jugando): son el sink de la economia, nunca pago real. Los deltas
+	-- son modestos a proposito; los topes los aplica `EquipmentRules`.
+	Gear_SwiftBoots = {
+		Id = "Gear_SwiftBoots",
+		DisplayName = "Botas ligeras",
+		Category = ItemCatalog.Category.Cosmetic,
+		Rarity = ItemCatalog.Rarity.Rare,
+		Stackable = false,
+		MaxStack = 1,
+		Tradable = false,
+		Consumable = false,
+		Cosmetic = false,
+		Equipable = true,
+		Slot = "Feet",
+		Price = 900,
+		Currency = ItemCatalog.Currency.Coins,
+		Available = true,
+		Description = "+10 % de velocidad de movimiento.",
+		Stats = { WalkSpeedMult = 0.10 },
+	},
+	Gear_GuardianPlate = {
+		Id = "Gear_GuardianPlate",
+		DisplayName = "Placa del guardian",
+		Category = ItemCatalog.Category.Cosmetic,
+		Rarity = ItemCatalog.Rarity.Epic,
+		Stackable = false,
+		MaxStack = 1,
+		Tradable = false,
+		Consumable = false,
+		Cosmetic = false,
+		Equipable = true,
+		Slot = "Body",
+		Price = 1400,
+		Currency = ItemCatalog.Currency.Coins,
+		Available = true,
+		Description = "+25 de vida maxima.",
+		Stats = { MaxHealthBonus = 25 },
+	},
+	Gear_FocusBand = {
+		Id = "Gear_FocusBand",
+		DisplayName = "Banda de enfoque",
+		Category = ItemCatalog.Category.Cosmetic,
+		Rarity = ItemCatalog.Rarity.Epic,
+		Stackable = false,
+		MaxStack = 1,
+		Tradable = false,
+		Consumable = false,
+		Cosmetic = false,
+		Equipable = true,
+		Slot = "Head",
+		Price = 1600,
+		Currency = ItemCatalog.Currency.Coins,
+		Available = true,
+		Description = "-10 % al enfriamiento de la habilidad.",
+		Stats = { AbilityCooldownMult = -0.10 },
+	},
 }
 
 -- ---------------------------------------------------------------

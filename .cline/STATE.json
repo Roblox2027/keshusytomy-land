@@ -1,15 +1,16 @@
 ﻿{
     "mission": "MASTER MISSION V2 - Expansion total de gameplay",
-    "phase": "M2-BLOQUE3",
-    "subphase": "progresion",
-    "task": "Bloque 3 Progresion COMPLETADO: loot dinamico (A4), logros/titulos (A5), coleccion de especies (B4); siguiente: Bloque 4 - Contenido (misiones V2, arenas/hordas, equipamiento real)",
+    "phase": "M2-BLOQUE4",
+    "subphase": "contenido",
+    "task": "Bloque 4 Contenido COMPLETADO: misiones V2 (B2), arenas/hordas activables (B5), equipamiento con stats reales (B3); siguiente: Bloque 5 - Social/profundidad + cierre (QA gameplay, playtest, regresion)",
     "done": true,
     "fases_completadas": [
         "FASE 0 - Continuidad (commit 09007f3)",
         "FASE 1 - Auditoria de diversion: GAMEPLAY_AUDIT.md (commit 09007f3)",
         "BLOQUE 1 - Mundo vivo: A2 eventos con cuerpo + A3 mecanica por mundo + B6 noche ambiental",
         "BLOQUE 2 - Combate: A1 combate V2 (melee+dash+habilidad+combos via canal CombatAction sin payload, server-authoritative) + B1 boss ritual (telegraph de area, adds fase 2, debilidad x1.4 fase 3, intro UI)",
-        "BLOQUE 3 - Progresion: A4 loot dinamico (5 materiales de mundo, drops monster/miniboss/boss, gemas de boss) + A5 logros/titulos (AchievementService, fan-out desde QuestService, perfil v3) + B4 coleccion de especies (BestiaryService, rareza funcional, persistente)"
+        "BLOQUE 3 - Progresion: A4 loot dinamico + A5 logros/titulos + B4 bestiario, perfil v3",
+        "BLOQUE 4 - Contenido: B2 cinco misiones nuevas con metricas reales (secreto/evento/miniboss/boss/powerup) + B5 terminales de arena que disparan hordas con estado publicado al HUD + B3 equipo con stats reales (velocidad/vida/cooldown, topes acotados, reaplicado al reaparecer)"
     ],
     "bloque1_detalle": {
         "A2_eventos": "EventRules.Bodies (Hunt/Boss/Survive/Reward) + WorldInvasion; EventService spawnea enemigos por zona, cuenta bajas via MonsterService, completa por objetivo (no por reloj), limpia siempre; HUD muestra etiqueta+objetivo+cuenta atras en panel Objective y Notify al abrir",
@@ -17,10 +18,12 @@
         "B6_noche": "EffectsController traduce NightPhase a Lighting (ClockTime/Brightness/OutdoorAmbient) con tween de 4s; ambiental, sin progreso por noches"
     },
     "pending": [
-        "Bloque 4 - Contenido: misiones V2 + cadenas (B2), arenas/hordas activables (B5), equipamiento con stats reales (B3)",
-        "Bloque 4 - Contenido: misiones V2 (B2), arenas/hordas (B5), equipamiento real (B3)",
-        "Bloque 5 - Social/profundidad: co-op, puzzles, coleccionables, home, vehiculos, NPC",
-        "Cierre: QA gameplay, playtest real, regresion, commits por bloque"
+        "Bloque 5 - Social/profundidad: co-op acotado (secretos 2 jugadores), puzzles simples, coleccionables fisicos, player home, vehiculos, NPC",
+        "Cierre: QA gameplay (FASE 59-63), playtest real en Studio (70), regresion (71)",
+        "Cofres fisicos con animacion (FASE 24): diferidos",
+        "Panel UI de World Completion (FASE 44): atributos publicados, panel pendiente",
+        "Cadenas de misiones con prerrequisito (FASE 41): QuestRules no lo soporta; ampliar",
+        "Companeros Brainrot (FASE 22): evaluar tras bestiario"
     ],
     "modified": [
         "src/ReplicatedStorage/Shared/Libraries/EventRules.lua",
@@ -43,7 +46,7 @@
         "tests/shared/HazardRules.spec.lua"
     ],
     "tests": [
-        "Suite Luau PASS (959/959; +24 tests: loot, logros, bestiario)",
+        "Suite Luau PASS (966/966; +7 tests de equipo)",
         "verify-structure PASS (42 servicios)",
         "verify-wiring PASS (32 servicios, 23 conexiones)",
         "rojo build PASS"
@@ -57,14 +60,9 @@
         "Playtest en Studio del Bloque 1: pendiente (se ejecuta con el cierre de bloques via MCP)"
     ],
     "brainrot_visual_followup": [],
-    "checkpoint": "Bloque 3 Progresion completado y verificado localmente",
-    "last_action": "Loot dinamico + logros/titulos + bestiario; perfil v3 con migracion 2->3; 959 tests PASS, build PASS",
-    "next_action": "Bloque 4 - Contenido: misiones V2 (Survive/Find/Activate + cadenas), arenas activables con oleadas, equipamiento que modifica stats reales",
-    "pendientes_conocidos": [
-        "Chests fisicos con animacion (FASE 24): diferidos",
-        "Panel UI de World Completion (FASE 44): datos publicados por atributos, panel pendiente",
-        "Companeros Brainrot (FASE 22): evaluar tras bestiario"
-    ],
+    "checkpoint": "Bloque 4 Contenido completado y verificado localmente",
+    "last_action": "Misiones V2 + terminales de arena/oleadas + equipo con stats reales; 966 tests PASS, build PASS",
+    "next_action": "Bloque 5 - Social/profundidad (co-op acotado, puzzles simples) y CIERRE: QA de gameplay, playtest real en Studio via MCP, regresion completa",
     "commit": "09007f3",
     "head": "09007f3",
     "origin": "09007f3"

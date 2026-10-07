@@ -47,8 +47,11 @@ local function describeAchievementRules()
 				-- legible y que el catalogo la declara o la emite el juego.
 				expect.toBe(type(achievement.Metric), "string")
 				expect.toBe(#achievement.Metric > 2, true)
-				expect.toBe(exists or achievement.Metric == "BossDefeated", true,
-					("metrica sin emisor conocido: %s"):format(achievement.Metric))
+				expect.toBe(
+					exists or achievement.Metric == "BossDefeated",
+					true,
+					("metrica sin emisor conocido: %s"):format(achievement.Metric)
+				)
 			end
 		end)
 
@@ -69,7 +72,11 @@ local function describeAchievementRules()
 			-- anti-P2W del proyecto aplicada a los logros.
 			for _, achievement in ipairs(Achievements.Catalog) do
 				expect.toBe(type(achievement.Coins), "number")
-				expect.toBe(achievement.Damage == nil, true, ("%s paga dano"):format(achievement.Id))
+				expect.toBe(
+					achievement.Damage == nil,
+					true,
+					("%s paga dano"):format(achievement.Id)
+				)
 			end
 		end)
 	end)

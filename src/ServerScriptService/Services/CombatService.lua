@@ -434,7 +434,11 @@ end
 --- @param player Player
 --- @return boolean cast
 function Service.TryAbility(player: Player): boolean
-	local _, root = readyFor(player, "Ability", CombatRules.Ability.Cooldown)
+	-- El enfriamiento de la habilidad lo modifica el EQUIPO (mision V2,
+	-- FASE 29): el multiplicador lo publica `InventoryService` y lo lee
+	-- aqui, asi la banda de enfoque hace lo que dice su descripcion.
+	local cooldownMult = tonumber(player:GetAttribute("AbilityCooldownMult")) or 1
+	local _, root = readyFor(player, "Ability", CombatRules.Ability.Cooldown * cooldownMult)
 
 	if not root then
 		return false

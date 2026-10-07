@@ -245,6 +245,9 @@ function Service.ApplyEffect(player: Player, zone: any, zoneIndex: number, now: 
 	if hazard.Kind == HazardRules.Kind.Quicksand then
 		if not Service._slowed[player.UserId] then
 			Service._slowed[player.UserId] = true
+			-- El atributo marca que la arena tiene la velocidad: el equipo
+			-- (InventoryService) no la pisa mientras dura el efecto.
+			player:SetAttribute("HazardSlowed", true)
 			humanoid.WalkSpeed = HazardRules.SlowedWalkSpeed(hazard)
 		end
 
@@ -314,12 +317,16 @@ function Service.ClearSlow(player: Player)
 	end
 
 	Service._slowed[player.UserId] = nil
+	player:SetAttribute("HazardSlowed", false)
 
 	local character = player.Character
 	local humanoid = character and character:FindFirstChildOfClass("Humanoid")
 
 	if humanoid and humanoid.Health > 0 then
-		humanoid.WalkSpeed = HazardRules.DefaultWalkSpeed
+		-- Se restaura la velocidad CON equipo (el atributo lo publica
+		-- InventoryService): quitar la arena no puede quitar las botas.
+		local mult = tonumber(player:GetAttribute("WalkSpeedMult")) or 1
+		humanoid.WalkSpeed = HazardRules.DefaultWalkSpeed * mult
 	end
 end
 
