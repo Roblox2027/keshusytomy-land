@@ -1,7 +1,7 @@
 ﻿{
     "mission": "KESHUSYTOMY-LAND V2 - FASE 3 Actividades de exploracion (server-authoritative)",
     "phase": "FASE-3-EXPLORE",
-    "subphase": "FASE 3 COMPLETED - implementado, verificado localmente y playtesteado en Studio/MCP. BUG FIX: material rewards (Mat_*) ahora se entregan via InventoryService.AddItem en lugar de GrantCurrency (que rechazaba silenciosamente monedas invalidas). TODO: commit + push.",
+    "subphase": "FASE 3 COMPLETED - implementado, verificado localmente y playtesteado en Studio/MCP. BUG FIX: material rewards (Mat_*) ahora se entregan via InventoryService.AddItem en luego de GrantCurrency. Commit ced7b56 + push a origin/main PASS. TODO: FASE 4.",
     "branch": "main",
     "task": "FASE 2: consolidar y proteger todo el trabajo existente. Bloques 1-4 ya estaban commited en HEAD 06727a7 (=origin/main). Bloque 5 (PuzzleService) estaba en el arbol sin commit. Se comitio Bloque 5 (7941e83) + FASE 1 RE-AUDIT docs (41a2a94) y continuidad FASE 2 (6545120), push a origin/main. HEAD real = origin/main = 6545120 (commit de continuidad FASE 2 COMPLETED; source idéntico a 41a2a94). STATE sincerado. 09007f3 no es phantom: es un commit real de FASE 0+1, detras de HEAD. FASE 3: implementada localmente, playtesteada en Studio/MCP (CONECTADO), TODO commited + push.",
     "done": true,
@@ -91,14 +91,14 @@
     "fase_actual": "FASE 3 - IMPLEMENTACION DEL GAMEPLAY V2: sistema de actividades (exploracion/descubrimiento/interaccion) — COMPLETED",
     "fase_completada": "FASE 2 - Consolidacion de estado, git y continuidad (PASS)",
     "fase_siguiente": "FASE 4 - Panel World Completion UI + cadenas de misiones + cofres fisicos (FASE 44, 41, 24)",
-    "commit": "6545120",
-    "head": "6545120",
-    "origin": "6545120",
-    "tree": "DIRTY (implementacion FASE 3 Activities + bugfix material rewards; PENDIENTE commit)",
+    "commit": "ced7b56",
+    "head": "ced7b56",
+    "origin": "ced7b56",
+    "tree": "CLEAN (commit ced7b56 + push a origin/main confirmado)",
     "continuidad": {
         "ultimo_estado_verificado": "6545120",
-        "ultima_fuente_verificada": "41a2a94",
-        "ultima_fuente_label": "FASE 1 RE-AUDIT (source idéntico a 6545120; 1014/1014 PASS, verify PASS, rojo build PASS, analyze.js FAIL baseline, Studio/MCP CONECTADO y playtesteado)",
+        "ultima_fuente_verificada": "6545120",
+        "ultima_fuente_label": "FASE 2 COMPLETED + FASE 3 implementada/playtesteada (1014/1014 PASS, verify PASS, rojo build PASS, analyze.js FAIL baseline, Studio/MCP CONECTADO y playtesteado).",
         "convencion": "Este STATE.json se comitea dentro del commit de FASE 3. Los campos head/origin/commit conservan 6545120, el HEAD inmediatamente anterior y ultimo estado verificado, por la convencion de continuidad del proyecto (no autorreferencia). 41a2a94 es el commit FASE 1 RE-AUDIT, fuente idéntica a 6545120."
     }
 }
