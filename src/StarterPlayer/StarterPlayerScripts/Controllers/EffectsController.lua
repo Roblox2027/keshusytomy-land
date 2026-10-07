@@ -33,6 +33,7 @@ local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local TweenService = game:GetService("TweenService")
 local Workspace = game:GetService("Workspace")
+local Lighting = game:GetService("Lighting")
 
 local SHARED = ReplicatedStorage:WaitForChild("Shared")
 local UTILS = SHARED:WaitForChild("Utils")
@@ -60,6 +61,53 @@ local _lastHealth = {}
 --- Tope de numeros flotantes a la vez. Sin el, una cadena de explosiones en
 --- una arena llena llena la pantalla de texto y deja de LEERSE.
 local MAX_NUMBERS = 8
+
+-- ---------------------------------------------------------------------------
+-- ILUMINACION DEL CICLO DIA/NOCHE (mision V2, FASE 38)
+-- ---------------------------------------------------------------------------
+--
+-- El ciclo es AMBIENTAL: no hay progreso por noches ni contadores de
+-- objetivo. Lo que cambia es lo que el jugador VE: la noche tiene que
+-- PARECER noche, o la fase que publica el servidor es una palabra en un
+-- cartel que no significa nada.
+--
+-- El estado lo publica el servidor (`NightPhase`); el cliente solo traduce
+-- la palabra a luz. La transicion es un tween: un salto de luz instantaneo
+-- se lee como un parpadeo del motor, no como un atardecer.
+local NIGHT_LIGHTING = {
+	Day = { ClockTime = 13, Brightness = 2, OutdoorAmbient = Color3.fromRGB(128, 128, 128) },
+	Sunset = { ClockTime = 18.2, Brightness = 1.4, OutdoorAmbient = Color3.fromRGB(120, 92, 84) },
+	Night = { ClockTime = 0.2, Brightness = 0.7, OutdoorAmbient = Color3.fromRGB(56, 62, 92) },
+	Dawn = { ClockTime = 6.1, Brightness = 1.3, OutdoorAmbient = Color3.fromRGB(104, 100, 110) },
+}
+
+--- Ultima fase aplicada: un atributo reescrito con el mismo valor dispara
+--- la senal igualmente, y rehacer el tween en curso lo reinicia a la vista.
+local _lightingPhase = nil
+
+--- Aplica la luz de una fase del ciclo. Suave y reversible.
+--- @param phase any
+local function applyNightLighting(phase: any)
+	if type(phase) ~= "string" or phase == _lightingPhase then
+		return
+	end
+
+	local target = NIGHT_LIGHTING[phase]
+
+	if not target then
+		return
+	end
+
+	_lightingPhase = phase
+
+	TweenService
+		:Create(Lighting, TweenInfo.new(4, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), {
+			ClockTime = target.ClockTime,
+			Brightness = target.Brightness,
+			OutdoorAmbient = target.OutdoorAmbient,
+		})
+		:Play()
+end
 --- Crea un numero flotante en una posicion de mundo.
 ---
 --- Se convierte a posicion de pantalla ANTES de crearse y se queda ahi: un
@@ -763,6 +811,17 @@ function Controller.Start(maid: any?): boolean
 	watchBlocks()
 	watchRewards()
 
+	-- CICLO DIA/NOCHE: la fase la publica el servidor por jugador y la luz
+	-- la traduce este cliente. Se aplica la actual al arrancar: entrar a
+	-- mitad de la noche no puede dejar el cielo de mediodia.
+	applyNightLighting(player:GetAttribute("NightPhase"))
+
+	if _maid then
+		_maid:Connect(player:GetAttributeChangedSignal("NightPhase"), function()
+			applyNightLighting(player:GetAttribute("NightPhase"))
+		end)
+	end
+
 	Controller.IsActive = true
 	Logger.Info("EffectsController listo (numeros de dano, borde y avisos).")
 	return true
@@ -782,6 +841,7 @@ function Controller.Destroy(): boolean
 
 	table.clear(_live)
 	table.clear(_lastHealth)
+	_lightingPhase = nil
 
 	_gui = nil
 	_numbers = nil

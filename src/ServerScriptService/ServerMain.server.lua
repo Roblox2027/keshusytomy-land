@@ -447,6 +447,16 @@ local SERVICES = {
 		dependencies = { "NightService" },
 	},
 
+	-- HazardService: la mecanica caracteristica de cada mundo (mision
+	-- V2, FASE 3): emboscadas, arenas movedizas, viento, lava y laseres.
+	-- Depende de `CombatService` (autoridad de dano) y `MonsterService`
+	-- (los enemigos de la emboscada). Ambos se pasan en `SetDependencies`.
+	{
+		name = "HazardService",
+		module = SERVER.Services.HazardService,
+		dependencies = { "CombatService", "MonsterService" },
+	},
+
 	-- MiniBossService: mini-bosses por zona con enfriamiento.
 	--
 	-- Depende de `MonsterService` porque sus NPC los genera el y porque
@@ -518,6 +528,7 @@ local function wireDependencies(registry: any): { string }
 	local nightService = registry:Get("NightService")
 	local hordeService = registry:Get("HordeService")
 	local eventService = registry:Get("EventService")
+	local hazardService = registry:Get("HazardService")
 	local miniBossService = registry:Get("MiniBossService")
 	local secretService = registry:Get("SecretService")
 
@@ -786,15 +797,35 @@ local function wireDependencies(registry: any): { string }
 
 	-- EventService: el reloj decide si rueda y cuanto dura; jugador y
 	-- misiones van como opcionales por la misma razon que en HordeService.
-	connect("EventService", eventService, { "NightService" }, function(service: any)
-		service.SetDependencies(nightService, playerService, questService)
-	end)
+	-- MonsterService va como dependencia (mision V2): es quien pone el
+	-- CUERPO del evento en el mapa.
+	connect(
+		"EventService",
+		eventService,
+		{ "NightService", "MonsterService" },
+		function(service: any)
+			service.SetDependencies(nightService, playerService, questService, monsterService)
+		end
+	)
 
 	-- MiniBossService: necesita a `MonsterService` para invocar el spawn
 	-- de sus NPC dentro de la zona. El resto son opcionales.
 	connect("MiniBossService", miniBossService, { "MonsterService" }, function(service: any)
 		service.SetDependencies(monsterService, playerService, questService, nightService)
 	end)
+
+	-- HazardService: el dano pasa por `CombatService` (autoridad unica)
+	-- y la emboscada genera enemigos con `MonsterService`. Sin ellos el
+	-- servicio arranca igual: las zonas se ven y lo unico que falta es
+	-- el efecto, que es una degradacion visible y no un crash.
+	connect(
+		"HazardService",
+		hazardService,
+		{ "CombatService", "MonsterService" },
+		function(service: any)
+			service.SetDependencies(combatService, monsterService)
+		end
+	)
 
 	connect(
 		"SecretService",
@@ -868,6 +899,18 @@ local function wireDependencies(registry: any): { string }
 		table.insert(report, "[WIRING OK] MonsterService -> MiniBossService")
 	else
 		table.insert(report, "[WIRING FAIL] MonsterService/MiniBossService no disponibles")
+	end
+
+	-- MonsterService -> EventService: la flecha que hace que las bajas
+	-- de un evento CUENTEN para su objetivo (mision V2, Bloque 1).
+	-- Mismo patron inverso con pcall que el de MiniBossService.
+	if monsterService and eventService then
+		pcall(function()
+			monsterService.SetEventService(eventService)
+		end)
+		table.insert(report, "[WIRING OK] MonsterService -> EventService")
+	else
+		table.insert(report, "[WIRING FAIL] MonsterService/EventService no disponibles")
 	end
 
 	-- QuestService NO depende de los servicios de juego: al reves, son los

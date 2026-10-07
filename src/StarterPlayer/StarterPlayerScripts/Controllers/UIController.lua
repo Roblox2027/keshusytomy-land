@@ -986,10 +986,26 @@ local function refresh()
 	end
 
 	-- ------------------------------------------------------------ Objective
-	-- El objetivo es el mundo en el que esta el jugador: es lo UNICO que se
-	-- deduce, y solo a partir de un dato ya publicado. La UI no inventa
-	-- reglas de juego ni calcula objetivos propios.
-	setText("Objective", "Text", (if worldName then tostring(worldName) else "--"))
+	-- Con evento activo (mision V2) el panel muestra el EVENTO: etiqueta,
+	-- objetivo y cuenta atras, todo publicado por el servidor. Sin evento,
+	-- el mundo (que ademas ya esta en la TopBar). La UI no inventa reglas
+	-- de juego ni calcula objetivos propios: compone atributos publicados.
+	local eventLabel = attr("EventLabel")
+	local eventRemaining = attr("EventRemaining")
+
+	if type(eventLabel) == "string" and eventLabel ~= "" then
+		local objective = attr("EventObjective")
+		local objectiveText = if type(objective) == "string" and objective ~= ""
+			then ("  ·  %s"):format(objective)
+			else ""
+		local timeText = if type(eventRemaining) == "number"
+			then ("  ·  %ds"):format(eventRemaining)
+			else ""
+
+		setText("Objective", "Text", ("%s%s%s"):format(eventLabel, objectiveText, timeText))
+	else
+		setText("Objective", "Text", (if worldName then tostring(worldName) else "--"))
+	end
 
 	-- -------------------------------------------------------------- Mission
 	local claimable = attr("QuestCount")
@@ -1384,6 +1400,20 @@ function Controller.Start(maid: any?): boolean
 				Controller.Notify(
 					("ENTRANDO EN %s"):format(tostring(world)),
 					Color3.fromRGB(150, 220, 255)
+				)
+			end
+		end)
+
+		-- EVENTO DE MUNDO (mision V2): el servidor publica `EventActive`
+		-- al abrir un evento; el aviso usa la etiqueta del servidor, que
+		-- no puede mentir sobre QUE evento es.
+		_maid:Connect(player:GetAttributeChangedSignal("EventActive"), function()
+			local eventId = player:GetAttribute("EventActive")
+			if type(eventId) == "string" and eventId ~= "" then
+				local label = player:GetAttribute("EventLabel")
+				Controller.Notify(
+					tostring(label ~= "" and label or eventId),
+					Color3.fromRGB(255, 170, 120)
 				)
 			end
 		end)

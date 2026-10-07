@@ -62,6 +62,12 @@ Service._questService = nil
 -- recompensa de tier y arrancan el enfriamiento de su zona.
 Service._miniBossService = nil
 
+-- EventService: observador de muertes (mision V2, Bloque 1).
+-- Opcional: con el, las bajas de enemigos de un evento cuentan
+-- para su objetivo; sin el, los eventos de caza no progresan y
+-- caducan sin pagar, que es una degradacion visible y no un crash.
+Service._eventService = nil
+
 local MaidRef = nil
 
 --- Carpeta de monstruos, creada una sola vez.
@@ -113,6 +119,15 @@ function Service.SetMiniBossService(miniBossService: any)
 	Service._miniBossService = miniBossService
 end
 
+--- Inyecta el `EventService` (mision V2, Bloque 1).
+---
+--- Mismo patron de observador que `SetMiniBossService`: la muerte
+--- se anuncia con `pcall` y el juego funciona aunque nadie escuche.
+--- @param eventService any
+function Service.SetEventService(eventService: any)
+	Service._eventService = eventService
+end
+
 --- Monstruos vivos ahora mismo.
 --- @return number
 function Service.GetAliveCount(): number
@@ -121,6 +136,21 @@ function Service.GetAliveCount(): number
 		count += 1
 	end
 	return count
+end
+
+--- Registro de un monstruo vivo por id, o nil.
+---
+--- Lo usan los observadores de estado (EventService los recontaba por
+--- su propia tabla y desaparecian sin que nadie lo notara: la verdad
+--- de "sigue vivo" es ESTE registro).
+--- @param monsterId any
+--- @return { [string]: any }?
+function Service.Get(monsterId: any): { [string]: any }?
+	if type(monsterId) ~= "number" then
+		return nil
+	end
+
+	return Service._monsters[monsterId]
 end
 
 --- Monstruos vivos de un tipo concreto.
@@ -507,6 +537,37 @@ function Service.GetBossId(worldId: string): number?
 	return Service._bossesByWorld[worldId]
 end
 
+--- Desaparece un monstruo SIN recompensa ni animacion de muerte.
+---
+--- Es el camino de cleanup de los eventos (mision V2): un enemigo
+--- generado por un evento que se cierra no se queda en el mapa ni se
+--- cobra. No atraviesa la logica de muerte a proposito: nadie lo mato.
+--- Vive aqui, DESPUES de `despawnMonster` y `publishBossBar`: en Luau
+--- un local no existe para el codigo escrito encima de su declaracion.
+--- @param monsterId any
+--- @return boolean removed
+function Service.Despawn(monsterId: any): boolean
+	if type(monsterId) ~= "number" then
+		return false
+	end
+
+	local record = Service._monsters[monsterId]
+
+	if not record then
+		return false
+	end
+
+	if record.IsBoss and record.WorldId then
+		if Service._bossesByWorld[record.WorldId] == monsterId then
+			Service._bossesByWorld[record.WorldId] = nil
+			publishBossBar(record.WorldId, nil)
+		end
+	end
+
+	despawnMonster(monsterId)
+	return true
+end
+
 --- Registro completo del boss de un mundo. Solo para diagnostico.
 --- @param worldId string
 --- @return { [string]: any }?
@@ -855,6 +916,13 @@ function Service.OnMonsterDied(monsterId: number): boolean
 	-- recompensa de tier y activan el cooldown de su zona.
 	if Service._miniBossService then
 		pcall(Service._miniBossService.OnMonsterDied, monsterId, record)
+	end
+
+	-- EVENTOS (mision V2): la baja de un enemigo DE EVENTO cuenta
+	-- para el objetivo del evento y puede cerrarlo completado. Va
+	-- junto al aviso de mini-boss, por el mismo patron opcional.
+	if Service._eventService then
+		pcall(Service._eventService.OnMonsterDied, monsterId, record)
 	end
 
 	-- Liberacion de referencias. Un registro de muerte que conserve el

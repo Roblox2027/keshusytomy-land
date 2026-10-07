@@ -48,31 +48,85 @@ Rules.State = {
 
 Rules.ByWorld = {
 	Forest = {
-		{ Id = "ForestSwarm", Label = "HORDA DEL BOSQUE", Rarity = 0.30, Duration = 75, Threat = 1.25 },
-		{ Id = "ForestPredators", Label = "ANIMALES HOSTILES", Rarity = 0.22, Duration = 60, Threat = 1.15 },
+		{
+			Id = "ForestSwarm",
+			Label = "HORDA DEL BOSQUE",
+			Rarity = 0.30,
+			Duration = 75,
+			Threat = 1.25,
+		},
+		{
+			Id = "ForestPredators",
+			Label = "ANIMALES HOSTILES",
+			Rarity = 0.22,
+			Duration = 60,
+			Threat = 1.15,
+		},
 		{ Id = "ForestStorm", Label = "TORMENTA", Rarity = 0.16, Duration = 50, Threat = 1.05 },
-		{ Id = "ForestDarkness", Label = "BOSQUE OSCURO", Rarity = 0.12, Duration = 60, Threat = 1.2 },
+		{
+			Id = "ForestDarkness",
+			Label = "BOSQUE OSCURO",
+			Rarity = 0.12,
+			Duration = 60,
+			Threat = 1.2,
+		},
 	},
 	Desert = {
-		{ Id = "DesertSandstorm", Label = "TORMENTA DE ARENA", Rarity = 0.28, Duration = 70, Threat = 1.2 },
+		{
+			Id = "DesertSandstorm",
+			Label = "TORMENTA DE ARENA",
+			Rarity = 0.28,
+			Duration = 70,
+			Threat = 1.2,
+		},
 		{ Id = "DesertRaid", Label = "INVASION", Rarity = 0.2, Duration = 80, Threat = 1.3 },
-		{ Id = "DesertMirage", Label = "OASIS ESPECIAL", Rarity = 0.14, Duration = 60, Threat = 1.0 },
+		{
+			Id = "DesertMirage",
+			Label = "OASIS ESPECIAL",
+			Rarity = 0.14,
+			Duration = 60,
+			Threat = 1.0,
+		},
 	},
 	Ice = {
-		{ Id = "IceBlizzard", Label = "TORMENTA CONGELANTE", Rarity = 0.28, Duration = 70, Threat = 1.25 },
+		{
+			Id = "IceBlizzard",
+			Label = "TORMENTA CONGELANTE",
+			Rarity = 0.28,
+			Duration = 70,
+			Threat = 1.25,
+		},
 		{ Id = "IceAvalanche", Label = "AVALANCHA", Rarity = 0.2, Duration = 45, Threat = 1.3 },
-		{ Id = "IceCreatures", Label = "CRIATURAS DE HIELO", Rarity = 0.18, Duration = 65, Threat = 1.15 },
+		{
+			Id = "IceCreatures",
+			Label = "CRIATURAS DE HIELO",
+			Rarity = 0.18,
+			Duration = 65,
+			Threat = 1.15,
+		},
 	},
 	Volcano = {
 		{ Id = "VolcanoEruption", Label = "ERUPCION", Rarity = 0.28, Duration = 70, Threat = 1.35 },
 		{ Id = "VolcanoLava", Label = "RIO DE LAVA", Rarity = 0.22, Duration = 60, Threat = 1.25 },
-		{ Id = "VolcanoRockRain", Label = "LLUVIA DE ROCAS", Rarity = 0.18, Duration = 50, Threat = 1.2 },
+		{
+			Id = "VolcanoRockRain",
+			Label = "LLUVIA DE ROCAS",
+			Rarity = 0.18,
+			Duration = 50,
+			Threat = 1.2,
+		},
 	},
 	Cyber = {
 		{ Id = "CyberBlackout", Label = "APAGON", Rarity = 0.26, Duration = 60, Threat = 1.15 },
 		{ Id = "CyberAlarm", Label = "ALARMA", Rarity = 0.2, Duration = 55, Threat = 1.1 },
 		{ Id = "CyberOverload", Label = "SOBRECARGA", Rarity = 0.18, Duration = 55, Threat = 1.3 },
-		{ Id = "CyberInvasion", Label = "INVASION ROBOTICA", Rarity = 0.22, Duration = 85, Threat = 1.35 },
+		{
+			Id = "CyberInvasion",
+			Label = "INVASION ROBOTICA",
+			Rarity = 0.22,
+			Duration = 85,
+			Threat = 1.35,
+		},
 	},
 }
 
@@ -96,12 +150,45 @@ Rules.ByWorld = {
 -- recorriendo las 1000 fracciones del rango, que es la unica forma de
 -- comprobar una probabilidad sin depender de que el azar coopere.
 Rules.Rare = {
-	{ Id = "LegendaryChest", Label = "COFRE LEGENDARIO", Rarity = 0.015, Duration = 120, Threat = 1.0 },
+	{
+		Id = "LegendaryChest",
+		Label = "COFRE LEGENDARIO",
+		Rarity = 0.015,
+		Duration = 120,
+		Threat = 1.0,
+	},
 	{ Id = "RareMiniBoss", Label = "MINI-BOSS RARO", Rarity = 0.02, Duration = 90, Threat = 1.4 },
-	{ Id = "SecretZoneOpen", Label = "ZONA SECRETA ABIERTA", Rarity = 0.015, Duration = 150, Threat = 1.0 },
-	{ Id = "RewardRain", Label = "LLUVIA DE RECOMPENSAS", Rarity = 0.01, Duration = 60, Threat = 0.9 },
+	{
+		Id = "SecretZoneOpen",
+		Label = "ZONA SECRETA ABIERTA",
+		Rarity = 0.015,
+		Duration = 150,
+		Threat = 1.0,
+	},
+	{
+		Id = "RewardRain",
+		Label = "LLUVIA DE RECOMPENSAS",
+		Rarity = 0.01,
+		Duration = 60,
+		Threat = 0.9,
+	},
 	{ Id = "TimePortal", Label = "PORTAL TEMPORAL", Rarity = 0.015, Duration = 90, Threat = 1.2 },
-	{ Id = "SurvivalTrial", Label = "PRUEBA DE SUPERVIVENCIA", Rarity = 0.02, Duration = 100, Threat = 1.35 },
+	{
+		Id = "SurvivalTrial",
+		Label = "PRUEBA DE SUPERVIVENCIA",
+		Rarity = 0.02,
+		Duration = 100,
+		Threat = 1.35,
+	},
+	-- Evento MUNDIAL (mision V2, FASE 5): el cuerpo lo pone `Bodies`
+	-- y la recompensa la cobran TODOS los presentes al completarse.
+	{
+		Id = "WorldInvasion",
+		Label = "LOS MONSTRUOS ESTAN INVADIENDO EL MUNDO",
+		Rarity = 0.015,
+		Duration = 120,
+		Threat = 1.4,
+	},
 }
 
 --- Ids de todos los eventos, con su mundo (`nil` si son raros).
@@ -276,7 +363,13 @@ export type ActiveEvent = {
 --- @param night any
 --- @param now number reloj del servidor
 --- @return ActiveEvent
-function Rules.Start(instanceId: number, event: any, worldId: string, night: any, now: number): ActiveEvent
+function Rules.Start(
+	instanceId: number,
+	event: any,
+	worldId: string,
+	night: any,
+	now: number
+): ActiveEvent
 	return {
 		InstanceId = instanceId,
 		EventId = event.Id,
@@ -346,7 +439,10 @@ end
 --- @param active ActiveEvent
 --- @param rewardScale any?
 --- @return { XP: number, Coins: number, Gems: number }
-function Rules.RewardFor(active: ActiveEvent, rewardScale: any?): { XP: number, Coins: number, Gems: number }
+function Rules.RewardFor(
+	active: ActiveEvent,
+	rewardScale: any?
+): { XP: number, Coins: number, Gems: number }
 	local scale = tonumber(rewardScale)
 
 	if not scale or scale ~= scale or scale < 1 then
@@ -418,6 +514,202 @@ function Rules.IsWorldEvent(eventId: any): boolean
 	end
 
 	return false
+end
+
+-- ---------------------------------------------------------------------------
+-- CUERPO DEL EVENTO (MASTER MISSION V2 - Bloque 1)
+-- ---------------------------------------------------------------------------
+--
+-- Hasta aqui el evento era un registro con reloj: se abria, sumaba amenaza
+-- y pagaba al cerrarse, y el jugador nunca veia NADA en el mundo. El cuerpo
+-- es lo que el evento PONE en el mapa: enemigos que cazar, un elite unico o
+-- una amenaza que sobrevivir.
+--
+-- `Bodies` es una tabla APARTE del catalogo y no campos nuevos en cada
+-- entrada por una razon de contrato: los tests de `Events.spec` recorren el
+-- catalogo campo a campo, y un evento sin cuerpo (una tormenta ambiental) NO
+-- tiene que declarar nada. "Sin cuerpo" se lee como "el evento es ambiental"
+-- y no como "a este evento le falta configuracion".
+--
+-- LOS CUATRO TIPOS
+-- ----------------
+--   Hunt:    aparecen enemigos del evento y el objetivo es derrotarlos.
+--            El evento se completa AL LLEGAR al objetivo, no por tiempo.
+--   Boss:    aparece UN elite del mundo. El objetivo es derrotarlo.
+--   Survive: no hay enemigos propios; la amenaza la sube `Threat` y el
+--            objetivo es estar vivo cuando el reloj llega a cero.
+--   Reward:  no hay enemigos; el evento paga su recompensa al cerrarse.
+
+Rules.BodyKind = {
+	Hunt = "Hunt",
+	Boss = "Boss",
+	Survive = "Survive",
+	Reward = "Reward",
+}
+
+--- Maximo de enemigos VIVOS que un evento mantiene en el mundo.
+---
+--- Es un presupuesto de rendimiento y de lectura, no de dificultad: mas de
+--- cuatro enemigos de evento a la vez tapa a la fauna normal del mundo, y el
+--- jugador deja de distinguir "el evento" de "la ronda". La dificultad del
+-- evento la pone el OBJETIVO (cuantos hay que derrotar), no la cantidad
+-- simultanea.
+Rules.MaxAlivePerEvent = 4
+
+Rules.Bodies = {
+	-- Forest
+	ForestSwarm = { Kind = "Hunt", Spawns = { "Slime", "Shadow" }, BaseTarget = 8 },
+	ForestPredators = { Kind = "Hunt", Spawns = { "Hunter" }, BaseTarget = 5 },
+	-- Desert
+	DesertRaid = { Kind = "Hunt", Spawns = { "Hunter", "Guardian" }, BaseTarget = 7 },
+	-- Ice
+	IceCreatures = { Kind = "Hunt", Spawns = { "IceBeast" }, BaseTarget = 5 },
+	-- Cyber
+	CyberAlarm = { Kind = "Hunt", Spawns = { "CyberStalker" }, BaseTarget = 5 },
+	CyberInvasion = { Kind = "Hunt", Spawns = { "CyberStalker", "BomberMonster" }, BaseTarget = 8 },
+	-- Raros
+	RareMiniBoss = {
+		Kind = "Boss",
+		Spawns = { "Guardian", "IceBeast", "FireBeast", "CyberStalker" },
+		BaseTarget = 1,
+	},
+	WorldInvasion = {
+		Kind = "Hunt",
+		Spawns = { "Slime", "Shadow", "Hunter", "BombBug" },
+		BaseTarget = 12,
+	},
+}
+
+--- Cuerpo de un evento, o nil si el evento es ambiental.
+--- @param eventId any
+--- @return any?
+function Rules.BodyFor(eventId: any): any?
+	if type(eventId) ~= "string" then
+		return nil
+	end
+
+	return Rules.Bodies[eventId]
+end
+
+--- Objetivo NUMERICO del evento: cuantas bajas hay que conseguir.
+---
+--- Escala con la noche de forma ACOTADA: cada noche suma una baja al
+--- objetivo hasta un techo de +6. Sin techo, un evento de la noche 40 pediria
+-- 48 bajas en 75 segundos, que no es un desafio: es imposible, y el jugador
+--- aprende a ignorar el evento.
+--- @param eventId any
+--- @param night any
+--- @return number target 0 = evento sin objetivo de bajas
+function Rules.ObjectiveTargetFor(eventId: any, night: any): number
+	local body = Rules.BodyFor(eventId)
+
+	if not body or body.Kind ~= Rules.BodyKind.Hunt and body.Kind ~= Rules.BodyKind.Boss then
+		return 0
+	end
+
+	local base = tonumber(body.BaseTarget) or 1
+	local bonus = math.clamp((tonumber(night) or 1) - 1, 0, 6)
+
+	if body.Kind == Rules.BodyKind.Boss then
+		return 1
+	end
+
+	return base + bonus
+end
+
+--- Cuantos enemigos del evento hay que generar AHORA.
+---
+--- La regla mantiene vivos `MaxAlivePerEvent` mientras queden bajas por
+--- hacer, y deja de generar cuando las bajas hechas mas los vivos ya
+--- alcanzan el objetivo: generar de mas crearia enemigos huerfanos que el
+--- jugador no necesita para completar el evento.
+--- @param eventId any
+--- @param night any
+--- @param kills any bajas ya contabilizadas
+--- @param alive any vivos ahora mismo
+--- @return number a generar (0 si no toca)
+function Rules.SpawnPlanFor(eventId: any, night: any, kills: any, alive: any): number
+	local body = Rules.BodyFor(eventId)
+
+	if not body or body.Kind ~= Rules.BodyKind.Hunt and body.Kind ~= Rules.BodyKind.Boss then
+		return 0
+	end
+
+	local target = Rules.ObjectiveTargetFor(eventId, night)
+	local done = (tonumber(kills) or 0) + (tonumber(alive) or 0)
+	local remaining = target - done
+
+	if remaining <= 0 then
+		return 0
+	end
+
+	if body.Kind == Rules.BodyKind.Boss then
+		return math.min(remaining, 1)
+	end
+
+	return math.min(remaining, Rules.MaxAlivePerEvent - (tonumber(alive) or 0))
+end
+
+--- El evento PAGA cuando el reloj llega a cero.
+---
+--- Un evento de caza que expira sin completarse NO paga: pagar lo convertiria
+--- en "espera 75 segundos y cobra", que es exactamente el evento sin cuerpo
+--- que esta regla viene a eliminar. Uno de supervivencia o recompensa SI: el
+--- objetivo era aguantar el reloj.
+--- @param eventId any
+--- @return boolean
+function Rules.CompletesOnExpiry(eventId: any): boolean
+	local body = Rules.BodyFor(eventId)
+
+	if not body then
+		return true
+	end
+
+	return body.Kind == Rules.BodyKind.Survive or body.Kind == Rules.BodyKind.Reward
+end
+
+--- Texto de objetivo para el HUD.
+--- @param eventId any
+--- @param night any
+--- @param kills any
+--- @return string
+function Rules.ObjectiveText(eventId: any, night: any, kills: any): string
+	local body = Rules.BodyFor(eventId)
+
+	if not body then
+		return ""
+	end
+
+	if body.Kind == Rules.BodyKind.Hunt then
+		local target = Rules.ObjectiveTargetFor(eventId, night)
+		return ("Derrota: %d/%d"):format(tonumber(kills) or 0, target)
+	end
+
+	if body.Kind == Rules.BodyKind.Boss then
+		return "Derrota al elite"
+	end
+
+	if body.Kind == Rules.BodyKind.Survive then
+		return "Sobrevive"
+	end
+
+	return "Recoge la recompensa"
+end
+
+--- Lista plana de eventos CON cuerpo (diagnostico y pruebas).
+--- @return { { Id: string, Kind: string, Spawns: { string } } }
+function Rules.GetBodies(): { any }
+	local out = {}
+
+	for id, body in pairs(Rules.Bodies) do
+		table.insert(out, { Id = id, Kind = body.Kind, Spawns = body.Spawns })
+	end
+
+	table.sort(out, function(a, b)
+		return a.Id < b.Id
+	end)
+
+	return out
 end
 
 return Rules

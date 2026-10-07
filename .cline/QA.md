@@ -3,7 +3,8 @@
 ## MASTER MISSION V2
 - FASE 0 continuidad: PASS (git limpio, HEAD=origin/main=`ed18f24`, verify PASS salvo analyze.js baseline)
 - FASE 1 auditoria: PASS (`GAMEPLAY_AUDIT.md` — 16 hallazgos: 5 P0, 6 P1, 6 P2)
-- Bloques 1-5: NO INICIADOS
+- BLOQUE 1 Mundo vivo: PASS local (eventos con cuerpo A2, hazards por mundo A3, luz de noche B6; 919/919 tests, wiring/estructura/build PASS). Playtest Studio: PENDIENTE.
+- Bloques 2-5: NO INICIADOS
 - Criterio de terminacion V2: pendiente (ninguna categoria certificada aun)
 
 ## Status mision V1 (cerrada)

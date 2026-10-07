@@ -1,22 +1,35 @@
 ﻿{
     "mission": "MASTER MISSION V2 - Expansion total de gameplay",
-    "phase": "M2-FASE1",
-    "subphase": "auditoria-de-diversion",
-    "task": "FASE 0 (continuidad) y FASE 1 (GAMEPLAY_AUDIT.md) completadas; siguiente: Bloque 1 - Mundo vivo (eventos con cuerpo + mecanica por mundo + noche)",
+    "phase": "M2-BLOQUE1",
+    "subphase": "mundo-vivo",
+    "task": "Bloque 1 Mundo vivo COMPLETADO: eventos con cuerpo (A2), mecanica por mundo (A3), noche ambiental con luz real (B6); siguiente: Bloque 2 - Combate (combate V2 + boss ritual)",
     "done": true,
     "fases_completadas": [
-        "FASE 0 - Continuidad: .cline leido, git limpio, HEAD=origin/main=ed18f24, npm run verify con puertas en PASS (analyze.js FAIL preexistente documentado)",
-        "FASE 1 - Auditoria de diversion: GAMEPLAY_AUDIT.md creado con 16 hallazgos (5 P0, 6 P1, 6 P2), veredicto por area y orden de ataque en 5 bloques"
+        "FASE 0 - Continuidad (commit 09007f3)",
+        "FASE 1 - Auditoria de diversion: GAMEPLAY_AUDIT.md (commit 09007f3)",
+        "BLOQUE 1 - Mundo vivo: A2 eventos con cuerpo + A3 mecanica por mundo + B6 noche ambiental, verificado y publicado"
     ],
+    "bloque1_detalle": {
+        "A2_eventos": "EventRules.Bodies (Hunt/Boss/Survive/Reward) + WorldInvasion; EventService spawnea enemigos por zona, cuenta bajas via MonsterService, completa por objetivo (no por reloj), limpia siempre; HUD muestra etiqueta+objetivo+cuenta atras en panel Objective y Notify al abrir",
+        "A3_hazards": "HazardRules + HazardService: Forest emboscada, Desert arenas movedizas (slow 0.5x), Ice rachas de viento (impulso), Volcano lava DOT (6 hp/s), Cyber laser telegrafiado on/off; zonas visibles por codigo en centros de zona; dano via CombatService (autoridad unica)",
+        "B6_noche": "EffectsController traduce NightPhase a Lighting (ClockTime/Brightness/OutdoorAmbient) con tween de 4s; ambiental, sin progreso por noches"
+    },
     "pending": [
-        "Bloque 1 - Mundo vivo: cuerpo de eventos (A2), mecanica caracteristica por mundo (A3), noche con dientes (B6)",
-        "Bloque 2 - Combate: combate V2 (A1), boss ritual (B1)",
+        "Bloque 2 - Combate: ataque rapido + dash + habilidad (A1), boss ritual con telegraphs/arena/mecanicas por fase (B1)",
         "Bloque 3 - Progresion: loot dinamico (A4), logros/discovery/titulos (A5), coleccion Brainrot (B4)",
         "Bloque 4 - Contenido: misiones V2 (B2), arenas/hordas (B5), equipamiento real (B3)",
         "Bloque 5 - Social/profundidad: co-op, puzzles, coleccionables, home, vehiculos, NPC",
         "Cierre: QA gameplay, playtest real, regresion, commits por bloque"
     ],
     "modified": [
+        "src/ReplicatedStorage/Shared/Libraries/EventRules.lua",
+        "src/ServerScriptService/Services/EventService.lua",
+        "src/ServerScriptService/Services/MonsterService.lua",
+        "src/ServerScriptService/ServerMain.server.lua",
+        "src/StarterPlayer/StarterPlayerScripts/Controllers/UIController.lua",
+        "src/StarterPlayer/StarterPlayerScripts/Controllers/EffectsController.lua",
+        "tests/RunTests.lua",
+        "tests/shared/Events.spec.lua",
         ".cline/STATE.json",
         ".cline/PROGRESS.md",
         ".cline/NEXT-TASK.md",
@@ -24,24 +37,29 @@
         ".cline/BLOCKED.md"
     ],
     "created": [
-        "GAMEPLAY_AUDIT.md"
+        "src/ReplicatedStorage/Shared/Libraries/HazardRules.lua",
+        "src/ServerScriptService/Services/HazardService.lua",
+        "tests/shared/HazardRules.spec.lua"
     ],
     "tests": [
-        "npm run verify PASS (Rojo build, Suite Luau, verify-structure, verify-wiring; analyze.js FAIL preexistente)",
-        "git: arbol limpio, HEAD=origin/main=ed18f24"
+        "Suite Luau PASS (919/919; +20 tests: cuerpo de eventos, hazards)",
+        "verify-structure PASS (39 servicios)",
+        "verify-wiring PASS (30 servicios, 21 conexiones, 47 llamadas)",
+        "rojo build PASS"
     ],
     "failures": [],
     "repairs": [],
     "playtests": [],
     "blockers": [
         "AUDIO ASSETS: BLOCKED_EXTERNAL - sin IDs reales; no se inventan",
-        "analyze.js: FAIL PREEXISTENTE de baseline; no introducido por esta mision"
+        "analyze.js: FAIL PREEXISTENTE de baseline; no introducido por esta mision",
+        "Playtest en Studio del Bloque 1: pendiente (se ejecuta con el cierre de bloques via MCP)"
     ],
     "brainrot_visual_followup": [],
-    "checkpoint": "Mision V2 iniciada: auditoria de diversion publicada, plan de 5 bloques definido",
-    "last_action": "FASE 0 + FASE 1 completadas (GAMEPLAY_AUDIT.md)",
-    "next_action": "Bloque 1 - Mundo vivo: dar cuerpo a eventos dinamicos (sobre EventService), mecanica por mundo (HazardService), noche ambiental con efectos",
-    "commit": "ed18f24",
-    "head": "ed18f24",
-    "origin": "ed18f24"
+    "checkpoint": "Bloque 1 Mundo vivo completado y verificado localmente",
+    "last_action": "Eventos con cuerpo + hazards por mundo + luz de noche, 919 tests PASS, build PASS",
+    "next_action": "Bloque 2 - Combate: ataque rapido cuerpo a cuerpo, dash con i-frames, habilidad con cooldown (server-authoritative via CombatService) y boss ritual (telegraphs, adds, debilidad por fase)",
+    "commit": "09007f3",
+    "head": "09007f3",
+    "origin": "09007f3"
 }

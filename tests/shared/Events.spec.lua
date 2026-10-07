@@ -20,6 +20,7 @@ local expect = Harness.expect
 
 local Event = require("../../src/ReplicatedStorage/Shared/Libraries/EventRules")
 local Access = require("../../src/ReplicatedStorage/Shared/Libraries/WorldAccessRules")
+local Monsters = require("../../src/ReplicatedStorage/Shared/MonsterDefinitions")
 
 local function describeEvents()
 	Harness.describe("Catalogo", function()
@@ -66,8 +67,10 @@ local function describeEvents()
 				expect.toBe(
 					def.Rarity <= 0.1,
 					true,
-					("%s tiene probabilidad %s y deberia ser <= 0.1")
-						:format(def.Id, tostring(def.Rarity))
+					("%s tiene probabilidad %s y deberia ser <= 0.1"):format(
+						def.Id,
+						tostring(def.Rarity)
+					)
 				)
 			end
 		end)
@@ -108,8 +111,10 @@ local function describeEvents()
 				expect.toBe(
 					rareHits / steps <= 0.2,
 					true,
-					("%s: los eventos raros salen el %.1f %% de las veces")
-						:format(worldId, (rareHits / steps) * 100)
+					("%s: los eventos raros salen el %.1f %% de las veces"):format(
+						worldId,
+						(rareHits / steps) * 100
+					)
 				)
 			end
 		end)
@@ -150,7 +155,7 @@ local function describeEvents()
 		end)
 	end)
 
-Harness.describe("Ciclo de vida y limpieza", function()
+	Harness.describe("Ciclo de vida y limpieza", function()
 		Harness.it("un evento empieza corriendo y con duracion", function()
 			local def = Event.Get("ForestSwarm")
 			local active = Event.Start(1, def, "Forest", 10, 1000)
@@ -225,10 +230,101 @@ Harness.describe("Ciclo de vida y limpieza", function()
 			-- empuje el perfil entero.
 			for _, entry in ipairs(Event.GetAll()) do
 				local threat = Event.ThreatOf(Event.Get(entry.Id))
-				expect.toBe(threat >= 0.5 and threat <= 2, true, ("%s: %s"):format(entry.Id, tostring(threat)))
+				expect.toBe(
+					threat >= 0.5 and threat <= 2,
+					true,
+					("%s: %s"):format(entry.Id, tostring(threat))
+				)
 			end
 
 			expect.toBe(Event.ThreatOf(nil), 1)
+		end)
+	end)
+
+	Harness.describe("Cuerpo del evento (mision V2)", function()
+		Harness.it("los enemigos declarados por los cuerpos existen", function()
+			-- Un `Spawns` con un id inventado no da error al cargar: da un
+			-- evento que se abre, anuncia y NO PONE NADA en el mapa. Es el
+			-- peor fallo posible porque parece configurado.
+			for _, entry in ipairs(Event.GetBodies()) do
+				expect.toBe(type(entry.Spawns), "table", ("%s sin Spawns"):format(entry.Id))
+				expect.toBe(#entry.Spawns > 0, true, ("%s con Spawns vacio"):format(entry.Id))
+
+				for _, spawnId in ipairs(entry.Spawns) do
+					expect.toBe(
+						Monsters.Get(spawnId) ~= nil,
+						true,
+						("%s: enemigo inexistente '%s'"):format(entry.Id, tostring(spawnId))
+					)
+				end
+			end
+		end)
+
+		Harness.it("todo cuerpo referencia un evento que existe", function()
+			-- La tabla `Bodies` es aparte del catalogo: un id aqui que no este
+			-- en el catalogo es un cuerpo huerfano que nunca se genera.
+			for _, entry in ipairs(Event.GetBodies()) do
+				expect.toBe(
+					Event.Get(entry.Id) ~= nil,
+					true,
+					("cuerpo sin evento: '%s'"):format(entry.Id)
+				)
+			end
+		end)
+
+		Harness.it("el objetivo de caza esta acotado con la noche", function()
+			-- Sin techo, un evento de la noche 40 pediria decenas de bajas en
+			-- 75 segundos: no es desafio, es imposible.
+			for _, entry in ipairs(Event.GetBodies()) do
+				if entry.Kind == "Hunt" then
+					local target99 = Event.ObjectiveTargetFor(entry.Id, 99)
+
+					expect.toBe(
+						target99 <= 20,
+						true,
+						("%s pide %d bajas en la noche 99"):format(entry.Id, target99)
+					)
+				end
+			end
+
+			expect.toBe(Event.ObjectiveTargetFor("RareMiniBoss", 50), 1)
+			expect.toBe(Event.ObjectiveTargetFor("ForestStorm", 10), 0)
+		end)
+
+		Harness.it("el plan de generacion respeta el tope de vivos", function()
+			-- El plan nunca pide mas de `MaxAlivePerEvent` vivos ni mas de lo
+			-- que falta para el objetivo: los dos extremos crean enemigos
+			-- huerfanos en el mapa.
+			local night = 1
+			local target = Event.ObjectiveTargetFor("ForestSwarm", night)
+
+			expect.toBe(
+				Event.SpawnPlanFor("ForestSwarm", night, 0, 0) <= Event.MaxAlivePerEvent,
+				true
+			)
+			expect.toBe(Event.SpawnPlanFor("ForestSwarm", night, target, 0), 0)
+			expect.toBe(Event.SpawnPlanFor("ForestSwarm", night, 0, target), 0)
+			expect.toBe(Event.SpawnPlanFor("ForestSwarm", night, 0, 3), 1)
+			expect.toBe(Event.SpawnPlanFor("ForestStorm", night, 0, 0), 0)
+		end)
+
+		Harness.it("un evento de caza que expira NO se completa", function()
+			-- Pagar una caza caducada premiaria no haber jugado: el evento se
+			-- convertiria en "espera y cobra", que es lo que el cuerpo elimina.
+			expect.toBe(Event.CompletesOnExpiry("ForestSwarm"), false)
+			expect.toBe(Event.CompletesOnExpiry("RareMiniBoss"), false)
+			expect.toBe(Event.CompletesOnExpiry("ForestStorm"), true)
+			expect.toBe(Event.CompletesOnExpiry("RewardRain"), true)
+		end)
+
+		Harness.it("el evento mundial de invasion existe y es raro", function()
+			-- FASE 5 de la mision: `WORLD_INVASION` con etiqueta de anuncio
+			-- global, objetivo compartido y recompensa para los presentes.
+			local def = Event.Get("WorldInvasion")
+
+			expect.toBe(def ~= nil, true, "WorldInvasion no esta en el catalogo")
+			expect.toBe(Event.IsRare("WorldInvasion"), true)
+			expect.toBe(Event.BodyFor("WorldInvasion") ~= nil, true, "WorldInvasion sin cuerpo")
 		end)
 	end)
 end

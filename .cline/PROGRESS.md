@@ -14,6 +14,12 @@
 - P2: co-op, puzzles, coleccionables fisicos, player home, vehiculos, NPC/reputacion.
 - Orden de ataque: 5 bloques (Mundo vivo → Combate → Progresion → Contenido → Social) + cierre QA/playtest/regresion.
 
+### BLOQUE 1 — Mundo vivo: PASS (verificado localmente)
+- **A2 eventos con cuerpo**: `EventRules.Bodies` (Hunt/Boss/Survive/Reward) + `WorldInvasion`; `EventService` genera enemigos por zona (contrato `Zone_*_Core`), cuenta bajas via observer en `MonsterService`, completa por objetivo y limpia siempre. Caza que expira = cancelada (no paga). HUD: panel Objective con etiqueta+objetivo+cuenta atras, Notify al abrir. 6 tests nuevos.
+- **A3 mecanica por mundo**: `HazardRules` + `HazardService`. Forest emboscada (spawns sorpresa con cooldown), Desert arenas movedizas (WalkSpeed x0.5 con restauracion), Ice rachas de viento (impulso por ritmo), Volcano lava DOT (6 hp/s), Cyber laser telegrafiado (on 2.5s / off 3.5s). Dano via `CombatService.ApplyDamage` (autoridad unica). 14 tests nuevos.
+- **B6 noche ambiental**: `EffectsController` traduce `NightPhase` a Lighting con tween de 4s. Ambiental, sin progreso por noches.
+- Verificacion: Suite Luau 919/919 PASS; verify-structure PASS (39 servicios); verify-wiring PASS (30 servicios, 21 conexiones); rojo build PASS.
+
 ---
 
 ## Mision anterior (V1) — Estado general

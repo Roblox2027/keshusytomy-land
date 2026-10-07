@@ -37,6 +37,7 @@
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Players = game:GetService("Players")
+local Workspace = game:GetService("Workspace")
 
 local SHARED = ReplicatedStorage:WaitForChild("Shared")
 local UTILS = SHARED:WaitForChild("Utils")
@@ -74,6 +75,21 @@ Service._nightService = nil
 Service._playerService = nil
 Service._questService = nil
 
+-- MonsterService: el CUERPO del evento (mision V2, Bloque 1).
+-- Opcional como todos los observadores: sin el, el evento sigue
+-- abriendo, sumando amenaza y pagando; lo que falta es lo unico
+-- que el jugador VE en el mapa.
+Service._monsterService = nil
+
+-- Estado del cuerpo por instancia: bajas contadas y enemigos
+-- generados que aun viven. Va APARTE de `EventRules.Start` porque
+-- ese registro es puro y probado sin motor; esto es motor.
+Service._bodies = {}
+
+-- Cache de centros de zona por mundo (mismo contrato que
+-- `MiniBossService.GetZoneCenter`: la losa `_Core` del generador).
+Service._zoneCache = {}
+
 -- Hilo de mantenimiento.
 Service._thread = nil
 Service._running = false
@@ -85,14 +101,17 @@ Service._running = false
 --- @param nightService any
 --- @param playerService any?
 --- @param questService any?
+--- @param monsterService any? (mision V2: el cuerpo del evento)
 function Service.SetDependencies(
 	nightService: any,
 	playerService: any?,
-	questService: any?
+	questService: any?,
+	monsterService: any?
 )
 	Service._nightService = nightService
 	Service._playerService = playerService
 	Service._questService = questService
+	Service._monsterService = monsterService
 end
 
 -- ---------------------------------------------------------------------------
@@ -240,8 +259,9 @@ function Service.StartEvent(worldId: string, eventId: string?, roll: number?): a
 		end
 
 		if not belongs then
-			Logger.Warn(("EventService: '%s' no es evento de '%s'")
-				:format(tostring(eventId), worldId))
+			Logger.Warn(
+				("EventService: '%s' no es evento de '%s'"):format(tostring(eventId), worldId)
+			)
 			return nil
 		end
 	else
@@ -275,8 +295,19 @@ function Service.StartEvent(worldId: string, eventId: string?, roll: number?): a
 	local active = EventRules.Start(instanceId, definition, worldId, night, os.clock())
 	Service._active[instanceId] = active
 
-	Logger.Info(("EventService: '%s' abierto en %s (noche %d, %d s)")
-		:format(active.EventId, worldId, active.Night, active.Duration))
+	Logger.Info(
+		("EventService: '%s' abierto en %s (noche %d, %d s)"):format(
+			active.EventId,
+			worldId,
+			active.Night,
+			active.Duration
+		)
+	)
+
+	-- El cuerpo: lo que el evento PONE en el mapa. Va ANTES de
+	-- publicar para que el primer aviso del HUD ya venga con
+	-- objetivo.
+	Service.SpawnBody(active)
 
 	Service.Publish()
 	return active
@@ -301,16 +332,23 @@ function Service.FinishEvent(instanceId: number, cancelled: boolean?): boolean
 	local changed = EventRules.Finish(active, cancelled)
 
 	if changed then
+		-- El cuerpo se limpia SIEMPRE, por el unico camino de cierre:
+		-- un enemigo de evento que sobrevive al evento es un NPC
+		-- huerfano que nadie volvera a contar ni a limpiar.
+		Service.CleanupBody(active)
+
 		if not cancelled then
 			Service.PayReward(active)
 			Service.RecordCompletion(active)
 		end
 
-	local status = cancelled and "cancelado" or "completado"
-	Logger.Info(("EventService: '%s' cerrado en %s (%s)")
-		:format(active.EventId, active.WorldId, status))
+		local status = cancelled and "cancelado" or "completado"
+		Logger.Info(
+			("EventService: '%s' cerrado en %s (%s)"):format(active.EventId, active.WorldId, status)
+		)
 	end
 
+	Service._bodies[instanceId] = nil
 	Service.Publish()
 	return changed
 end
@@ -382,6 +420,193 @@ function Service.CloseWorldEvents(worldId: any): number
 end
 
 -- ---------------------------------------------------------------------------
+-- CUERPO DEL EVENTO (MASTER MISSION V2 - Bloque 1)
+-- ---------------------------------------------------------------------------
+
+--- Centros de zona del mundo, en orden estable. Mismo contrato de
+--- generador que `MiniBossService`: carpeta `Zone_<Mundo>_<Zona>`
+--- con losa central `_Core`. El cache vive lo que vive el mapa.
+--- @param worldId string
+--- @return { Vector3 }
+local function zoneCenters(worldId: string): { Vector3 }
+	local cache = Service._zoneCache[worldId]
+
+	if cache then
+		return cache
+	end
+
+	cache = {}
+	Service._zoneCache[worldId] = cache
+
+	local worlds = Workspace:FindFirstChild("Worlds")
+	local worldFolder = worlds and worlds:FindFirstChild(worldId)
+	local zones = worldFolder and worldFolder:FindFirstChild("Zones")
+
+	if zones and zones:IsA("Folder") then
+		for _, child in ipairs(zones:GetChildren()) do
+			if child:IsA("Folder") and string.sub(child.Name, 1, 5) == "Zone_" then
+				local core = child:FindFirstChild(child.Name .. "_Core")
+
+				if core and core:IsA("BasePart") then
+					table.insert(cache, core.Position)
+				end
+			end
+		end
+	end
+
+	return cache
+end
+
+--- Punto de aparicion para el cuerpo: una zona aleatoria del mundo,
+--- ligeramente desplazada para que dos enemigos no aparezcan
+--- apilados en el centro exacto.
+--- @param worldId string
+--- @return Vector3?
+local function bodySpawnPoint(worldId: string): Vector3?
+	local centers = zoneCenters(worldId)
+
+	if #centers == 0 then
+		return nil
+	end
+
+	local center = centers[math.random(1, #centers)]
+	local offset = Vector3.new(math.random(-8, 8), 3, math.random(-8, 8))
+
+	return center + offset
+end
+
+--- Genera el cuerpo inicial de un evento abierto.
+--- @param active any
+function Service.SpawnBody(active: any)
+	local monsters = Service._monsterService
+
+	if not monsters or not monsters.Spawn then
+		return
+	end
+
+	local body = EventRules.BodyFor(active.EventId)
+
+	if not body then
+		return
+	end
+
+	local state = {
+		Kills = 0,
+		Spawned = {},
+		Target = EventRules.ObjectiveTargetFor(active.EventId, active.Night),
+	}
+	Service._bodies[active.InstanceId] = state
+
+	local plan = EventRules.SpawnPlanFor(active.EventId, active.Night, 0, 0)
+
+	for _ = 1, plan do
+		local position = bodySpawnPoint(active.WorldId)
+
+		if position then
+			local spawnId = body.Spawns[math.random(1, #body.Spawns)]
+			local monsterId = monsters.Spawn(spawnId, position, active.WorldId)
+
+			if monsterId then
+				state.Spawned[monsterId] = true
+			end
+		end
+	end
+end
+
+--- Mantiene el cuerpo de todos los eventos: repone los caidos hasta
+--- el plan y deja de generar cuando el objetivo ya esta cubierto.
+function Service.MaintainBodies()
+	local monsters = Service._monsterService
+
+	if not monsters or not monsters.Spawn then
+		return
+	end
+
+	for _, active in pairs(Service._active) do
+		local state = Service._bodies[active.InstanceId]
+		local body = state and EventRules.BodyFor(active.EventId)
+
+		if state and body and not active.CleanedUp then
+			-- Los vivos se RECUENTAN en cada paso: no se confia en la
+			-- tabla `Spawned` porque un enemigo puede morir sin pasar
+			-- por `OnMonsterDied` (desconexion del modelo, cleanup de
+			-- la arena). El registro de `MonsterService` es la verdad.
+			local alive = 0
+
+			for monsterId in pairs(state.Spawned) do
+				if monsters.Get and monsters.Get(monsterId) then
+					alive += 1
+				else
+					state.Spawned[monsterId] = nil
+				end
+			end
+
+			local plan = EventRules.SpawnPlanFor(active.EventId, active.Night, state.Kills, alive)
+
+			for _ = 1, plan do
+				local position = bodySpawnPoint(active.WorldId)
+
+				if position then
+					local spawnId = body.Spawns[math.random(1, #body.Spawns)]
+					local monsterId = monsters.Spawn(spawnId, position, active.WorldId)
+
+					if monsterId then
+						state.Spawned[monsterId] = true
+					end
+				end
+			end
+		end
+	end
+end
+
+--- Limpia el cuerpo: desaparece los enemigos del evento que queden
+--- vivos, sin recompensa, por el `Despawn` de `MonsterService`.
+--- @param active any
+function Service.CleanupBody(active: any)
+	local monsters = Service._monsterService
+	local state = Service._bodies[active.InstanceId]
+
+	if not monsters or not monsters.Despawn or not state then
+		return
+	end
+
+	for monsterId in pairs(state.Spawned) do
+		pcall(monsters.Despawn, monsterId)
+	end
+
+	state.Spawned = {}
+end
+
+--- Observador de muertes de `MonsterService` (mision V2).
+---
+--- Cuenta la baja si el monstruo era del evento y cierra el evento
+--- AL COMPLETAR el objetivo, no al expirar el reloj: la promesa de
+--- un evento de caza es "derrotalos y cobra", no "espera y cobra".
+--- @param monsterId any
+--- @param _record any
+function Service.OnMonsterDied(monsterId: any, _record: any)
+	if type(monsterId) ~= "number" then
+		return
+	end
+
+	for instanceId, state in pairs(Service._bodies) do
+		if state.Spawned[monsterId] then
+			state.Spawned[monsterId] = nil
+			state.Kills += 1
+
+			local active = Service._active[instanceId]
+
+			if active and state.Target > 0 and state.Kills >= state.Target then
+				Service.FinishEvent(instanceId, false)
+			end
+
+			Service.Publish()
+			return
+		end
+	end
+end
+
+-- ---------------------------------------------------------------------------
 -- MANTENIMIENTO
 -- ---------------------------------------------------------------------------
 
@@ -417,10 +642,20 @@ function Service.Tick(now: any?): number
 	end
 
 	for _, instanceId in ipairs(expired) do
-		if Service.FinishEvent(instanceId, false) then
+		-- Un evento de CAZA que expira sin completar su objetivo se
+		-- cierra CANCELADO: pagarlo premiaria no haber jugado. Los
+		-- demas (supervivencia, recompensa, ambientales) expiran
+		-- completados, que es su objetivo.
+		local active = Service._active[instanceId]
+		local cancelled = active ~= nil and not EventRules.CompletesOnExpiry(active.EventId)
+
+		if Service.FinishEvent(instanceId, cancelled) and not cancelled then
 			closed += 1
 		end
 	end
+
+	-- 1b. Cuerpo: reponer los caidos hasta el plan de cada evento.
+	Service.MaintainBodies()
 
 	-- 2. Sorteo en mundos con jugadores. El sorteo es POR MUNDO
 	-- con ventana: un mundo vacio de jugadores no consume tiradas
@@ -477,10 +712,14 @@ function Service.Publish(): number
 
 		local eventId = if best then best.EventId else ""
 		local label = ""
+		local objective = ""
 
 		if best then
 			local definition = EventRules.Get(best.EventId)
 			label = if definition then definition.Label else best.EventId
+
+			local body = Service._bodies[best.InstanceId]
+			objective = EventRules.ObjectiveText(best.EventId, best.Night, body and body.Kills or 0)
 		end
 
 		if player:GetAttribute("EventActive") ~= eventId then
@@ -490,6 +729,11 @@ function Service.Publish(): number
 
 		if player:GetAttribute("EventLabel") ~= label then
 			player:SetAttribute("EventLabel", label)
+			written += 1
+		end
+
+		if player:GetAttribute("EventObjective") ~= objective then
+			player:SetAttribute("EventObjective", objective)
 			written += 1
 		end
 
@@ -532,6 +776,7 @@ function Service.Init(maid: any?): boolean
 	Service._active = {}
 	Service._nextInstance = 1
 	Service._lastRoll = {}
+	Service._bodies = {}
 
 	Service.IsInitialized = true
 	return true
@@ -552,8 +797,13 @@ function Service.Start(): boolean
 	Service._running = true
 	Service._thread = task.spawn(runMaintenance)
 
-	Logger.Info(("EventService: listo (max %d por mundo, %d global, ventana %d s)")
-		:format(EventRules.MaxActivePerWorld, EventRules.MaxActiveTotal, Service.RollWindow))
+	Logger.Info(
+		("EventService: listo (max %d por mundo, %d global, ventana %d s)"):format(
+			EventRules.MaxActivePerWorld,
+			EventRules.MaxActiveTotal,
+			Service.RollWindow
+		)
+	)
 
 	return true
 end
@@ -576,6 +826,7 @@ function Service.Destroy(): boolean
 	end
 
 	Service._active = {}
+	Service._bodies = {}
 	Service._lastRoll = {}
 	Service.IsInitialized = false
 	return true
