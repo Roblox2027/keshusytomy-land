@@ -10,6 +10,13 @@
 - STATE.json sincerado: HEAD `6545120` = origin/main `6545120` (último estado verificado; `41a2a94` = FASE 1 RE-AUDIT, source idéntico). `09007f3` confirmado como commit real (FASE 0+1), no phantom.
 - 12 archivos con diferencias CRLF solamente: NO contenian cambios de contenido, restaurados.
 
+## FASE 6 Eventos dinamicos (2026-10-08): COMPLETED
+- Maquina de 5 estados (IDLE/WARNING/ACTIVE/RECOVERY/COOLDOWN), 20 eventos de mundo + 3 universal + 3 COOP.
+- DynamicBodyKind, spawn por zona, cooldowns, recompensas, limpieza, EventAction remote.
+- Verificacion: npm test 1099/1099 PASS; verify:structure PASS (45); verify:wiring PASS (36/24/51); rojo:build PASS.
+- Bug fixes aplicados y verificados (IsObjectiveDone, ForestRift, expect.toBeFalsy, #checked).
+- Pendiente: commit + push FASE 6; playtest runtime Studio/MCP.
+
 ## FASE 1 RE-AUDIT (2026-10-07)
 - ARBOL SUCIO: Bloques 1-5 sin commitear (CRITICAL proceso) — commit+push antes de V2. [RESUELTO: commited y push]
 - STATE con `09007f3` desactualizado (HEAD real `06727a7`, luego `41a2a94`) — sincerado. [RESUELTO]
@@ -19,12 +26,15 @@
 # BLOCKED
 
 ## MASTER MISSION V2
-- FASE 0-2: PASS (continuidad, auditoria, consolidacion commit+push). HEAD = origin/main = `6545120`. Arbol sucio (FASE 3 pendiente commit).
-- FASE 3: COMPLETED (implementada + playtesteada en Studio/MCP CONECTADO). BUG FIX de material rewards aplicado. Pendiente commit + push.
+- FASE 0-2: PASS (continuidad, auditoria, consolidacion commit+push). HEAD = origin/main = `6545120`.
+- FASE 3: COMPLETED (implementada + playtesteada en Studio/MCP CONECTADO). BUG FIX de material rewards aplicado. Commited y push (ced7b56 = origin/main).
+- FASE 4: COMPLETED (WorldMechanics implementado, 1062/1062 PASS, verify PASS, rojo build PASS). analyze.js FAIL baseline.
+- FASE 5: COMPLETED (cuevas subterraneas, HOLE_TYPES, 0 huecos REALes, verify completo PASS). Studio/MCP CONECTADO.
+- FASE 6: COMPLETED (maquina de 5 estados, 20 eventos + 3 universal + 3 COOP, cuerpos temporales, recompensas, limpieza, EventAction remote. 1099/1099 PASS). Studio/MCP CONECTADO.
 - AUDIO ASSETS: BLOCKED_EXTERNAL (heredado) — sin IDs reales; el mixer espera IDs en `AudioConfig`.
-- STUDIO/MCP: CONECTADO y playtesteado (esta sesión). Offer/Interact/Claim/RecordMetric/duplicates/rejections/concurrency PASS.
+- STUDIO/MCP: CONECTADO (verify:env, esta sesión).
 - BRAINROT_VISUAL_FOLLOWUP: vacio (sin hallazgos visuales registrados).
-- SIGUIENTE FASE: FASE 4 — Panel World Completion UI + cadenas de misiones + cofres fisicos.
+- SIGUIENTE FASE: FASE 7 — Panel World Completion UI (FASE 44) + cofres fisicos (FASE 24) + cadenas de misiones (FASE 41).
 
 ## Mision V1 (historico)
 

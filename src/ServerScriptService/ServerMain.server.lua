@@ -868,16 +868,17 @@ local function wireDependencies(registry: any): { string }
 		end
 	)
 
-	-- EventService: el reloj decide si rueda y cuanto dura; jugador y
-	-- misiones van como opcionales por la misma razon que en HordeService.
-	-- MonsterService va como dependencia (mision V2): es quien pone el
-	-- CUERPO del evento en el mapa.
+	-- EventService: el reloj decide si rueda y cuanto dura; jugador,
+	-- misiones, monstruos, economia e inventario van como opcionales
+	-- por la misma razon que en HordeService. MonsterService va como
+	-- dependencia (mision V2 + FASE 6): es quien pone el CUERPO del
+	-- evento en el mapa y distribuye las bajas.
 	connect(
 		"EventService",
 		eventService,
 		{ "NightService", "MonsterService" },
 		function(service: any)
-			service.SetDependencies(nightService, playerService, questService, monsterService)
+			service.SetDependencies(nightService, playerService, questService, monsterService, economyService, inventoryService)
 		end
 	)
 

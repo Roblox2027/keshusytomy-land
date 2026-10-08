@@ -85,5 +85,8 @@ return {
 		-- la oferta, interactua con un punto o reclama; el servidor decide el
 		-- mundo, el progreso y la recompensa.
 		Explore = "ExploreAction",
+		-- Eventos dinámicos (FASE 6): el servidor publica estado de fase
+		-- (WARNING/ACTIVE/RECOVERY) y el cliente solo muestra el HUD.
+		Event = "EventAction",
 	},
 }

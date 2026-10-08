@@ -123,6 +123,11 @@ function Schema.new(remoteAction: { [string]: string })
 			Interact = PayloadType.String,
 			Claim = PayloadType.String,
 		},
+		-- Eventos dinámicos (FASE 6). El cliente NO envia acciones:
+		-- toda la comunicacion es server-to-client via atributos
+		-- (EventPhase, EventPhaseRemaining, EventObjective, etc.).
+		-- El canal existe para validacion y rate-limiting.
+		[remoteAction.Event] = {},
 	}
 
 	local self = {

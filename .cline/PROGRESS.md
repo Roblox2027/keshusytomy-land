@@ -133,9 +133,10 @@
 ## Bloqueos actuales
 - MCP Roblox: CONECTADO (verify:env, esta sesion). Playtest ejecutado.
 - Studio / Play Test: EJECUTADO — solo_playtest real sobre la instancia `latest.rbxlx` con peers edit/server/client-1.
-- analyze.js: FAIL preexistente de baseline (documentado, no introducido por FASE 3).
+- analyze.js: FAIL PREEXISTENTE de baseline (documentado, no introducido por esta fase).
 - AUDIO ASSETS: BLOCKED_EXTERNAL (sin IDs reales).
-- RegisterPoints: puntos de Discovery/Rescue/Mechanic no inyectados (follow-up FASE 3; Interact rechaza con `no_point` hasta entonces — seguro por disenio).
+- RegisterPoints: puntos de Discovery/Rescue/Mechanic inyectados por WorldMechanicsService (FASE 4).
+- FASE 6 playtest runtime (Studio/MCP) pendiente — validar maquina de 5 estados, spawn de cuerpos y recompensas.
 
 ## Fases pendientes
 - [ ] Panel World Completion UI (FASE 44)
@@ -147,8 +148,22 @@
 - [ ] Audio real (externo)
 - [ ] Inyeccion de puntos de Discovery/Rescue/Mechanic (RegisterPoints) desde loader de mundo
 - [ ] Forward de Destruction/Secret/Event a RecordMetric para Collection/Defense/Secret
+- [ ] Playtest runtime FASE 6 (Studio/MCP) — validar maquina de 5 estados, spawn de cuerpos, recompensas
 
 ---
+
+## FASE 6 — Eventos dinamicos (2026-10-08): COMPLETED
+- **Arquitectura**: `EventRules.lua` (pure library) extendido con maquina de 5 estados (`DynamicState`: Idle→Warning→Active→Recovery→Cooldown), tipos de evento (`EventType`: Global/Local/Player/Coop), 20 eventos de mundo (4 por mundo) + catalogo universal (3) + COOP (3 con MinPlayers/MaxPlayers), `DynamicBodyKind` (Hunt/Boss/Survive/Reward/Collect/Defense/Escort/Rescue/Objective), config con duraciones por fase (WarningDuration/ActiveDuration/RecoveryDuration), WeightedRoll, DynamicStart, funciones de fase (NextPhase/PhaseDuration/GetPhaseRemaining/IsPhaseExpired/AdvancePhase/GetTotalDuration), IsDynamicEvent, IsEventLive, CompleteObjective, IsObjectiveDone, IsCoop, IsUniversal, GetPlayerRequirements, GetZone, CooldownFor, GetEventType, DynamicBodies, DynamicBodyFor, DynamicObjectiveTargetFor, DynamicSpawnPlanFor, DynamicCompletesOnExpiry, DynamicObjectiveText. Backward compatibility preservada.
+- **Service**: `EventService.lua` extendido — cooldowns (`_cooldowns`), fase de 5 estados en Tick (transiciones phase→phase con timers), DynamicStartEvent, OnDynamicPhaseChanged, FinishDynamicEvent, SpawnDynamicBody (spawn por zona con DynamicSpawnPlanFor), MaintainDynamicBodies, CleanupDynamicBody, OnDynamicMonsterDied, IsOnCooldown/SetCooldown, CountPlayersInWorld (COOP gates), dynamicBodySpawnPoint (zone-aware), PayReward (material rewards via InventoryService), Publish (EventPhase/EventPhaseRemaining/DynamicObjectiveText attributes), Init/CloseWorldEvents. Wiring en `ServerMain.server.lua` — SetDependencies recibe economyService + inventoryService.
+- **Remote**: `EventAction` RemoteEvent agregado a `Remotes.model.json`; `GameConstants.lua` (`RemoteAction.Event = "EventAction"`); `RemoteSchema.lua` (`[RemoteAction.Event] = {}`).
+- **Tests**: `Events.spec.lua` extendido con 35 tests FASE 6 (maquina de 5 estados, tipos, seleccion ponderada, requisitos COOP, zonas, cooldowns, definiciones) → 1099/1099 PASS.
+- **Bug fixes**: IsObjectiveDone (solo active.ObjectiveCompleted); ForestRift en DynamicBodies (Kind=Survive); GetPlayerRequirements test (TwinBosses/SharedThreat); expect.toBeFalsy() para WorldInvasion/ForestSwarm; #checked (loop manual).
+- **Verificacion**: `npm test` PASS (1099/1099, 59 suites); `npm run verify:structure` PASS (45 servicios); `npm run verify:wiring` PASS (36 servicios, 24 conexiones, 51 llamadas inter-servicio); `rojo:build` PASS. `analyze.js` FAIL baseline preexistente (no introducido).
+- **Server-authoritative**: fase de evento, estado de cuerpos, y recompensas nunca deciden el cliente. Cooldown scoped por evento.
+- **Pendiente**: playtest runtime en Studio/MCP (validar maquina de 5 estados, spawn de cuerpos, recompensas); commit + push FASE 6.
+
+## FASE 5 — Exploracion vertical (2026-10-08): COMPLETED
+- Cuevas subterraneas (Y=-20/-40/-60), descensos secretos, sistema HOLE_TYPES (8 constantes), 80 huecos REALes → 0 (root cause: route deck parts en patchFloorHoles). 1064/1064 PASS.
 
 ## FASE 4 — WorldMechanics (2026-10-07): estructura COMPLETED
 - Arquitectura de mecánicas unicas por mundo implementada y verificada.

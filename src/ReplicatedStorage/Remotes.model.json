@@ -48,6 +48,10 @@
         {
             "Name": "ExploreAction",
             "ClassName": "RemoteEvent"
+        },
+        {
+            "Name": "EventAction",
+            "ClassName": "RemoteEvent"
         }
     ]
 }

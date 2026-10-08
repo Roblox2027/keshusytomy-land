@@ -1,6 +1,19 @@
-# NEXT TASK — FASE 4 WorldMechanics: COMPLETED (2026-10-07)
+# NEXT TASK — FASE 6 Eventos dinamicos: COMPLETED (2026-10-08)
 
-## PROXIMA FASE: FASE 5 — Panel World Completion UI + Cofres fisicos + Cadenas de misiones
+## Siguiente fase: FASE 7 — Panel World Completion UI (FASE 44) + cofres fisicos (FASE 24) + cadenas de misiones (FASE 41)
+
+## Estado de FASE 6 (completada)
+- **Maquina de 5 estados**: `DynamicState` (Idle→Warning→Active→Recovery→Cooldown) en `EventRules.lua` + `EventService.lua` Tick. Phase transitions con timers (WarningDuration/ActiveDuration/RecoveryDuration).
+- **20 eventos de mundo** (4 por mundo): Forest (Ambush, LostCreature, ForestRift, NightHunters); Desert (BuriedTreasure, Caravan, SandBeastHunt); Ice (IceBreak, FrozenRescue, FrostPack); Volcano (Rockfall, VolcanicEvacuation, MagmaHunt); Cyber (SystemFailure, SecurityLockdown, HackTheCore, SecuritySwarm). Catalogo universal: TreasureRush, MonsterSurge, EliteSpawn. COOP: SharedThreat, TwinBosses, Nexus (MinPlayers/MaxPlayers).
+- **EventTypes**: Global, Local, Player, Coop. WeightedRoll para seleccion. Cooldown por evento (`_cooldowns`). COOP gates via CountPlayersInWorld.
+- **Cuerpos temporales**: `DynamicBodyKind` (Hunt/Boss/Survive/Reward/Collect/Defense/Escort/Rescue/Objective) + DynamicBodies catalog. Spawn por zona (`dynamicBodySpawnPoint`). Limpieza automatica (`CleanupDynamicBody`). Recompensas via EconomyService/InventoryService (`PayReward`).
+- **Remote**: `EventAction` RemoteEvent (UI feedback). Agregado a Remotes.model.json + GameConstants.RemoteAction.Event + RemoteSchema channel.
+- **Verificacion**: npm test PASS (1099/1099, 59 suites; +35 tests FASE 6 en Events.spec.lua); verify:structure PASS (45); verify:wiring PASS (36/24/51); rojo:build PASS.
+- **Bug fixes**: IsObjectiveDone, ForestRift en DynamicBodies, GetPlayerRequirements test (TwinBosses/SharedThreat), expect.toBeFalsy() para WorldInvasion/ForestSwarm, #checked (loop manual).
+- **Pendiente**: commit + push FASE 6; playtest runtime Studio/MCP (validar maquina de 5 estados, spawn, recompensas).
+
+## Estado de FASE 5 (completada)
+- Cuevas subterraneas (Y=-20/-40/-60), descensos secretos, sistema HOLE_TYPES (8 constantes). 80 huecos REALes → 0 (route deck parts en patchFloorHoles). 1064/1064 PASS.
 
 ## Estado de FASE 4 (completada)
 - **Arquitectura WorldMechanics**: `WorldMechanics.lua` (pure library) + `WorldMechanicsService.lua` (server-authoritative) implementados.
@@ -44,12 +57,12 @@
 - FASE 4: WorldMechanics registrado antes de FASE 44 (Panel UI) y FASE 41 (cadenas), para que los puntos RegisterPoints se inyecten correctamente y el panel tenga datos reales de completion.
 
 ## Estado real
-- FASE 0-4: PASS. Bloques 1-5 commited y push a origin/main. FASE 3 implementada + playtesteada. FASE 4 COMPLETED (WorldMechanics). Studio/MCP CONECTADO.
-- Entorno (verify:env, esta sesion): Studio/MCP CONECTADO; analyze.js FAIL baseline preexistente; rojo build PASS; npm test 1062/1062 PASS; npm run verify PASS.
+- FASE 0-4: PASS (commits 09007f3, 7941e83, 41a2a94, 6545120, ced7b56, 9247d7a en origin/main). FASE 5 COMPLETED (cuevas, HOLE_TYPES, 0 huecos). FASE 6 COMPLETED (eventos dinamicos, 1099/1099 PASS). Studio/MCP CONECTADO.
+- Entorno (verify:env, esta sesion): Studio/MCP CONECTADO; analyze.js FAIL baseline preexistente; rojo build PASS; npm test 1099/1099 PASS; npm run verify PASS.
 - `GAMEPLAY_AUDIT.md` actualizado con estado de resolucion por hallazgo.
 
-## Siguiente iteracion (FASE 4, completada)
-1. **Arquitectura WorldMechanics** (FASE 4): `WorldMechanics.lua` + `WorldMechanicsService.lua` + 5 WorldDefinitions extendidas + RegisterPoints integrado. COMPLETED.
+## Siguiente iteracion (FASE 6, completada)
+1. **Arquitectura Eventos dinamicos** (FASE 6): `EventRules.lua` (5-state machine, 20 eventos, catalogos, DynamicBodies) + `EventService.lua` (phase transitions, cooldowns, spawn, rewards, cleanup) + `ServerMain.server.lua` (wiring) + `EventAction` remote. COMPLETED — 1099/1099 PASS.
 2. **Panel World Completion** (FASE 44): los datos ya se publican por atributos; falta el panel en UI + test de contrato.
 3. **Cadenas de misiones** (FASE 41): `QuestRules` no soporta prerrequisitos; ampliar con `RequiresQuestId`.
 4. **Cofres fisicos** (FASE 24): categorias, apertura con animacion/sonido/VFX y drop via `LootRules`.
@@ -59,10 +72,11 @@
 8. **Audio real** (externo): subir IDs reales al Creator Dashboard.
 9. **FASE 3 follow-up**: forward de DestructionService/SecretService/EventService a RecordMetric para Collection/Defense/Secret.
 
-## Orden de ataque propuesto (FASE 5 en adelante)
-1. Commit+push FASE 3 + FASE 4 a origin/main.
+## Orden de ataque propuesto (FASE 7 en adelante)
+1. Commit + push FASE 6 a origin/main.
 2. Panel World Completion + cofres fisicos + cadenas de misiones.
-3. Ritual boss completo.
-4. Secundario por mundo (2.º secreto, coleccionables, eventos propios).
-5. Party real sin bloquear solitario.
-6. Audio real (externo).
+3. Playtest runtime FASE 6 (Studio/MCP) — validar maquina de 5 estados, spawn de cuerpos, recompensas.
+4. Ritual boss completo.
+5. Secundario por mundo (2.º secreto, coleccionables, eventos propios).
+6. Party real sin bloquear solitario.
+7. Audio real (externo).

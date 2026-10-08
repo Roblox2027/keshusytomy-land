@@ -16,6 +16,16 @@
   - [J] Concurrency: PASS — 2 concurrent TryClaim; 1 accepted, 1 rejected already_claimed.
 - Push: PENDIENTE (commit + push después de actualizar estado).
 
+## FASE 6 Eventos dinamicos: COMPLETED (2026-10-08)
+- Maquina de 5 estados (IDLE/WARNING/ACTIVE/RECOVERY/COOLDOWN) en EventRules.lua + EventService.lua Tick.
+- 20 eventos de mundo + 3 universal + 3 COOP con MinPlayers/MaxPlayers.
+- DynamicBodyKind (Hunt/Boss/Survive/Reward/Collect/Defense/Escort/Rescue/Objective) + spawn por zona + cooldowns + recompensas + limpieza.
+- RemoteEvent EventAction para UI feedback.
+- Verificacion: npm test 1099/1099 PASS (59 suites, +35 FASE 6); verify:structure PASS (45); verify:wiring PASS (36/24/51); rojo:build PASS.
+- Bug fixes: IsObjectiveDone, ForestRift en DynamicBodies, expect.toBeFalsy() para WorldInvasion/ForestSwarm, #checked (loop manual).
+- analyze.js: FAIL baseline preexistente (no introducido por esta fase).
+- Pendiente: commit + push FASE 6; playtest runtime Studio/MCP.
+
 ## FASE 1 RE-AUDIT (2026-10-07): PASS — structure/wiring/tests/rojo/mundos/navegacion/spawn/edge/monstruos/powerups/bombas PASS; GAMEPLAY_AUDIT.md con seccion RE-AUDIT; arbol sucio pendiente de commit (CRITICAL proceso); audio BLOCKED_EXTERNAL; Brainrot visual intacto.
 
 # QA

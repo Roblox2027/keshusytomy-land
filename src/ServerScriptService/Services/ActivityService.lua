@@ -136,7 +136,8 @@ end
 --- @param points { [string]: { Position: any, World: string? } }
 function Service.RegisterPoints(points: { [string]: any })
 	for activityId, point in pairs(points or {}) do
-		Service._points[activityId] = point
+		local normalized = ActivitiesRules.NormalizeId(activityId)
+		Service._points[normalized] = point
 	end
 end
 

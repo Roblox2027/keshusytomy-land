@@ -79,6 +79,27 @@ local function describeActivityCatalog()
 			end
 		end)
 
+		Harness.it("todos los mundos tienen al menos una actividad interactuable", function()
+			-- Ice, Volcano y Cyber no tienen mecanica de puntos (HiddenZone/Tracking/etc.)
+			-- pero el catalogo debe incluir actividades interactuables
+			-- (Discovery/Mechanic/Collection/Rescue) que el servicio registre como puntos.
+			for _, worldId in ipairs(KNOWN_WORLDS) do
+				local activities = ActivityCatalog.ForWorld(worldId)
+				local found = false
+				for _, def in pairs(activities) do
+					if def.Type == ActivitiesRules.ActivityType.Discovery
+						or def.Type == ActivitiesRules.ActivityType.Mechanic
+						or def.Type == ActivitiesRules.ActivityType.Collection
+						or def.Type == ActivitiesRules.ActivityType.Rescue
+					then
+						found = true
+						break
+					end
+				end
+				expect.toBe(found, true)
+			end
+		end)
+
 		-----------------------------------------------------------------
 		-- LISTA ESTABLE
 		-----------------------------------------------------------------

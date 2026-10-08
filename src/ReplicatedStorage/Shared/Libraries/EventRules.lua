@@ -36,6 +36,53 @@ Rules.State = {
 }
 
 -- ---------------------------------------------------------------------------
+-- FASE 6: MAQUINA DE ESTADOS DINAMICA (5 fases)
+-- ---------------------------------------------------------------------------
+--
+-- La maquina de FASE 6 extiende (no reemplaza) la de 3 estados anterior.
+-- Un evento dinámico vive una vida completa con anuncio, actividad y enfriamiento:
+--
+--   IDLE      -> esperando su turno (cooldown activo o sin jugadores).
+--   WARNING   -> anunciado al HUD, el jugador se prepara. No hay cuerpo activo.
+--   ACTIVE    -> el cuerpo esta en el mapa, el jugador juega.
+--   RECOVERY  -> el evento termino, los enemigos se limpian, efectos se apagan.
+--   COOLDOWN  -> enfriamiento: no vuelve a salir hasta que pasa el cooldown.
+--
+-- La transicion de WARNING a ACTIVE despega el cuerpo; la de ACTIVE a RECOVERY
+-- inicia el cleanup; RECOVERY a COOLDOWN cierra la ventana de enfriamiento.
+-- El jugador ve los PRIMEROS TRES estados en el HUD; COOLDOWN e IDLE son
+-- internos del servidor (el jugador no necesita ver "no saldra igual esta noche").
+Rules.DynamicState = {
+	Idle = "Idle",
+	Warning = "Warning",
+	Active = "Active",
+	Recovery = "Recovery",
+	Cooldown = "Cooldown",
+}
+
+-- ---------------------------------------------------------------------------
+-- FASE 6: TIPOS DE EVENTO
+-- ---------------------------------------------------------------------------
+--
+-- Clasifica un evento por su ambito y requisitos de jugador. La clasificacion
+-- decide:
+--   - si se sortea por mundo o en toda la partida (Global vs Local);
+--   - si necesita jugadores minimos para abrirse (Coop);
+--   - si se despacha en zona o en el mundo entero (Local)
+--
+-- Global:  evento mundial, afecta a todos en el mundo (ej: tormenta).
+-- Local:   evento en una ZONA concreta, jugadores del mundo pueden no estar.
+-- Player:  evento individual (mision V2, la actividad del jugador)
+-- Coop:    evento que requiere N jugadores minimos. Si no hay suficientes,
+--          no se abre (no se abre para uno y luego otro se une).
+Rules.EventType = {
+	Global = "Global",
+	Local = "Local",
+	Player = "Player",
+	Coop = "Coop",
+}
+
+-- ---------------------------------------------------------------------------
 -- CATALOGO DE EVENTOS
 -- ---------------------------------------------------------------------------
 --
@@ -70,6 +117,62 @@ Rules.ByWorld = {
 			Duration = 60,
 			Threat = 1.2,
 		},
+		-- FASE 6: Eventos dinamicos reales (maquina de 5 estados).
+		{
+			Id = "ForestAmbush",
+			Label = "EMBOSCADA EN EL BOSQUE",
+			Rarity = 0.18,
+			Weight = 0.18,
+			Duration = 70,
+			Cooldown = 300,
+			Type = Rules.EventType.Local,
+			ZoneId = "BogHollow",
+			WarningDuration = 8,
+			ActiveDuration = 55,
+			RecoveryDuration = 5,
+			Threat = 1.3,
+		},
+		{
+			Id = "LostCreature",
+			Label = "criatura perdida",
+			Rarity = 0.14,
+			Weight = 0.14,
+			Duration = 90,
+			Cooldown = 420,
+			Type = Rules.EventType.Local,
+			ZoneId = "RockyRidge",
+			WarningDuration = 10,
+			ActiveDuration = 70,
+			RecoveryDuration = 8,
+			Threat = 1.1,
+		},
+		{
+			Id = "ForestRift",
+			Label = "ABISAL DEL BOSQUE",
+			Rarity = 0.10,
+			Weight = 0.10,
+			Duration = 55,
+			Cooldown = 360,
+			Type = Rules.EventType.Global,
+			WarningDuration = 6,
+			ActiveDuration = 42,
+			RecoveryDuration = 5,
+			Threat = 1.25,
+		},
+		{
+			Id = "NightHunters",
+			Label = "CAZADORES NOCTURNOS",
+			Rarity = 0.12,
+			Weight = 0.12,
+			Duration = 65,
+			Cooldown = 360,
+			Type = Rules.EventType.Local,
+			ZoneId = "DenseGrove",
+			WarningDuration = 8,
+			ActiveDuration = 50,
+			RecoveryDuration = 5,
+			Threat = 1.35,
+		},
 	},
 	Desert = {
 		{
@@ -86,6 +189,49 @@ Rules.ByWorld = {
 			Rarity = 0.14,
 			Duration = 60,
 			Threat = 1.0,
+		},
+		-- FASE 6: Eventos dinamicos reales.
+		{
+			Id = "BuriedTreasure",
+			Label = "TESORO ENTERRADO",
+			Rarity = 0.15,
+			Weight = 0.15,
+			Duration = 80,
+			Cooldown = 400,
+			Type = Rules.EventType.Local,
+			ZoneId = "Ruins",
+			WarningDuration = 10,
+			ActiveDuration = 60,
+			RecoveryDuration = 8,
+			Threat = 1.0,
+		},
+		{
+			Id = "Caravan",
+			Label = "CARAVANA ATACADA",
+			Rarity = 0.13,
+			Weight = 0.13,
+			Duration = 75,
+			Cooldown = 380,
+			Type = Rules.EventType.Local,
+			ZoneId = "Oasis",
+			WarningDuration = 8,
+			ActiveDuration = 60,
+			RecoveryDuration = 5,
+			Threat = 1.25,
+		},
+		{
+			Id = "SandBeastHunt",
+			Label = "CAZA DE LA BESTIA DE ARENA",
+			Rarity = 0.10,
+			Weight = 0.10,
+			Duration = 85,
+			Cooldown = 420,
+			Type = Rules.EventType.Local,
+			ZoneId = "Canyon",
+			WarningDuration = 6,
+			ActiveDuration = 70,
+			RecoveryDuration = 7,
+			Threat = 1.45,
 		},
 	},
 	Ice = {
@@ -104,6 +250,49 @@ Rules.ByWorld = {
 			Duration = 65,
 			Threat = 1.15,
 		},
+		-- FASE 6: Eventos dinamicos reales.
+		{
+			Id = "IceBreak",
+			Label = "ROMPIENDO EL HIELO",
+			Rarity = 0.16,
+			Weight = 0.16,
+			Duration = 50,
+			Cooldown = 320,
+			Type = Rules.EventType.Local,
+			ZoneId = "Lake",
+			WarningDuration = 6,
+			ActiveDuration = 38,
+			RecoveryDuration = 4,
+			Threat = 1.25,
+		},
+		{
+			Id = "FrozenRescue",
+			Label = "RESCATE CONGELADO",
+			Rarity = 0.13,
+			Weight = 0.13,
+			Duration = 75,
+			Cooldown = 400,
+			Type = Rules.EventType.Local,
+			ZoneId = "Crevasse",
+			WarningDuration = 8,
+			ActiveDuration = 60,
+			RecoveryDuration = 5,
+			Threat = 1.1,
+		},
+		{
+			Id = "FrostPack",
+			Label = " MANADA DE FRIEZ",
+			Rarity = 0.11,
+			Weight = 0.11,
+			Duration = 60,
+			Cooldown = 340,
+			Type = Rules.EventType.Local,
+			ZoneId = "Narrows",
+			WarningDuration = 7,
+			ActiveDuration = 46,
+			RecoveryDuration = 5,
+			Threat = 1.35,
+		},
 	},
 	Volcano = {
 		{ Id = "VolcanoEruption", Label = "ERUPCION", Rarity = 0.28, Duration = 70, Threat = 1.35 },
@@ -115,6 +304,49 @@ Rules.ByWorld = {
 			Duration = 50,
 			Threat = 1.2,
 		},
+		-- FASE 6: Eventos dinamicos reales.
+		{
+			Id = "Rockfall",
+			Label = "AVEAMIENTO DE ROCAS",
+			Rarity = 0.16,
+			Weight = 0.16,
+			Duration = 45,
+			Cooldown = 320,
+			Type = Rules.EventType.Local,
+			ZoneId = "Fissure",
+			WarningDuration = 6,
+			ActiveDuration = 34,
+			RecoveryDuration = 4,
+			Threat = 1.3,
+		},
+		{
+			Id = "VolcanicEvacuation",
+			Label = "EVACUACION VULCANICA",
+			Rarity = 0.13,
+			Weight = 0.13,
+			Duration = 70,
+			Cooldown = 380,
+			Type = Rules.EventType.Local,
+			ZoneId = "Vents",
+			WarningDuration = 8,
+			ActiveDuration = 55,
+			RecoveryDuration = 5,
+			Threat = 1.4,
+		},
+		{
+			Id = "MagmaHunt",
+			Label = "CAZA EN EL MAGMA",
+			Rarity = 0.12,
+			Weight = 0.12,
+			Duration = 65,
+			Cooldown = 360,
+			Type = Rules.EventType.Local,
+			ZoneId = "Platforms",
+			WarningDuration = 7,
+			ActiveDuration = 50,
+			RecoveryDuration = 5,
+			Threat = 1.45,
+		},
 	},
 	Cyber = {
 		{ Id = "CyberBlackout", Label = "APAGON", Rarity = 0.26, Duration = 60, Threat = 1.15 },
@@ -125,6 +357,62 @@ Rules.ByWorld = {
 			Label = "INVASION ROBOTICA",
 			Rarity = 0.22,
 			Duration = 85,
+			Threat = 1.35,
+		},
+		-- FASE 6: Eventos dinamicos reales.
+		{
+			Id = "SystemFailure",
+			Label = "FALLA EN EL SISTEMA",
+			Rarity = 0.15,
+			Weight = 0.15,
+			Duration = 55,
+			Cooldown = 320,
+			Type = Rules.EventType.Global,
+			WarningDuration = 5,
+			ActiveDuration = 42,
+			RecoveryDuration = 5,
+			Threat = 1.1,
+		},
+		{
+			Id = "SecurityLockdown",
+			Label = "BLOQUEO DE SEGURIDAD",
+			Rarity = 0.14,
+			Weight = 0.14,
+			Duration = 60,
+			Cooldown = 340,
+			Type = Rules.EventType.Local,
+			ZoneId = "ServerHall",
+			WarningDuration = 6,
+			ActiveDuration = 48,
+			RecoveryDuration = 4,
+			Threat = 1.25,
+		},
+		{
+			Id = "HackTheCore",
+			Label = "HACKEA EL NUCLEO",
+			Rarity = 0.10,
+			Weight = 0.10,
+			Duration = 90,
+			Cooldown = 420,
+			Type = Rules.EventType.Local,
+			ZoneId = "Reactor",
+			WarningDuration = 8,
+			ActiveDuration = 70,
+			RecoveryDuration = 8,
+			Threat = 1.4,
+		},
+		{
+			Id = "SecuritySwarm",
+			Label = "ENJAMBRA DE SEGURIDAD",
+			Rarity = 0.12,
+			Weight = 0.12,
+			Duration = 55,
+			Cooldown = 360,
+			Type = Rules.EventType.Local,
+			ZoneId = "Conduit",
+			WarningDuration = 6,
+			ActiveDuration = 42,
+			RecoveryDuration = 5,
 			Threat = 1.35,
 		},
 	},
@@ -191,6 +479,105 @@ Rules.Rare = {
 	},
 }
 
+--- Eventos UNIVERSAL (FASE 6): pueden ocurrir en cualquier mundo.
+---
+-- No son raros: son eventos con `Type = Global` que no pertenecen a un mundo
+-- concreto sino al juego completo. Aparecen en la lista de cualquier mundo.
+Rules.Universal = {
+	{
+		Id = "TreasureRush",
+		Label = "RAFAGA DE TESOROS",
+		Rarity = 0.08,
+		Weight = 0.08,
+		Duration = 60,
+		Cooldown = 480,
+		Type = Rules.EventType.Global,
+		WarningDuration = 5,
+		ActiveDuration = 45,
+		RecoveryDuration = 5,
+		Threat = 0.9,
+	},
+	{
+		Id = "MonsterSurge",
+		Label = "OLEADA DE BESTIAS",
+		Rarity = 0.07,
+		Weight = 0.07,
+		Duration = 50,
+		Cooldown = 400,
+		Type = Rules.EventType.Global,
+		WarningDuration = 4,
+		ActiveDuration = 38,
+		RecoveryDuration = 4,
+		Threat = 1.3,
+	},
+	{
+		Id = "EliteSpawn",
+		Label = "ELITE RARO",
+		Rarity = 0.05,
+		Weight = 0.05,
+		Duration = 80,
+		Cooldown = 500,
+		Type = Rules.EventType.Global,
+		WarningDuration = 5,
+		ActiveDuration = 65,
+		RecoveryDuration = 6,
+		Threat = 1.45,
+	},
+}
+
+--- Eventos COOP (FASE 6): requieren N jugadores minimos.
+---
+-- Si no hay suficientes jugadores presentes, el evento NO se abre. No se
+-- abre para uno y luego se escala: la promesa del COOP es que todos
+-- participan desde el inicio.
+Rules.Coop = {
+	{
+		Id = "SharedThreat",
+		Label = "amenaza compartida",
+		Rarity = 0.06,
+		Weight = 0.06,
+		Duration = 90,
+		Cooldown = 420,
+		Type = Rules.EventType.Coop,
+		MinPlayers = 3,
+		MaxPlayers = 8,
+		WarningDuration = 8,
+		ActiveDuration = 70,
+		RecoveryDuration = 8,
+		Threat = 1.4,
+	},
+	{
+		Id = "TwinBosses",
+		Label = "GEMELO JEFE",
+		Rarity = 0.04,
+		Weight = 0.04,
+		Duration = 120,
+		Cooldown = 600,
+		Type = Rules.EventType.Coop,
+		MinPlayers = 4,
+		MaxPlayers = 8,
+		WarningDuration = 10,
+		ActiveDuration = 95,
+		RecoveryDuration = 10,
+		Threat = 1.6,
+	},
+	{
+		Id = "Nexus",
+		Label = "NEXUS PURIFICADOR",
+		Rarity = 0.03,
+		Weight = 0.03,
+		Duration = 150,
+		Cooldown = 720,
+		Type = Rules.EventType.Coop,
+		MinPlayers = 6,
+		MaxPlayers = 8,
+		WarningDuration = 12,
+		ActiveDuration = 120,
+		RecoveryDuration = 12,
+		Threat = 1.8,
+	},
+}
+
 --- Ids de todos los eventos, con su mundo (`nil` si son raros).
 --- @return { { Id: string, WorldId: string?, Rare: boolean } }
 function Rules.GetAll()
@@ -206,8 +593,16 @@ function Rules.GetAll()
 		table.insert(out, { Id = event.Id, WorldId = nil, Rare = true })
 	end
 
+	for _, event in ipairs(Rules.Universal) do
+		table.insert(out, { Id = event.Id, WorldId = nil, Rare = false, Universal = true })
+	end
+
+	for _, event in ipairs(Rules.Coop) do
+		table.insert(out, { Id = event.Id, WorldId = nil, Rare = false, Coop = true })
+	end
+
 	return out
-end
+ end
 
 --- Eventos de un mundo, raros incluidos.
 --- @param worldId any
@@ -240,8 +635,17 @@ function Rules.GetForWorld(worldId: any): { any }
 		table.insert(out, event)
 	end
 
+	-- FASE 6: eventos Universal y COOP pueden ocurrir en cualquier mundo.
+	for _, event in ipairs(Rules.Universal) do
+		table.insert(out, event)
+	end
+
+	for _, event in ipairs(Rules.Coop) do
+		table.insert(out, event)
+	end
+
 	return out
-end
+ end
 
 --- Busqueda de un evento por id, en cualquier mundo.
 --- @param id any
@@ -265,8 +669,20 @@ function Rules.Get(id: any): any?
 		end
 	end
 
+	for _, event in ipairs(Rules.Universal) do
+		if event.Id == id then
+			return event
+		end
+	end
+
+	for _, event in ipairs(Rules.Coop) do
+		if event.Id == id then
+			return event
+		end
+	end
+
 	return nil
-end
+ end
 
 -- ---------------------------------------------------------------------------
 -- SELECCION
@@ -339,11 +755,83 @@ function Rules.Roll(worldId: string, roll: number, allowRare: boolean?): any?
 	end
 
 	return nil
-end
+ end
 
--- ---------------------------------------------------------------------------
--- CICLO DE VIDA
--- ---------------------------------------------------------------------------
+ -- ---------------------------------------------------------------------------
+ -- SELECCION PONDERADA (FASE 6): Weight como peso relativo
+ -- ---------------------------------------------------------------------------
+ --
+ -- `Roll` usa `Rarity` como probabilidad absoluta (la suma define el corte).
+ -- `WeightedRoll` usa `Weight` como peso relativo: siempre devuelve un evento
+ -- (el que tenga mas peso), y la probabilidad de "ningun evento" se decide
+ -- afuera, en el servicio, con el cooldown y la ventana entre sorteos.
+ --
+ -- Los eventos LEGACY (sin campo `Weight`) se usan como `Rarity` en el peso
+ -- para que `WeightedRoll` siga funcionando con el catalogo existente.
+ --- @param worldId string
+ --- @param roll number 0..1
+ --- @param allowRare boolean? incluir los eventos raros
+ --- @param excludeCoop boolean? excluir eventos COOP (no hay jugadores suficientes)
+ --- @return any? evento elegido
+ function Rules.WeightedRoll(worldId: string, roll: number, allowRare: boolean?, excludeCoop: boolean?): any?
+	if type(roll) ~= "number" or roll ~= roll then
+		return nil
+	end
+
+	local r = math.clamp(roll, 0, 0.999999)
+	local candidates = Rules.GetForWorld(worldId)
+
+	if not allowRare then
+		local filtered = {}
+		for _, event in ipairs(candidates) do
+			if not Rules.IsRare(event.Id) then
+				table.insert(filtered, event)
+			end
+		end
+		candidates = filtered
+	end
+
+	if excludeCoop then
+		local filtered = {}
+		for _, event in ipairs(candidates) do
+			if not Rules.IsCoop(event.Id) then
+				table.insert(filtered, event)
+			end
+		end
+		candidates = filtered
+	end
+
+	if #candidates == 0 then
+		return nil
+	end
+
+	-- El peso de cada evento: Weight si existe, Rarity como respaldo.
+	local total = 0
+	for _, event in ipairs(candidates) do
+		local weight = tonumber(event.Weight) or tonumber(event.Rarity) or 0
+		total += weight
+	end
+
+	if total <= 0 then
+		return nil
+	end
+
+	local cursor = 0
+	local threshold = r * total
+
+	for _, event in ipairs(candidates) do
+		local weight = tonumber(event.Weight) or tonumber(event.Rarity) or 0
+		cursor += weight
+
+		if threshold < cursor then
+			return event
+		end
+	end
+
+	-- Si el peso acumulado no llega a cubrir el umbral (float precision),
+	-- devuelve el ultimo candidato.
+	return candidates[#candidates]
+ end
 
 export type ActiveEvent = {
 	InstanceId: number,
@@ -416,9 +904,276 @@ function Rules.Finish(active: ActiveEvent, cancelled: boolean?): boolean
 	active.State = if cancelled then Rules.State.Cancelled else Rules.State.Finished
 
 	return true
-end
+ end
 
---- Presion que aporta el evento a la dificultad (FASE 32).
+ -- ---------------------------------------------------------------------------
+ -- FASE 6: MAQUINA DE ESTADOS DINAMICA
+ -- ---------------------------------------------------------------------------
+
+ --- Tipo extendido de ActiveEvent para la maquina de 5 estados (FASE 6).
+ ---
+ --- Los campos `Phase`, `PhaseStartedAt`, `WarningDuration`, `ActiveDuration`
+ --- y `RecoveryDuration` son nil en los eventos LEGACY (que usan `State` y
+ --- `Duration`). El servicio detecta el tipo con `IsDynamicEvent`.
+ --- @class DynamicActiveEvent
+ --- @field InstanceId number
+ --- @field EventId string
+ --- @field WorldId string
+ --- @field Night number
+ --- @field Phase string  (DynamicState)
+ --- @field PhaseStartedAt number
+ --- @field WarningDuration number
+ --- @field ActiveDuration number
+ --- @field RecoveryDuration number
+ --- @field CooldownUntil number
+ --- @field ZoneId string?
+ --- @field CleanUp boolean
+ --- @field ObjectiveCompleted boolean
+
+ --- Crea un evento dinámico con la maquina de 5 estados (FASE 6).
+ --- @param instanceId number
+ --- @param event any definicion del catalogo
+ --- @param worldId string
+ --- @param night any
+ --- @param now number
+ --- @return table active
+ function Rules.DynamicStart(
+	instanceId: number,
+	event: any,
+	worldId: string,
+	night: any,
+	now: number
+ ): table
+	local warning = tonumber(event.WarningDuration) or 8
+	local activeDur = tonumber(event.ActiveDuration) or (tonumber(event.Duration) or 45)
+	local recovery = tonumber(event.RecoveryDuration) or 5
+
+	return {
+		InstanceId = instanceId,
+		EventId = event.Id,
+		WorldId = worldId,
+		Night = tonumber(night) or 1,
+		Phase = Rules.DynamicState.Warning,
+		PhaseStartedAt = now,
+		WarningDuration = warning,
+		ActiveDuration = activeDur,
+		RecoveryDuration = recovery,
+		CooldownUntil = 0,
+		ZoneId = event.ZoneId,
+		CleanUp = false,
+		ObjectiveCompleted = false,
+	}
+ end
+
+ --- El siguiente estado en la maquina de 5 fases.
+ --- @param phase string
+ --- @return string next
+ function Rules.NextPhase(phase: string): string
+	if phase == Rules.DynamicState.Warning then
+		return Rules.DynamicState.Active
+	elseif phase == Rules.DynamicState.Active then
+		return Rules.DynamicState.Recovery
+	elseif phase == Rules.DynamicState.Recovery then
+		return Rules.DynamicState.Cooldown
+	elseif phase == Rules.DynamicState.Cooldown then
+		return Rules.DynamicState.Idle
+	end
+	return Rules.DynamicState.Warning
+ end
+
+ --- Duracion de la fase actual en segundos.
+ --- @param active table
+ --- @return number
+ function Rules.PhaseDuration(active: table): number
+	local phase = active.Phase
+
+	if phase == Rules.DynamicState.Warning then
+		return tonumber(active.WarningDuration) or 8
+	elseif phase == Rules.DynamicState.Active then
+		return tonumber(active.ActiveDuration) or 45
+	elseif phase == Rules.DynamicState.Recovery then
+		return tonumber(active.RecoveryDuration) or 5
+	end
+
+	return 0
+ end
+
+ --- Tiempo restante en la fase actual. 0 si expiró.
+ --- @param active table
+ --- @param now number
+ --- @return number
+ function Rules.GetPhaseRemaining(active: table, now: number): number
+	local elapsed = now - active.PhaseStartedAt
+	return math.max(0, Rules.PhaseDuration(active) - elapsed)
+ end
+
+ --- La fase actual expiró por tiempo.
+ --- @param active table
+ --- @param now number
+ --- @return boolean
+ function Rules.IsPhaseExpired(active: table, now: number): boolean
+	return Rules.GetPhaseRemaining(active, now) <= 0
+ end
+
+ --- Avanza el evento a la siguiente fase. Devuelve true si avanzó.
+ --- @param active table
+ --- @param now number
+ --- @return boolean changed
+ function Rules.AdvancePhase(active: table, now: number): boolean
+	if not active.Phase or active.Phase == Rules.DynamicState.Idle then
+		return false
+	end
+
+	if active.Phase == Rules.DynamicState.Cooldown then
+		-- Cooldown -> Idle: el evento vuelve a estar disponible.
+		active.Phase = Rules.DynamicState.Idle
+		active.CooldownUntil = 0
+		return true
+	end
+
+	active.Phase = Rules.NextPhase(active.Phase)
+	active.PhaseStartedAt = now
+	return true
+ end
+
+ --- Duracion total del evento dinámico (warning + active + recovery).
+ --- @param active table
+ --- @return number
+ function Rules.GetTotalDuration(active: table): number
+	return (Rules.PhaseDuration(active) + (tonumber(active.WarningDuration) or 0) + (tonumber(active.ActiveDuration) or 0))
+ end
+
+ --- Un evento es dinámico (FASE 6) si tiene Phase (no State).
+ --- @param active any
+ --- @return boolean
+ function Rules.IsDynamicEvent(active: any): boolean
+	return type(active) == "table" and active.Phase ~= nil
+ end
+
+ --- El evento está en fase activa o de anuncio.
+ --- @param active any
+ --- @return boolean
+ function Rules.IsEventLive(active: any): boolean
+	if not active or type(active) ~= "table" then
+		return false
+	end
+
+	if Rules.IsDynamicEvent(active) then
+		return active.Phase == Rules.DynamicState.Warning
+			or active.Phase == Rules.DynamicState.Active
+	end
+
+	return active.State == Rules.State.Running
+ end
+
+ --- Marca el evento como completado (objetivo alcanzado en fase Active).
+ --- @param active table
+ --- @param now number
+ --- @return boolean changed
+ function Rules.CompleteObjective(active: table, now: number): boolean
+	if active.ObjectiveCompleted then
+		return false
+	end
+
+	active.ObjectiveCompleted = true
+	return true
+ end
+
+ --- El evento cumple su objetivo y puede pasar a Recovery.
+ --- @param active table
+ --- @return boolean
+ function Rules.IsObjectiveDone(active: table): boolean
+	return active.ObjectiveCompleted == true
+ end
+
+ --- Clasifica un evento como COOP.
+ --- @param eventId any
+ --- @return boolean
+ function Rules.IsCoop(eventId: any): boolean
+	if type(eventId) ~= "string" then
+		return false
+	end
+
+	for _, event in ipairs(Rules.Coop) do
+		if event.Id == eventId then
+			return true
+		end
+	end
+
+	return false
+ end
+
+ --- Clasifica un evento como Universal.
+ --- @param eventId any
+ --- @return boolean
+ function Rules.IsUniversal(eventId: any): boolean
+	if type(eventId) ~= "string" then
+		return false
+	end
+
+	for _, event in ipairs(Rules.Universal) do
+		if event.Id == eventId then
+			return true
+		end
+	end
+
+	return false
+ end
+
+ --- Requisitos de jugador para un evento COOP.
+ --- @param eventId any
+ --- @return number? minPlayers
+ --- @return number? maxPlayers
+ function Rules.GetPlayerRequirements(eventId: any): (number?, number?)
+	local def = Rules.Get(eventId)
+
+	if not def then
+		return nil, nil
+	end
+
+	return tonumber(def.MinPlayers), tonumber(def.MaxPlayers)
+ end
+
+ --- Zona de un evento LOCAL (FASE 6).
+ --- @param eventId any
+ --- @return string? zoneId
+ function Rules.GetZone(eventId: any): string?
+	local def = Rules.Get(eventId)
+
+	if not def then
+		return nil
+	end
+
+	return def.ZoneId
+ end
+
+ --- Tiempo de enfriamiento de un evento, en segundos.
+ --- @param eventId any
+ --- @return number
+ function Rules.CooldownFor(eventId: any): number
+	local def = Rules.Get(eventId)
+
+	if not def then
+		return 120
+	end
+
+	return tonumber(def.Cooldown) or 120
+ end
+
+ --- Tipo de evento (Global/Local/Player/Coop).
+ --- @param eventId any
+ --- @return string?
+ function Rules.GetEventType(eventId: any): string?
+	local def = Rules.Get(eventId)
+
+	if not def then
+		return nil
+	end
+
+	return def.Type
+ end
+
+ --- Presion que aporta el evento a la dificultad (FASE 32).
 ---
 --- Se pasa como multiplicador a `DifficultyRules.Resolve`, que a su vez lo
 --- ACOTA. Aqui solo se limita a un rango sano para que un valor raro del
@@ -710,6 +1465,238 @@ function Rules.GetBodies(): { any }
 	end)
 
 	return out
-end
+ end
 
-return Rules
+ -- ---------------------------------------------------------------------------
+ -- FASE 6: CUERPOS DINAMICOS (DynamicBodies)
+ -- ---------------------------------------------------------------------------
+ --
+ -- Los cuerpos del evento son los monstruos u objetos que aparecen en el mapa.
+ -- Siguen el mismo patron que `Bodies`: tabla aparte, referenciada por `Id`,
+ -- con un `Kind` (Hunt/Boss/Survive/Reward/Collect/Defense/Escort) y lista de
+ -- `Spawns` de monstruos validos. Un evento sin cuerpo es ambiental.
+ --
+ -- Los monstruos referenciados deben existir en `MonsterDefinitions`:
+ -- `DynamicBodyAudit` (las pruebas) lo comprueba, evitando la trampa de un
+ -- evento que anuncia caza pero que NO pone enemigos porque el id esta mal.
+
+ Rules.DynamicBodies = {
+	-- --- FOREST ---
+	ForestAmbush = { Kind = "Hunt", Spawns = { "Slime", "Shadow", "Hunter" }, BaseTarget = 6 },
+	LostCreature = { Kind = "Boss", Spawns = { "ForestTronk" }, BaseTarget = 1 },
+	ForestRift = { Kind = "Survive", Spawns = {}, BaseTarget = 0 },
+	NightHunters = { Kind = "Hunt", Spawns = { "Shadow", "Shadow" }, BaseTarget = 5 },
+
+	-- --- DESERT ---
+	BuriedTreasure = { Kind = "Collect", Spawns = {}, BaseTarget = 3 },
+	Caravan = { Kind = "Defense", Spawns = { "Hunter", "Guardian" }, BaseTarget = 8 },
+	SandBeastHunt = { Kind = "Boss", Spawns = { "DesertEscorpion" }, BaseTarget = 1 },
+
+	-- --- ICE ---
+	IceBreak = { Kind = "Hunt", Spawns = { "IceBeast", "IceBeast" }, BaseTarget = 5 },
+	FrozenRescue = { Kind = "Rescue", Spawns = {}, BaseTarget = 1 },
+	FrostPack = { Kind = "Hunt", Spawns = { "IceBeast" }, BaseTarget = 4 },
+
+	-- --- VOLCANO ---
+	Rockfall = { Kind = "Survive", Spawns = {}, BaseTarget = 0 },
+	VolcanicEvacuation = { Kind = "Escort", Spawns = {}, BaseTarget = 1 },
+	MagmaHunt = { Kind = "Hunt", Spawns = { "FireBeast", "BomberMonster" }, BaseTarget = 6 },
+
+	-- --- CYBER ---
+	SystemFailure = { Kind = "Survive", Spawns = {}, BaseTarget = 0 },
+	SecurityLockdown = { Kind = "Hunt", Spawns = { "CyberStalker" }, BaseTarget = 5 },
+	HackTheCore = { Kind = "Objective", Spawns = {}, BaseTarget = 1 },
+	SecuritySwarm = { Kind = "Hunt", Spawns = { "CyberStalker" }, BaseTarget = 7 },
+
+	-- --- UNIVERSAL ---
+	TreasureRush = { Kind = "Collect", Spawns = {}, BaseTarget = 5 },
+	MonsterSurge = { Kind = "Hunt", Spawns = { "Slime", "Shadow", "Hunter", "BombBug" }, BaseTarget = 10 },
+	EliteSpawn = { Kind = "Boss", Spawns = { "Guardian", "IceBeast", "FireBeast", "CyberStalker" }, BaseTarget = 1 },
+
+	-- --- COOP ---
+	SharedThreat = { Kind = "Hunt", Spawns = { "Slime", "Shadow", "Hunter", "BombBug" }, BaseTarget = 12 },
+	TwinBosses = { Kind = "Boss", Spawns = { "ForestGrooty", "DesertSandBeast" }, BaseTarget = 2 },
+	Nexus = { Kind = "Hunt", Spawns = { "CyberStalker", "BomberMonster", "FireBeast" }, BaseTarget = 15 },
+ }
+
+ Rules.DynamicBodyKind = {
+	Hunt = "Hunt",
+	Boss = "Boss",
+	Survive = "Survive",
+	Reward = "Reward",
+	Collect = "Collect",
+	Defense = "Defense",
+	Escort = "Escort",
+	Rescue = "Rescue",
+	Objective = "Objective",
+ }
+
+ --- Cuerpo de un evento dinámico, o nil si es ambiental.
+ --- @param eventId any
+ --- @return any?
+ function Rules.DynamicBodyFor(eventId: any): any?
+	if type(eventId) ~= "string" then
+		return nil
+	end
+
+	return Rules.DynamicBodies[eventId]
+ end
+
+ --- Objetivo numerico de un evento dinámico (bajas o coleccion).
+ --- @param eventId any
+ --- @param night any
+ --- @return number target 0 = evento sin objetivo de bajas
+ function Rules.DynamicObjectiveTargetFor(eventId: any, night: any): number
+	local body = Rules.DynamicBodyFor(eventId)
+
+	if not body then
+		return 0
+	end
+
+	if body.Kind ~= Rules.DynamicBodyKind.Hunt and body.Kind ~= Rules.DynamicBodyKind.Boss then
+		return 0
+	end
+
+	local base = tonumber(body.BaseTarget) or 1
+
+	if body.Kind == Rules.DynamicBodyKind.Boss then
+		return 1
+	end
+
+	local bonus = math.clamp((tonumber(night) or 1) - 1, 0, 8)
+	return base + bonus
+ end
+
+ --- Plan de generacion para un evento dinámico.
+ --- @param eventId any
+ --- @param night any
+ --- @param kills any
+ --- @param alive any
+ --- @return number a generar (0 si no toca)
+ function Rules.DynamicSpawnPlanFor(eventId: any, night: any, kills: any, alive: any): number
+	local body = Rules.DynamicBodyFor(eventId)
+
+	if not body or body.Kind ~= Rules.DynamicBodyKind.Hunt and body.Kind ~= Rules.DynamicBodyKind.Boss then
+		return 0
+	end
+
+	local target = Rules.DynamicObjectiveTargetFor(eventId, night)
+	local done = (tonumber(kills) or 0) + (tonumber(alive) or 0)
+	local remaining = target - done
+
+	if remaining <= 0 then
+		return 0
+	end
+
+	if body.Kind == Rules.DynamicBodyKind.Boss then
+		return math.min(remaining, 1)
+	end
+
+	return math.min(remaining, Rules.MaxAlivePerEvent - (tonumber(alive) or 0))
+ end
+
+ --- El evento dinámico PAGA cuando el reloj llega a cero.
+ --- @param eventId any
+ --- @return boolean
+ function Rules.DynamicCompletesOnExpiry(eventId: any): boolean
+	local body = Rules.DynamicBodyFor(eventId)
+
+	if not body then
+		return true
+	end
+
+	return body.Kind == Rules.DynamicBodyKind.Survive
+		or body.Kind == Rules.DynamicBodyKind.Reward
+		or body.Kind == Rules.DynamicBodyKind.Defense
+ end
+
+ --- Texto de objetivo para el HUD de un evento dinámico.
+ --- @param eventId any
+ --- @param night any
+ --- @param kills any
+ --- @return string
+ function Rules.DynamicObjectiveText(eventId: any, night: any, kills: any): string
+	local body = Rules.DynamicBodyFor(eventId)
+
+	if not body then
+		return ""
+	end
+
+	if body.Kind == Rules.DynamicBodyKind.Hunt then
+		local target = Rules.DynamicObjectiveTargetFor(eventId, night)
+		return ("Derrota: %d/%d"):format(tonumber(kills) or 0, target)
+	end
+
+	if body.Kind == Rules.DynamicBodyKind.Boss then
+		return "Derrota al jefe"
+	end
+
+	if body.Kind == Rules.DynamicBodyKind.Survive then
+		return "Sobrevive"
+	end
+
+	if body.Kind == Rules.DynamicBodyKind.Defense then
+		return "Defiende el punto"
+	end
+
+	if body.Kind == Rules.DynamicBodyKind.Escort then
+		return "Escolta al objetivo"
+	end
+
+	if body.Kind == Rules.DynamicBodyKind.Rescue then
+		return "Rescate completado"
+	end
+
+	if body.Kind == Rules.DynamicBodyKind.Collect then
+		local target = tonumber(body.BaseTarget) or 3
+		return ("Colecciona: %d/%d"):format(tonumber(kills) or 0, target)
+	end
+
+	if body.Kind == Rules.DynamicBodyKind.Objective then
+		return "Completa el objetivo"
+	end
+
+	return "Recoge la recompensa"
+ end
+
+ --- Lista plana de cuerpos dinámicos (diagnostico y pruebas).
+ --- @return { { Id: string, Kind: string, Spawns: { string } } }
+ function Rules.GetDynamicBodies(): { any }
+	local out = {}
+
+	for id, body in pairs(Rules.DynamicBodies) do
+		table.insert(out, { Id = id, Kind = body.Kind, Spawns = body.Spawns })
+	end
+
+	table.sort(out, function(a, b)
+		return a.Id < b.Id
+	end)
+
+	return out
+ end
+
+ --- Todos los ids de eventos FASE 6 (no raros, no legacy).
+ --- @return { string }
+ function Rules.GetDynamicEventIds(): { string }
+	local out = {}
+
+	for _, event in ipairs(Rules.Universal) do
+		table.insert(out, event.Id)
+	end
+
+	for _, event in ipairs(Rules.Coop) do
+		table.insert(out, event.Id)
+	end
+
+	for _, events in pairs(Rules.ByWorld) do
+		for _, event in ipairs(events) do
+			if event.Weight ~= nil then
+				table.insert(out, event.Id)
+			end
+		end
+	end
+
+	return out
+ end
+
+ return Rules

@@ -974,6 +974,76 @@ const RAIL_OFFSET = 1.2;
  */
 const WALL_GAP = 6;
 
+// ------------------------------------------------------ CLASIFICACION DE HUECOS
+//
+// FASE 5: sistema de clasificacion de huecos del mapa.
+// Cada hueco detectado se clasifica en uno de estos tipos para decidir si
+// necesita reparacion o si es intencional.
+//
+//   HOLE_INVALID          hueco real que rompe la navegacion o el suelo jugable
+//   VOID_INTENTIONAL       vacio planeado: cañones, precipicios, bordes del mundo
+//   VERTICAL_TRANSITION    zona de paso entre niveles (cuevas, escaleras, minas)
+//   SECRET_OPENING        entrada a zona secreta (cueva oculta, tunel)
+//   WATER_OPENING          abertura sobre agua o charco (no aplica en mundos sin agua)
+//   STRUCTURAL_GAP        hueco entre dos estructuras adyacentes a distintas cotas
+//   BROKEN_NAVIGATION     hueco que corta una ruta sin alternativa
+//   UNSAFE_DROP           caida sin salida, punto muerto entre zonas
+const HOLE_TYPES = {
+	HOLE_INVALID: 0,
+	VOID_INTENTIONAL: 1,
+	VERTICAL_TRANSITION: 2,
+	SECRET_OPENING: 3,
+	WATER_OPENING: 4,
+	STRUCTURAL_GAP: 5,
+	BROKEN_NAVIGATION: 6,
+	UNSAFE_DROP: 7,
+};
+
+/**
+ * Niveles verticales de exploracion subterranea (FASE 5).
+ *
+ * Cada nivel es una capa de cueva a una cota fija por debajo del nivel de
+ * superficie (y=0). Las cuevas se construyen como losas fracturadas con
+ * paredes de roca, y se conectan entre si mediante túneles verticales.
+ *
+ *   CAVE_LEVEL_1  a 20 studs bajo la superficie: cuevas superficiales, minas,
+//   entradas secretas.
+//   CAVE_LEVEL_2  a 40 studs: cavernas mas profundas, rios subterraneos.
+//   CAVE_LEVEL_3  a 60 studs: cuevas mas profundas, camaras de jefes menores.
+ */
+const CAVE_LEVELS = [
+	{ id: "cave1", name: "cave_1", y: -20, depth: 0, radius: 0.82 },
+	{ id: "cave2", name: "cave_2", y: -40, depth: 1, radius: 0.72 },
+	{ id: "cave3", name: "cave_3", y: -60, depth: 2, radius: 0.62 },
+];
+
+/**
+ * Fraccion de zonas con acceso a cuevas subterraneas.
+ *
+ * No todas las zonas tienen entrada a cuevas: las zonas de combate y boss
+ * mantienen su acceso directo. Las zonas de exploracion, encounter y scenic
+ * tienen probabilidad de spawn de entrada de cueva.
+ */
+const CAVE_ACCESS_ROLES = ["exploration", "encounter", "scenic", "destruction", "intermediate"];
+const CAVE_ACCESS_RATE = 0.5;
+
+/**
+ * Radio minimo de zona para tener entrada de cueva.
+ * Zonas pequeñas no pueden acomodar un pozo de escalada.
+ */
+const CAVE_MIN_ZONE_RADIUS = 50;
+
+/**
+ * Distancia vertical minima entre nivel de cueva y zona superior.
+ * Garantiza espacio jugable entre niveles.
+ */
+const CAVE_LEVEL_SPACING = 18;
+
+/**
+ * Anchura del pozo vertical entre niveles de cueva.
+ */
+const CAVE_SHAFT_RADIUS = 6;
+
 /**
  * Caja que ocupa un layout, contando el radio de sus zonas.
  *
@@ -1264,6 +1334,57 @@ function zoneSlab(api, z, P, seedBase, name) {
 			size: [w, 2 + lift, d],
 			material: P.floorMaterial,
 			color: hash01(seedBase, i + 7) > 0.55 ? P.groundAlt : P.ground,
+			orientation: [0, Math.round((a * 180) / Math.PI), 0],
+		}));
+	}
+
+	return out;
+}
+
+/**
+ * Suelo del borde de una zona: cobertura fina en el anillo externo.
+ *
+ * P0. El nucleo de `zoneSlab` cubre solo el 52.5% del radio de la zona (caja
+ * centrada, no elipse), y los anillos de losas giran entre el 62% y 98% pero
+ * con pocos segmentos (3 en zonas pequenas). Entre el final de esas losas y el
+ * muro del borde (100% del radio) hay esquinas sin suelo: la zona parece
+ * cerrada, pero el jugador cae al vacio entrando por una ruta porque el deck
+ * de la ruta y el approach no llegan hasta el borde de la zona en esa direccion.
+ *
+ * Este suelo de borde cierra esas esquinas SIN cajas: son losas delgadas
+ * (2 studs de cota) colocadas a ~95% del radio de la elipse, orientadas en
+ * tangente. Se colocan en TODOS los angulos (incluyendo las aberturas de ruta)
+ * porque las aberturas son precisamente donde el jugador transita entre la
+ * ruta y la zona: ese es el corner critico. NO son paredes: dejan el borde del
+ * mundo como terreno caente.
+ *
+ * @param {object} api
+ * @param {object} z zona
+ * @param {object} P paleta
+ * @param {number} seedBase
+ * @param {string} name
+ * @param {Array<{angle:number, halfStuds:number}>} openings huecos de rutas
+ */
+function zoneRimFloor(api, z, P, seedBase, name, openings) {
+	const { part } = api;
+	const out = [];
+	const segs = rimSegments(z);
+
+	for (let i = 0; i < segs; i++) {
+		const a = (i / segs) * Math.PI * 2;
+		const rr = ellipseRadius(z.rx, z.rz, Math.cos(a), Math.sin(a));
+
+		const r = rr * 1.05;
+		const x = z.x + Math.cos(a) * r;
+		const zz = z.z + Math.sin(a) * r;
+		const segLen = ((Math.PI * 2) / segs) * r * 1.15;
+		const radialLen = Math.max(segLen + 2, rr * 0.4 + 10);
+
+		out.push(part(name + "_RimFloor_" + i, {
+			position: [x, z.y - 1, zz],
+			size: [Math.round(radialLen), 2, 14],
+			material: P.floorMaterial,
+			color: hash01(seedBase, i + 90) > 0.5 ? P.groundAlt : P.ground,
 			orientation: [0, Math.round((a * 180) / Math.PI), 0],
 		}));
 	}
@@ -1669,6 +1790,514 @@ function fillApproach(api, out, ax, az, zone, width, P, seedBase, tag, stop) {
 	}
 }
 
+
+/**
+ * Puente entre el corridor de una ruta y el borde de su zona.
+ *
+ * P0. El deck de la ruta y el `fillApproach` cubren el CORREDOR desde el
+ * extremo de la ruta hacia el centro de la zona, pero no la ESQUINA donde el
+ * corredor topa con el borde de la zona: el jugador cae al vacio entrando por
+ * una ruta porque entre el deck/approach (ancho `w`) y el muro del borde (a
+ * 100% del radio) hay un hueco angular que ninguna losa cubre.
+ *
+ * Este puente coloca una losa ancha en el BORDE de la zona (a ~98% del radio)
+ * que extiende desde el corredor hacia el borde, cubriendo la esquina. Se
+ * coloca en la direccion de la ruta y tiene huecos donde ya hay otra ruta
+ * entrando por el mismo lado, para no chocar con el approach.
+ *
+ * @param {object} part funcion de creacion de piezas
+ * @param {Array} out donde acumular
+ * @param {number} ex x del extremo de la ruta en la zona
+ * @param {number} ez z del extremo de la ruta en la zona
+ * @param {object} zone zona destino
+ * @param {number} width ancho de la ruta
+ * @param {object} P paleta
+ * @param {number} seedBase
+ * @param {string} tag nombre unico
+ */
+function fillEdgeBridge(part, out, ex, ez, zone, width, P, seedBase, tag) {
+	const dx = zone.x - ex;
+	const dz = zone.z - ez;
+	const len = Math.sqrt(dx * dx + dz * dz);
+	if (len < 1) return;
+
+	const ux = dx / len;
+	const uz = dz / len;
+	const yaw = yawTo(ux, uz);
+	const w = Math.max(width, MIN_ROUTE_OPENING);
+
+	// El bridge va en el borde de la zona: desde el endpoint de la ruta (0.72*radio)
+	// hasta el borde de la zona (~1.0*radio en esa direccion).
+	const rr = ellipseRadius(zone.rx, zone.rz, ux, uz);
+	const bridgeStart = rr * 0.72;
+	const bridgeEnd = rr * 1.02;
+	const bridgeLen = bridgeEnd - bridgeStart;
+	const midR = (bridgeStart + bridgeEnd) / 2;
+
+	const bx = zone.x + ux * midR;
+	const bz = zone.z + uz * midR;
+
+	// El ancho del bridge cubre el corredor MAS el hueco angular hasta el borde.
+	// El hueco es ~(rr - bridgeStart) en la direccion radial, que en la
+	// direccion perpendicular se traduce a ~rr * 0.28.
+	const bridgeWidth = w + rr * 0.6;
+
+	out.push(part("EdgeBridge_" + zone.id + "_" + tag, {
+		position: [bx, zone.y - 1, bz],
+		size: [Math.round(bridgeLen + 2), 2, Math.round(bridgeWidth)],
+		material: P.floorMaterial,
+		color: P.ground,
+		orientation: [0, yaw, 0],
+	}));
+	void seedBase;
+}
+
+
+/**
+ * Escanea la geometria generada y sella huecos de suelo que quedan entre zonas.
+ *
+ * P0. Usa la MISMA rejilla de celdas de 4 studs que `world-navigation-test.js`,
+ * de modo que el parche cierra exactamente lo que el verificador marcaria como
+ * hueco: una celda sin suelo rodeada de suelo por todos lados. Coloca una losa de
+ * 8x2x8 (no una caja de 4x4) solo sobre esas celdas, manteniendo el suelo
+ * fragmentado y organico.
+ *
+ * P0 IMPORTANTE: la AABB de cada pieza se calcula CON rotacion (Orientation),
+ * igual que `aabbOf` en `analyze-hole-types.js`. Sin la rotacion, las losas
+ * giradas de las rutas (deck, approach) producen un AABB eje-alineado demasiado
+ * grande que esconde los huecos reales.
+ *
+ * @param {function} part funcion de creacion de piezas collidable
+ * @param {Array} parts lista de piezas de terreno ya generadas
+ * @param {Array} zones zonas del layout
+ * @param {object} P paleta
+ * @param {number} seedBase
+ */
+function patchFloorHoles(part, parts, zones, P, seedBase, extraParts) {
+	const CELL = 4;
+
+	const scanParts = extraParts ? parts.concat(extraParts) : parts;
+
+	function rotatedAABB(props) {
+		const p = props.Position, s = props.Size;
+		if (!Array.isArray(p) || !Array.isArray(s)) return null;
+		const o = props.Orientation;
+		const rx = o && Array.isArray(o) ? o[0] * Math.PI / 180 : 0;
+		const ry = o && Array.isArray(o) ? o[1] * Math.PI / 180 : 0;
+		const rz = o && Array.isArray(o) ? o[2] * Math.PI / 180 : 0;
+		const cx = Math.cos(rx), sx = Math.sin(rx);
+		const cy = Math.cos(ry), sy = Math.sin(ry);
+		const cz = Math.cos(rz), sz = Math.sin(rz);
+		const m = [cy*cz, cy*sz, -sy, sx*sy*cz-cx*sz, sx*sy*sz+cx*cz, sx*cy, cx*sy*cz+sx*cz, cx*sy*sz-sx*cz, cx*cy];
+		const hx = s[0] / 2, hy = s[1] / 2, hz = s[2] / 2;
+		let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity, z0 = Infinity, z1 = -Infinity;
+		for (const ox of [-hx, hx]) for (const oy of [-hy, hy]) for (const oz of [-hz, hz]) {
+			const wx = p[0] + m[0]*ox + m[1]*oy + m[2]*oz;
+			const wy = p[1] + m[3]*ox + m[4]*oy + m[5]*oz;
+			const wz = p[2] + m[6]*ox + m[7]*oy + m[8]*oz;
+			if (wx < x0) x0 = wx; if (wx > x1) x1 = wx;
+			if (wy < y0) y0 = wy; if (wy > y1) y1 = wy;
+			if (wz < z0) z0 = wz; if (wz > z1) z1 = wz;
+		}
+		return { x0, x1, y0, y1, z0, z1 };
+	}
+
+	function isFloor(aabb) {
+		const ex = aabb.x1 - aabb.x0, ez = aabb.z1 - aabb.z0, ey = aabb.y1 - aabb.y0;
+		return ex > ey && ez > ey && ex > CELL * 1.6 && ez > CELL * 1.6;
+	}
+
+	function buildGrid(allParts) {
+		const solids = [];
+		for (const p of allParts) {
+			const props = p.node && p.node.$properties;
+			if (!props || props.CanCollide !== true) continue;
+			const aabb = rotatedAABB(props);
+			if (!aabb || !isFloor(aabb)) continue;
+			solids.push(aabb);
+		}
+
+		let minX = Infinity, maxX = -Infinity, minZ = Infinity, maxZ = -Infinity;
+		for (const s of solids) {
+			minX = Math.min(minX, s.x0); maxX = Math.max(maxX, s.x1);
+			minZ = Math.min(minZ, s.z0); maxZ = Math.max(maxZ, s.z1);
+		}
+		const pad = CELL * 2;
+		minX -= pad; maxX += pad; minZ -= pad; maxZ += pad;
+		const cols = Math.ceil((maxX - minX) / CELL);
+		const rows = Math.ceil((maxZ - minZ) / CELL);
+
+		const floorY = new Float64Array(cols * rows).fill(-Infinity);
+		for (const s of solids) {
+			const c0 = Math.max(0, Math.floor((s.x0 - minX) / CELL));
+			const c1 = Math.min(cols - 1, Math.ceil((s.x1 - minX) / CELL) - 1);
+			const r0 = Math.max(0, Math.floor((s.z0 - minZ) / CELL));
+			const r1 = Math.min(rows - 1, Math.ceil((s.z1 - minZ) / CELL) - 1);
+			for (let r = r0; r <= r1; r++) {
+				for (let c = c0; c <= c1; c++) {
+					const i = r * cols + c;
+					if (s.y1 > floorY[i]) floorY[i] = s.y1;
+				}
+			}
+		}
+
+		return { floorY, cols, rows, minX, minZ };
+	}
+
+	function findHoles(gridInfo) {
+		const { floorY, cols, rows, minX, minZ } = gridInfo;
+		const holes = [];
+		for (let r = 1; r < rows - 1; r++) {
+			for (let c = 1; c < cols - 1; c++) {
+				const i = r * cols + c;
+				if (floorY[i] !== -Infinity) continue;
+				const up = floorY[(r - 1) * cols + c];
+				const down = floorY[(r + 1) * cols + c];
+				const left = floorY[r * cols + (c - 1)];
+				const right = floorY[r * cols + (c + 1)];
+				const hasUp = up !== -Infinity;
+				const hasDown = down !== -Infinity;
+				const hasLeft = left !== -Infinity;
+				const hasRight = right !== -Infinity;
+				if ((hasUp && hasDown) || (hasLeft && hasRight)) {
+					const px = minX + (c + 0.5) * CELL;
+					const pz = minZ + (r + 0.5) * CELL;
+					const neighborY = Math.max(up, down, left, right);
+					holes.push({ x: px, z: pz, y: neighborY });
+				}
+			}
+		}
+		return holes;
+	}
+
+	// P0 FASE 5: relleno iterativo. El paso unico anterior parcheaba un hueco
+	// pero ese parche podia EXPONER otro hueco adyacente que ahora tenia suelo
+	// de los dos lados. Se itera hasta que una pasada no encuentre huecos nuevos.
+	let passes = 0;
+	const maxPasses = 8;
+	const allParts = scanParts.slice();
+	const usedNames = new Set();
+
+	while (passes < maxPasses) {
+		const gridInfo = buildGrid(allParts);
+		const holes = findHoles(gridInfo);
+		if (holes.length === 0) break;
+
+		for (let idx = 0; idx < holes.length; idx++) {
+			const h = holes[idx];
+			const px = Math.round(h.x);
+			const pz = Math.round(h.z);
+			const name = "FloorPatch_" + px + "_" + pz;
+			let uniqueName = name;
+			let suffix = 0;
+			while (usedNames.has(uniqueName)) {
+				suffix++;
+				uniqueName = name + "_" + suffix;
+			}
+			usedNames.add(uniqueName);
+
+			const patch = part(uniqueName, {
+				position: [h.x, h.y - 1, h.z],
+				size: [8, 2, 8],
+				material: P.floorMaterial,
+				color: P.ground,
+			});
+			parts.push(patch);
+			allParts.push(patch);
+		}
+	passes++;
+	}
+}
+
+// ------------------------------------------------------ CUEVAS SUBTERRANEA
+//
+// FASE 5: generacion de niveles verticales subterraneos.
+//
+// Las cuevas son tres capas horizontales a distintas cotas, conectadas por
+// pozos verticales. Cada capa es un conjunto de losas fracturadas que forman
+// el suelo de la caverna, con paredes de roca que definen el volumen.
+//
+// La entrada a las cuevas se produce en zonas selectas (no en todas), a traves
+// de ASCENSORES DE DESCENSO: huecos controlados en el suelo de la zona con un
+// ProximityPrompt que el jugador activa para bajar.
+
+/**
+ * Determina que zonas tienen acceso a cuevas, con una probabilidad estable.
+ *
+ * @param {Array} zones - zonas ya desplazadas al mundo
+ * @param {number} seedBase
+ * @returns {Array} zonas con acceso a cueva
+ */
+function selectCaveZones(zones, seedBase) {
+	const out = [];
+	for (const z of zones) {
+		if (!CAVE_ACCESS_ROLES.includes(z.role)) continue;
+		if (Math.min(z.rx, z.rz) < CAVE_MIN_ZONE_RADIUS) continue;
+		if (hash01(seedBase, z.lx * 7 + z.lz * 13) > CAVE_ACCESS_RATE) continue;
+		out.push(z);
+	}
+	return out;
+}
+
+/**
+ * Genera un pozo de descenso desde la superficie hacia el nivel de cueva 1.
+ *
+ * El pozo es un hueco cuadrado en el suelo de la zona con paredes de roca
+ * que bajan hasta la cota de la cueva. Incluye un ProximityPrompt para que el
+ * jugador active el descenso.
+ *
+ * @param {object} api
+ * @param {object} z zona
+ * @param {object} P paleta
+ * @param {number} seedBase
+ * @param {string} tag identificador unico
+ * @param {Array} outWhere donde acumular partes collidables
+ * @param {Array} promptWhere donde acumular ProximityPrompts
+ */
+function buildCaveDescent(api, z, P, seedBase, tag, outWhere, promptWhere) {
+	const { part, marker, decor } = api;
+	const caveY = CAVE_LEVELS[0].y;
+
+	const holeX = z.x + vary(seedBase, tag.length * 3, -z.rx * 0.3, z.rx * 0.3);
+	const holeZ = z.z + vary(seedBase, tag.length * 5, -z.rz * 0.3, z.rz * 0.3);
+
+	const radius = CAVE_SHAFT_RADIUS;
+	const depth = z.y - caveY;
+
+	outWhere.push(part(tag + "_ShaftWall_N", {
+		position: [holeX, z.y - depth / 2 - 1, holeZ + radius + 1.5],
+		size: [radius * 2 + 4, depth, 3],
+		material: P.structureMaterial,
+		color: P.structureDark,
+	}));
+	outWhere.push(part(tag + "_ShaftWall_S", {
+		position: [holeX, z.y - depth / 2 - 1, holeZ - radius - 1.5],
+		size: [radius * 2 + 4, depth, 3],
+		material: P.structureMaterial,
+		color: P.structureDark,
+	}));
+	outWhere.push(part(tag + "_ShaftWall_E", {
+		position: [holeX + radius + 1.5, z.y - depth / 2 - 1, holeZ],
+		size: [3, depth, radius * 2 + 4],
+		material: P.structureMaterial,
+		color: P.structureDark,
+	}));
+	outWhere.push(part(tag + "_ShaftWall_W", {
+		position: [holeX - radius - 1.5, z.y - depth / 2 - 1, holeZ],
+		size: [3, depth, radius * 2 + 4],
+		material: P.structureMaterial,
+		color: P.structureDark,
+	}));
+
+	outWhere.push(part(tag + "_ShaftFloor", {
+		position: [holeX, caveY + 1, holeZ],
+		size: [radius * 2, 2, radius * 2],
+		material: P.floorMaterial,
+		color: P.groundAlt,
+	}));
+
+	// P0 FASE 5: el ProximityPrompt se aniade como hijo del Part, igual que
+	// el cache de las zonas secretas (ver zona role="secret").
+	const promptPart = part(tag + "_DescentTrigger", {
+		position: [holeX, z.y + 0.2, holeZ],
+		size: [radius * 2, 0.2, radius * 2],
+		canCollide: false,
+		transparency: 1,
+		material: "Neon",
+		color: P.energy,
+	});
+	promptPart.node[tag + "_DescentPrompt"] = {
+		$className: "ProximityPrompt",
+		$properties: {
+			ActionText: "Descender",
+			ObjectText: "Entrada de cueva",
+			HoldDuration: 0.8,
+			MaxActivationDistance: 12,
+			RequiresLineOfSight: true,
+			Enabled: true,
+		},
+	};
+	promptWhere.push(promptPart);
+
+	return { x: holeX, z: holeZ, y: caveY, depth: depth };
+}
+
+/**
+ * Genera una capa de cueva: suelo fracturado con paredes de roca.
+ *
+ * @param {object} api
+ * @param {object} level una entrada de CAVE_LEVELS
+ * @param {Array} zoneInfo zonas del layout
+ * @param {number} seedBase
+ * @param {string} tag sufijo unico (ej: "Cave1")
+ * @param {Array} outWhere donde acumular partes
+ * @param {Array} caveParts donde acumular partes de cueva para navegacion
+ */
+function buildCaveLayer(api, level, zoneInfo, P, seedBase, tag, outWhere, caveParts) {
+	const { part, decor } = api;
+	const caveY = level.y;
+	const caveRadiusFactor = level.radius;
+
+	const slabCount = Math.max(6, Math.min(zoneInfo.length * 3, 40));
+
+	for (let i = 0; i < slabCount; i++) {
+		const z = zoneInfo[Math.floor(hash01(seedBase, i + 100) * zoneInfo.length)];
+		const a = hash01(seedBase, i + 200) * Math.PI * 2;
+		const r = hash01(seedBase, i + 300) * 0.45 + 0.15;
+		const x = z.x + Math.cos(a) * z.rx * r * caveRadiusFactor;
+		const zz = z.z + Math.sin(a) * z.rz * r * caveRadiusFactor;
+
+		const slabW = vary(seedBase, i + 400, z.rx * 0.15, z.rx * 0.35);
+		const slabD = vary(seedBase, i + 500, z.rz * 0.15, z.rz * 0.35);
+		const ang = Math.round(hash01(seedBase, i + 600) * 360);
+
+		outWhere.push(part(tag + "_Slab_" + i, {
+			position: [x, caveY - 1, zz],
+			size: [slabW, 2, slabD],
+			material: level.depth === 0 ? P.floorMaterial : P.structureMaterial,
+			color: level.depth === 0 ? P.groundAlt : P.structureDark,
+			orientation: [0, ang, 0],
+		}));
+		caveParts.push({ x: x, z: zz, rx: slabW / 2, rz: slabD / 2, y: caveY, yaw: ang });
+	}
+
+	// Paredes de caverna: pilares de roca que delimitan el volumen de la cueva
+	const pillarCount = Math.max(4, slabCount / 2);
+	for (let i = 0; i < pillarCount; i++) {
+		const z = zoneInfo[Math.floor(hash01(seedBase, i + 700) * zoneInfo.length)];
+		const a = hash01(seedBase, i + 800) * Math.PI * 2;
+		const r = hash01(seedBase, i + 900) * 0.6 + 0.35;
+		const x = z.x + Math.cos(a) * z.rx * r * caveRadiusFactor;
+		const zz = z.z + Math.sin(a) * z.rz * r * caveRadiusFactor;
+		const h = vary(seedBase, i + 1000, 8, 16);
+
+		outWhere.push(decor(tag + "_Pillar_" + i, {
+			position: [x, caveY + h / 2, zz],
+			size: [4, h, 4],
+			material: P.structureMaterial,
+			color: P.structureDark,
+		}));
+	}
+}
+
+/**
+ * Conecta dos capas de cueva con un pozo vertical.
+ *
+ * @param {object} api
+ * @param {number} x posicion X del pozo
+ * @param {number} z posicion Z del pozo
+ * @param {number} topY cota superior
+ * @param {number} botY cota inferior
+ * @param {object} P paleta
+ * @param {string} tag
+ * @param {Array} outWhere donde acumular
+ */
+function buildCaveShaft(api, x, z, topY, botY, P, tag, outWhere) {
+	const { part, decor } = api;
+	const radius = CAVE_SHAFT_RADIUS;
+	const depth = topY - botY;
+
+	outWhere.push(part(tag + "_ShaftWall_N", {
+		position: [x, botY + depth / 2, z + radius + 1.5],
+		size: [radius * 2 + 4, depth, 3],
+		material: P.structureMaterial,
+		color: P.structureDark,
+	}));
+	outWhere.push(part(tag + "_ShaftWall_S", {
+		position: [x, botY + depth / 2, z - radius - 1.5],
+		size: [radius * 2 + 4, depth, 3],
+		material: P.structureMaterial,
+		color: P.structureDark,
+	}));
+	outWhere.push(part(tag + "_ShaftWall_E", {
+		position: [x + radius + 1.5, botY + depth / 2, z],
+		size: [3, depth, radius * 2 + 4],
+		material: P.structureMaterial,
+		color: P.structureDark,
+	}));
+	outWhere.push(part(tag + "_ShaftWall_W", {
+		position: [x - radius - 1.5, botY + depth / 2, z],
+		size: [3, depth, radius * 2 + 4],
+		material: P.structureMaterial,
+		color: P.structureDark,
+	}));
+
+	// Escalera de cuerda entre niveles
+	for (let i = 0; i < depth / CAVE_LEVEL_SPACING; i++) {
+		const y = botY + i * CAVE_LEVEL_SPACING;
+		outWhere.push(decor(tag + "_Rope_" + i, {
+			position: [x, y + (botY - botY) + CAVE_LEVEL_SPACING / 2, z],
+			size: [1.2, CAVE_LEVEL_SPACING - 2, 1.2],
+			material: "Neon",
+			color: P.structureDark,
+		}));
+	}
+}
+
+/**
+ * Genera todo el contenido de cuevas para un mundo.
+ *
+ * @param {object} api
+ * @param {Array} zones zonas del layout
+ * @param {object} P paleta
+ * @param {number} seedBase
+ * @param {string} defId id del mundo
+ * @returns {object} { terrainParts, caveParts, descentMarkers, descentData }
+ */
+function buildCaves(api, zones, P, seedBase, defId) {
+	const terrainParts = [];
+	const caveParts = [];
+	const descentMarkers = [];
+	const descentData = [];
+
+	const caveZones = selectCaveZones(zones, seedBase + defId.length);
+	const zoneInfo = zones.map(function (z) {
+		return { x: z.x, z: z.z, rx: z.rx, rz: z.rz, y: z.y, role: z.role, id: z.id, lx: z.lx, lz: z.lz };
+	});
+
+	// Nivel -1: cuevas superficiales
+	const cave1Parts = [];
+	buildCaveLayer(api, CAVE_LEVELS[0], zoneInfo, P, seedBase + 100, "Cave1_" + defId, terrainParts, cave1Parts);
+
+	// Nivel -2: cuevas profundas
+	const cave2Parts = [];
+	buildCaveLayer(api, CAVE_LEVELS[1], zoneInfo, P, seedBase + 200, "Cave2_" + defId, terrainParts, cave2Parts);
+
+	// Nivel -3: cuevas mas profundas
+	const cave3Parts = [];
+	buildCaveLayer(api, CAVE_LEVELS[2], zoneInfo, P, seedBase + 300, "Cave3_" + defId, terrainParts, cave3Parts);
+
+	// Descensos desde la superficie a la cueva nivel 1
+	for (let i = 0; i < caveZones.length; i++) {
+		const z = caveZones[i];
+		const tag = "CaveDescent_" + defId + "_" + z.id;
+		const data = buildCaveDescent(api, z, P, seedBase + z.lx * 17 + z.lz * 19, tag, terrainParts, descentMarkers);
+		descentData.push(data);
+	}
+
+	// Conexiones verticales entre niveles de cueva
+	const allCaveParts = cave1Parts.concat(cave2Parts).concat(cave3Parts);
+	for (let i = 0; i < Math.min(allCaveParts.length, 8); i++) {
+		const sp = allCaveParts[i];
+		const idx = Math.floor(hash01(seedBase, i + 1100) * allCaveParts.length);
+		if (idx === i) continue;
+		const tp = allCaveParts[idx];
+
+		const topLevel = Math.max(sp.y, tp.y);
+		const botLevel = Math.min(sp.y, tp.y);
+		const yDiff = topLevel - botLevel;
+		if (yDiff < CAVE_LEVEL_SPACING) continue;
+
+		const midX = (sp.x + tp.x) / 2;
+		const midZ = (sp.z + tp.z) / 2;
+		buildCaveShaft(api, midX, midZ, topLevel, botLevel, P, "CaveShaft_" + defId + "_" + i, terrainParts);
+
+		// Trampa de descenso entre niveles
+		caveParts.push({ x: midX, z: midZ, y: botLevel, topY: topLevel });
+	}
+
+	return { terrainParts, caveParts, descentMarkers, descentData };
+}
 
 /** Expande una tupla de zona en objeto, con los valores por defecto. */
 function zone(t) {
@@ -2799,7 +3428,8 @@ function buildWorld(api, def) {
 	const zoneFolders = [];
 	const blocks = [];
 	const centralBlocks = [];
-	const terrainParts = [];
+const terrainParts = [];
+	const zoneFloorParts = [];
 	const decoParts = [];
 	const borderParts = [];
 	const keshusyParts = [];
@@ -2859,8 +3489,15 @@ function buildWorld(api, def) {
 		}
 
 		// Suelo y borde. Siempre: una zona sin suelo no es una zona.
-		for (const p of zoneSlab(api, z, P, seedBase + z.lx * 3 + z.lz, nm)) kids.push(p);
+		for (const p of zoneSlab(api, z, P, seedBase + z.lx * 3 + z.lz, nm)) {
+			kids.push(p);
+			zoneFloorParts.push(p);
+		}
 		for (const p of zoneRim(api, z, P, seedBase + z.lx * 5 + z.lz, nm, openings[z.id], neighbourAngles[z.id])) kids.push(p);
+		for (const p of zoneRimFloor(api, z, P, seedBase + z.lx * 7 + z.lz, nm, openings[z.id])) {
+			kids.push(p);
+			zoneFloorParts.push(p);
+		}
 
 		// Marcador de centro. Lo leen `VisualService` y los tests para medir
 		// distancias REALES, no estimadas.
@@ -3226,7 +3863,7 @@ function buildWorld(api, def) {
 	// El enlace va del final del deck hasta un punto del borde del suelo, con
 	// la cota de la zona. Entra en la zona, conecta con su suelo y se acaba.
 	const APPROACH_STOP = 0.34;
-	routeInfo.forEach(function (info, ri) {
+		routeInfo.forEach(function (info, ri) {
 		const b = info.built;
 		for (const end of ["a", "b"]) {
 			const isFrom = end === "a";
@@ -3238,6 +3875,11 @@ function buildWorld(api, def) {
 				seedBase + (isFrom ? 0 : 3),
 				end + ri + "_" + zone.id,
 				APPROACH_STOP
+			);
+			fillEdgeBridge(
+				part, terrainParts, ex, ez, zone, b.width, P,
+				seedBase + (isFrom ? 0 : 3),
+				end + ri + "_" + zone.id
 			);
 		}
 	});
@@ -3254,6 +3896,55 @@ function buildWorld(api, def) {
 	// Lo que queda en `Border/` es el talud y las rocas del anillo. Nada de eso
 	// colisiona, de modo que el borde sigue siendo el FINAL DEL TERRENO.
 	for (const p of edge) borderParts.push(p);
+
+	// ---------------------------------------------------------- REPARACION DE HUECOS
+	//
+	// P0. A pesar del `zoneRimFloor` y del `fillEdgeBridge`, quedan huecos entre
+	// zonas adyacentes a la misma altura pero sin ruta directa entre ellas, o en
+	// las esquinas de zonas a distinta cota. El jugador pisa el suelo de una zona,
+	// ve un par de metros y cae al vacio porque el triangulo intermedio entre losas
+	// no esta cubierto.
+	//
+	// Este paso escanea la rejilla de suelos generados y coloca losas pequenas
+	// (6x2x6) SOBRE las celdas huecas rodeadas de suelo por todos lados. No crea
+	// cajas nuevas: solo sella los huecos accidentales que el diseno geometrico
+	// no cubre, dejando el borde del mundo como terreno caente.
+	//
+	// P0 FASE 5: se incluyen las losas de las rutas (route deck), que el escaneo
+	// original no veia porque estan en `routeInfo.built.parts` y no en
+	// `terrainParts` ni `zoneFloorParts`. Sin ellos, la cuadricula del parcheador
+	// no coinside con la del analizador de integridad (que ve TODAS las piezas)
+	// y los huecos entre zonas conectadas por rutas no se detectan.
+	const routeDeckParts = [];
+	for (const info of routeInfo) {
+		for (const p of info.built.parts) routeDeckParts.push(p);
+	}
+	patchFloorHoles(part, terrainParts, zones, P, seedBase, zoneFloorParts.concat(routeDeckParts));
+
+	// ---------------------------------------------------------- CUEVAS SUBTERRANEAS (FASE 5)
+	//
+	// Añade tres niveles de cueva (y = -20, -40, -60) conectados por pozos
+	// verticales, y descensos controlados desde zonas seleccionadas de la
+	// superficie. Las cuevas son parte del terreno (terrainParts) y aparecen en
+	// el folder `Terrain`, manteniendo la misma estructura de carpetas.
+	const caveResult = buildCaves(
+		{ part: part, decor: decor, marker: marker },
+		zones, P, seedBase, def.id
+	);
+	for (const p of caveResult.terrainParts) terrainParts.push(p);
+	for (const m of caveResult.descentMarkers) {
+		keshusyParts.push(m);
+	}
+	// Actualiza zoneFloorParts con los nuevos suelos de cueva para que
+	// patchFloorHoles itere sobre ellos tambien en la segunda pasada.
+	for (const p of caveResult.terrainParts) {
+		if (p.path && p.path.includes("Slab")) zoneFloorParts.push(p);
+	}
+
+	// P0 FASE 5: segunda pasada de parcheo despues de generar cuevas. Las
+	// nuevas losas de cueva pueden dejar huecos entre si, y el parche
+	// iterativo de patchFloorHoles cierra todo en un par de pasadas.
+	patchFloorHoles(part, terrainParts, zones, P, seedBase + 500, zoneFloorParts.concat(routeDeckParts));
 
 	// ------------------------------------------------------ PIEZAS DE CONTRATO
 	//
@@ -3363,6 +4054,16 @@ function buildWorld(api, def) {
 	// entonces se colocan. Ese orden es el que garantiza que un spawn este en el
 	// mismo espacio que el jugador: la medida se hace sobre el arbol ya completo,
 	// con la cobertura, los muros de zona y las rutas ya puestos.
+	//
+	// P0 FASE 5: pasada final de parcheo con ABSOLUTAMENTE todas las losas
+	// visibles: suelos de zona, losas de cueva, decks de rutas y el suelo de la
+	// arena. Las pasadas anteriores no veian los decks de ruta ni el suelo de
+	// la arena (creados despues), por lo que quedaban huecos entre una ruta y
+	// la zona de arena. Esta pasada cierra todo lo que haya quedado.
+	patchFloorHoles(
+		part, terrainParts, zones, P, seedBase + 1000,
+		zoneFloorParts.concat(routeDeckParts, arenaParts)
+	);
 	const worldShell = folder(def.id, arenaParts.concat(
 		[spawn],
 		gateParts,
@@ -4209,4 +4910,5 @@ module.exports = {
 	monsterSpawnSpacing: monsterSpawnSpacing,
 	monsterSpawnClearance: monsterSpawnClearance,
 	SCENERY: SCENERY,
+	HOLE_TYPES: HOLE_TYPES,
 };

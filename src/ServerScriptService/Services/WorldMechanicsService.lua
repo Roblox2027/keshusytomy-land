@@ -37,10 +37,13 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Workspace = game:GetService("Workspace")
 
 local SHARED = ReplicatedStorage:WaitForChild("Shared")
+local CONFIG = SHARED:WaitForChild("Config")
 local LIBRARIES = SHARED:WaitForChild("Libraries")
 local UTILS = SHARED:WaitForChild("Utils")
 
 local WorldMechanics = require(LIBRARIES:WaitForChild("WorldMechanics"))
+local ActivitiesRules = require(LIBRARIES:WaitForChild("ActivitiesRules"))
+local ActivityCatalog = require(CONFIG:WaitForChild("ActivityCatalog"))
 local Logger = require(UTILS:WaitForChild("Logger"))
 
 local Service = {}
@@ -136,6 +139,14 @@ local function zoneCenters(worldId: string): { Vector3 }
 	return cache
 end
 
+-- Tipos de actividad que requieren un punto fisico en el mapa.
+local INTERACTABLE_TYPES = {
+	[ActivitiesRules.ActivityType.Discovery] = true,
+	[ActivitiesRules.ActivityType.Mechanic] = true,
+	[ActivitiesRules.ActivityType.Collection] = true,
+	[ActivitiesRules.ActivityType.Rescue] = true,
+}
+
 --- Registra los puntos de interaccion de un mundo con ActivityService.
 ---
 --- Los puntos provienen de:
@@ -210,6 +221,33 @@ function Service.RegisterInteractionPoints(worldId: string): number
 				World = worldId,
 			}
 			count += 1
+		end
+	end
+
+	-- Catalogo de actividades: garantiza puntos para TODAS las actividades
+	-- interactuables del mundo, incluyendo Ice/Volcano/Cyber que no tienen
+	-- mecanica de puntos. Usa centros de zona en round-robin para posiciones.
+	local catalogActivities = ActivityCatalog.List(worldId)
+	local centerIdx = 1
+
+	for _, activity in ipairs(catalogActivities) do
+		local activityId = activity.Id
+		if not points[activityId] and INTERACTABLE_TYPES[activity.Type] then
+			if #centers > 0 then
+				local pos = centers[centerIdx]
+				points[activityId] = {
+					Position = pos,
+					World = worldId,
+				}
+				count += 1
+				centerIdx = centerIdx % #centers + 1
+			else
+				points[activityId] = {
+					Position = Vector3.new(0, 0, 0),
+					World = worldId,
+				}
+				count += 1
+			end
 		end
 	end
 

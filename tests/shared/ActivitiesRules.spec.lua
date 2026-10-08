@@ -96,6 +96,16 @@ local function describeActivitiesRules()
 			expect.toBe(Rules.NormalizeId(string.rep("A", 100)), nil)
 		end)
 
+		Harness.it("normaliza los IDs de puntos generados con string.format por el servicio", function()
+			-- WorldMechanicsService genera IDs con ("DISCOVER_%s_%d"):format(worldId, i).
+			-- NormalizeId debe producir el mismo key que usa ActivityCatalog para lookups.
+			expect.toBe(Rules.NormalizeId("DISCOVER_Forest_2"), "discoverforest2")
+			expect.toBe(Rules.NormalizeId("COLLECTION_Desert_5"), "collectiondesert5")
+			expect.toBe(Rules.NormalizeId("MECHANIC_Volcano_4"), "mechanicvolcano4")
+			expect.toBe(Rules.NormalizeId("DISCOVER_Ice_1"), "discoverice1")
+			expect.toBe(Rules.NormalizeId("COLLECTION_Cyber_1"), "collectioncyber1")
+		end)
+
 		---------------------------------------------------------
 		-- DEFINICION
 		---------------------------------------------------------
