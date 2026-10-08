@@ -167,11 +167,12 @@ local function shouldRetry(reason: string?): boolean
 	return reason ~= "mundo inactivo" and reason ~= "estado no destruido"
 end
 --- @param block BasePart
---- @return { Health: number, Transparency: number, CanCollide: boolean, CanTouch: boolean }
+--- @return { Health: number, Transparency: number, Anchored: boolean, CanCollide: boolean, CanTouch: boolean }
 local function snapshotBlock(block: BasePart)
 	return {
 		Health = GameConfig.BlockHealth,
 		Transparency = block.Transparency,
+		Anchored = block.Anchored,
 		CanCollide = block.CanCollide,
 		CanTouch = block.CanTouch,
 	}
@@ -472,6 +473,7 @@ function Service.tryMaterialize(block: BasePart, generation: number): boolean
 
 	if original then
 		block.Transparency = original.Transparency
+		block.Anchored = original.Anchored
 		block.CanCollide = original.CanCollide
 		block.CanTouch = original.CanTouch
 	end
@@ -612,6 +614,7 @@ function Service.RestoreAll(): number
 		-- referencia muerta durante toda la partida.
 		if block.Parent then
 			block.Transparency = original.Transparency
+			block.Anchored = original.Anchored
 			block.CanCollide = original.CanCollide
 			block.CanTouch = original.CanTouch
 			block:SetAttribute("IsDestroyed", false)

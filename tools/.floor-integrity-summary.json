@@ -1,0 +1,241 @@
+{
+  "timestamp": "2026-10-08T22:08:49.327Z",
+  "STEP_DOWN": 6,
+  "STEP_UP": 4,
+  "results": {
+    "Forest": {
+      "accidentalGaps": 0,
+      "intentionalOpenings": 691,
+      "heightDiscontinuities": 10,
+      "nonCollidableFloor": 3,
+      "classification": {
+        "VOID_INTENTIONAL": 691
+      },
+      "accidentalCells": [],
+      "reachableDrops": [
+        {
+          "x": 294,
+          "z": -110,
+          "y1": "3.5",
+          "y2": "10.8",
+          "dy": "7.3"
+        },
+        {
+          "x": 298,
+          "z": -110,
+          "y1": "3.5",
+          "y2": "10.8",
+          "dy": "7.3"
+        },
+        {
+          "x": 290,
+          "z": -106,
+          "y1": "3.5",
+          "y2": "10.8",
+          "dy": "7.3"
+        },
+        {
+          "x": 294,
+          "z": -106,
+          "y1": "10.8",
+          "y2": "3.5",
+          "dy": "7.3"
+        },
+        {
+          "x": 294,
+          "z": -106,
+          "y1": "10.8",
+          "y2": "3.5",
+          "dy": "7.3"
+        },
+        {
+          "x": 298,
+          "z": -106,
+          "y1": "10.8",
+          "y2": "3.5",
+          "dy": "7.3"
+        },
+        {
+          "x": 290,
+          "z": -102,
+          "y1": "3.5",
+          "y2": "10.8",
+          "dy": "7.3"
+        },
+        {
+          "x": 294,
+          "z": -102,
+          "y1": "10.8",
+          "y2": "3.5",
+          "dy": "7.3"
+        },
+        {
+          "x": 290,
+          "z": -98,
+          "y1": "3.5",
+          "y2": "10.8",
+          "dy": "7.3"
+        },
+        {
+          "x": 294,
+          "z": -98,
+          "y1": "10.8",
+          "y2": "3.5",
+          "dy": "7.3"
+        }
+      ]
+    },
+    "Desert": {
+      "accidentalGaps": 0,
+      "intentionalOpenings": 595,
+      "heightDiscontinuities": 0,
+      "nonCollidableFloor": 31,
+      "classification": {
+        "VOID_INTENTIONAL": 595
+      },
+      "accidentalCells": [],
+      "reachableDrops": []
+    },
+    "Ice": {
+      "accidentalGaps": 0,
+      "intentionalOpenings": 571,
+      "heightDiscontinuities": 4,
+      "nonCollidableFloor": 3,
+      "classification": {
+        "VOID_INTENTIONAL": 571
+      },
+      "accidentalCells": [],
+      "reachableDrops": [
+        {
+          "x": 1414,
+          "z": 1268,
+          "y1": "4.0",
+          "y2": "12.2",
+          "dy": "8.2"
+        },
+        {
+          "x": 1414,
+          "z": 1272,
+          "y1": "12.2",
+          "y2": "4.0",
+          "dy": "8.2"
+        },
+        {
+          "x": 1422,
+          "z": 1276,
+          "y1": "12.2",
+          "y2": "4.0",
+          "dy": "8.2"
+        },
+        {
+          "x": 1426,
+          "z": 1276,
+          "y1": "4.0",
+          "y2": "12.2",
+          "dy": "8.2"
+        }
+      ]
+    },
+    "Volcano": {
+      "accidentalGaps": 0,
+      "intentionalOpenings": 622,
+      "heightDiscontinuities": 106,
+      "nonCollidableFloor": 3,
+      "classification": {
+        "VOID_INTENTIONAL": 622
+      },
+      "accidentalCells": [],
+      "reachableDrops": [
+        {
+          "x": -1359,
+          "z": -1324,
+          "y1": "1.5",
+          "y2": "9.5",
+          "dy": "8.0"
+        },
+        {
+          "x": -1355,
+          "z": -1324,
+          "y1": "1.5",
+          "y2": "9.5",
+          "dy": "8.0"
+        },
+        {
+          "x": -1351,
+          "z": -1324,
+          "y1": "1.5",
+          "y2": "8.0",
+          "dy": "6.5"
+        },
+        {
+          "x": -1347,
+          "z": -1324,
+          "y1": "0.0",
+          "y2": "8.0",
+          "dy": "8.0"
+        },
+        {
+          "x": -1359,
+          "z": -1320,
+          "y1": "9.5",
+          "y2": "1.5",
+          "dy": "8.0"
+        },
+        {
+          "x": -1355,
+          "z": -1320,
+          "y1": "9.5",
+          "y2": "1.5",
+          "dy": "8.0"
+        },
+        {
+          "x": -1351,
+          "z": -1320,
+          "y1": "8.0",
+          "y2": "1.5",
+          "dy": "6.5"
+        },
+        {
+          "x": -1347,
+          "z": -1320,
+          "y1": "8.0",
+          "y2": "0.0",
+          "dy": "8.0"
+        },
+        {
+          "x": -1347,
+          "z": -1320,
+          "y1": "8.0",
+          "y2": "0.0",
+          "dy": "8.0"
+        },
+        {
+          "x": -1343,
+          "z": -1320,
+          "y1": "0.0",
+          "y2": "8.0",
+          "dy": "8.0"
+        }
+      ]
+    },
+    "Cyber": {
+      "accidentalGaps": 0,
+      "intentionalOpenings": 599,
+      "heightDiscontinuities": 0,
+      "nonCollidableFloor": 174,
+      "classification": {
+        "VOID_INTENTIONAL": 599
+      },
+      "accidentalCells": [],
+      "reachableDrops": []
+    }
+  },
+  "overall": "PASS",
+  "ACCIDENTAL_GAPS": {
+    "Forest": 0,
+    "Desert": 0,
+    "Ice": 0,
+    "Volcano": 0,
+    "Cyber": 0
+  }
+}

@@ -49,6 +49,7 @@ local SUITES = {
 	{ name = "BlockRespawn", path = "./shared/BlockRespawn.spec" },
 	{ name = "Gameplay", path = "./shared/Gameplay.spec" },
 	{ name = "WorldBounds", path = "./shared/WorldBounds.spec" },
+	{ name = "WorldStaticPhysics", path = "./shared/WorldStaticPhysics.spec" },
 	{ name = "RoundLifecycle", path = "./shared/RoundLifecycle.spec" },
 	{ name = "RoundArenaRouting", path = "./shared/RoundArenaRouting.spec" },
 	{ name = "ServiceStructure", path = "./shared/ServiceStructure.spec" },
@@ -75,6 +76,19 @@ local SUITES = {
 	{ name = "ActivitiesRules", path = "./shared/ActivitiesRules.spec" },
 	{ name = "ActivityCatalog", path = "./shared/ActivityCatalog.spec" },
 	{ name = "WorldMechanics", path = "./shared/WorldMechanics.spec" },
+	{ name = "WorldCompletionRules", path = "./shared/WorldCompletionRules.spec" },
+	{ name = "ChestRules", path = "./shared/ChestRules.spec" },
+	{ name = "MissionChainRules", path = "./shared/MissionChainRules.spec" },
+	{ name = "QuestChain", path = "./shared/QuestChain.spec" },
+
+	-- FASE 8: Companion, NPC, Reputation, Home, Vehicle.
+	{ name = "CompanionRules", path = "./shared/CompanionRules.spec" },
+	{ name = "CompanionCatalog", path = "./shared/CompanionCatalog.spec" },
+	{ name = "NpcRules", path = "./shared/NpcRules.spec" },
+	{ name = "NpcCatalog", path = "./shared/NpcCatalog.spec" },
+	{ name = "ReputationRules", path = "./shared/ReputationRules.spec" },
+	{ name = "ReputationCatalog", path = "./shared/ReputationCatalog.spec" },
+	{ name = "WorldRules", path = "./shared/WorldRules.spec" },
 }
 
 local loadedSuites = 0
