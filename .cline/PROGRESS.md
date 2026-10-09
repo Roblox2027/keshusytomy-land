@@ -165,6 +165,11 @@
 ## FASE 5 — Exploracion vertical (2026-10-08): COMPLETED
 - Cuevas subterraneas (Y=-20/-40/-60), descensos secretos, sistema HOLE_TYPES (8 constantes), 80 huecos REALes → 0 (root cause: route deck parts en patchFloorHoles). 1064/1064 PASS.
 
+## FASE 5-bis — Correccion de huecos finos (2026-10-08): COMPLETED
+- Root cause: `patchFloorHoles` usaba rejilla de 4 studs; huecos de 2-3 studs se escapaban entre celdas y el jugador caia al caminar.
+- Fix: `CELL` en `patchFloorHoles` cambiado de 4 a 2; patch size de [8,2,8] a [6,2,6]. Resultado: 0 huecos encerrados a 2 studs en los 5 mundos.
+- Test de regresion: `tools/world-hole-check.js` integrado en `npm run verify` como `test:hole-check`. PASS en los 5 mundos.
+
 ## FASE 4 — WorldMechanics (2026-10-07): estructura COMPLETED
 - Arquitectura de mecánicas unicas por mundo implementada y verificada.
 - `WorldMechanics` (pure library) + `WorldMechanicsService` (server-authoritative).

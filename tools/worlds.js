@@ -1867,6 +1867,12 @@ function fillEdgeBridge(part, out, ex, ez, zone, width, P, seedBase, tag) {
  * giradas de las rutas (deck, approach) producen un AABB eje-alineado demasiado
  * grande que esconde los huecos reales.
  *
+ * P0 EXTRA: la resolucion de la rejilla es de 2 studs, no 4. El personaje de
+ * Roblox mide ~2 studs de ancho; con una rejilla de 4 un hueco de 2-3 estudios
+ * entre dos losas queda dentro de una celda Y el parcheador no lo ve, y el
+ * jugador se cae al caminar. A 2 studs el parcheador detecta y sella esos huecos
+ * finos manteniendo el parche organicamente fragmentado (losas de 6x2x6).
+ *
  * @param {function} part funcion de creacion de piezas collidable
  * @param {Array} parts lista de piezas de terreno ya generadas
  * @param {Array} zones zonas del layout
@@ -1874,7 +1880,7 @@ function fillEdgeBridge(part, out, ex, ez, zone, width, P, seedBase, tag) {
  * @param {number} seedBase
  */
 function patchFloorHoles(part, parts, zones, P, seedBase, extraParts) {
-	const CELL = 4;
+	const CELL = 2;
 
 	const scanParts = extraParts ? parts.concat(extraParts) : parts;
 
@@ -1998,7 +2004,7 @@ function patchFloorHoles(part, parts, zones, P, seedBase, extraParts) {
 
 			const patch = part(uniqueName, {
 				position: [h.x, h.y - 1, h.z],
-				size: [8, 2, 8],
+				size: [6, 2, 6],
 				material: P.floorMaterial,
 				color: P.ground,
 			});

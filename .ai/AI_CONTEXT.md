@@ -1,6 +1,6 @@
 # KESHUSYTOMY-LAN-D - CONTEXTO IA
 
-Generado: 2026-10-08T00:45:58.107Z
+Generado: 2026-10-09T01:24:00.129Z
 
 > Este archivo es un INDICE generado, no una fuente de verdad.
 > La fuente de verdad del estado del desarrollo es `docs/phases.md`.
@@ -9,7 +9,7 @@ Generado: 2026-10-08T00:45:58.107Z
 ## Git
 
 - Rama: `main`
-- Commit: `9247d7a` - FASE 4 WorldMechanics: arquitectura de mecanicas unicas por mundo
+- Commit: `e3a4d46` - fix: anchor static world geometry
 - Arbol: CON CAMBIOS SIN COMMITear
 
 ## FUENTES DE VERDAD (leer antes de decidir)
@@ -28,7 +28,7 @@ Generado: 2026-10-08T00:45:58.107Z
 ## ULTIMA VERIFICACION DEL ENTORNO
 
 | Rojo build | PASS |
-| Suite Luau | RESULTADO: PASS |
+| Suite Luau | RESULTADO: FAIL |
 | verify-structure | OK |
 | verify-wiring | OK |
 | analyze.js (typecheck) | FAIL |
@@ -48,10 +48,10 @@ Generado: 2026-10-08T00:45:58.107Z
 
 ## Inventario de fuente
 
-- Luau total: 294
+- Luau total: 293
 - Servicios de servidor: 45
 - Controllers de cliente: 13
-- Suites de prueba: 58
+- Suites de prueba: 59
 
 ## REGLA INNEGOCIABLE
 

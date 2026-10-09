@@ -276,3 +276,25 @@ Veredicto por área (FASE 65 de la misión):
 - **Tests**: 58 casos nuevos en `WorldMechanics.spec.lua` → 1062/1062 PASS.
 - **Gates**: 1062/1062 PASS (58 suites); verify:structure 45 servicios; verify:wiring 36/24/51; rojo:build PASS. analyze.js FAIL baseline (categorías de baseline, sin categorías nuevas).
 - **Playtest runtime**: pendiente (Studio/MCP) — validar spawn de partes, tick de fases y RegisterPoints con puntos reales.
+
+---
+
+## FASE 5 (bis) — Corrección de huecos finos en el suelo
+
+### Problema
+El parcheador `patchFloorHoles` (tools/worlds.js:1876) usaba una rejilla de **4 studs** para detectar huecos. El personaje de Roblox mide ~2 studs de ancho; con una rejilla de 4, huecos de 2-3 studs entre dos losas caían dentro de una celda y no se detectaban, dejando el jugador cayéndose al caminar.
+
+### Diagnóstico
+- `node tools/find-holes-2stud.js`: con rejilla de 2 studs se encontraron **18-56 huecos encerrados por mundo** (Forest: 18, Desert: 56, Ice: 46, Volcano: 32, Cyber: 39) que el parcheador de 4 no sellaba.
+- Estos huecos estaban entre losas de rutas, zonas y enfoques, especialmente en esquinas y transiciones de cota.
+
+### Corrección
+1. **`patchFloorHoles`** (tools/worlds.js:1876): cambiada la constante `CELL` de `4` a `2`. La lógica de detección (celdas sin suelo rodeadas de suelo por ambos lados opuestos) es idéntica, pero ahora opera a 2 studs de resolución y detecta huecos que la rejilla de 4 pasaba por alto.
+2. **Tamaño de parche**: reducido de `[8, 2, 8]` a `[6, 2, 6]` para mantener el parche orgánicamente fragmentado a la resolución más fina.
+3. **`tools/world-hole-check.js`**: nueva herramienta de regresión que reproduce la detección de huecos a 2 estudios y verifica que los 5 mundos tengan **0 huecos encerrados**. Integrada en `npm run verify` como `test:hole-check`.
+
+### Verificación
+- `test:hole-check` (nuevo): 0 huecos encerrados a 2 studs en los 5 mundos.
+- `test:navigation`: PASS (28/17/17/17/17 zonas alcanzables desde spawn).
+- `test:spawn`, `test:world-edge`, `test:monster-access`, `test:bomb-grid`: PASS.
+- `rojo:build`: PASS.
