@@ -1,3 +1,4 @@
+## ESTADO ACTUAL (2026-10-09): HEAD `4a16818` = origin/main; arbol LIMPIO (solo archivos sin trackear preexistentes en `tools/`).
 ## FASE 2 CONSOLIDACION (2026-10-07): PASS
 - HEAD real `6545120` = origin/main; arbol LIMPIO. (`41a2a94` = FASE 1 RE-AUDIT,
   source idéntico a 6545120; `6545120` es el commit de continuidad FASE 2
@@ -165,10 +166,21 @@
 ## FASE 5 — Exploracion vertical (2026-10-08): COMPLETED
 - Cuevas subterraneas (Y=-20/-40/-60), descensos secretos, sistema HOLE_TYPES (8 constantes), 80 huecos REALes → 0 (root cause: route deck parts en patchFloorHoles). 1064/1064 PASS.
 
-## FASE 5-bis — Correccion de huecos finos (2026-10-08): COMPLETED
+## FASE 5-bis — Correccion de huecos finos (2026-10-08): COMPLETED + VERIFICADO (2026-10-09)
 - Root cause: `patchFloorHoles` usaba rejilla de 4 studs; huecos de 2-3 studs se escapaban entre celdas y el jugador caia al caminar.
-- Fix: `CELL` en `patchFloorHoles` cambiado de 4 a 2; patch size de [8,2,8] a [6,2,6]. Resultado: 0 huecos encerrados a 2 studs en los 5 mundos.
+- Fix: `CELL` en `patchFloorHoles` (tools/worlds.js:1882) cambiado de 4 a 2; patch size de [8,2,8] a [6,2,6]. Resultado: 0 huecos encerrados a 2 studs en los 5 mundos.
 - Test de regresion: `tools/world-hole-check.js` integrado en `npm run verify` como `test:hole-check`. PASS en los 5 mundos.
+- **Verificacion post-commit (HEAD 4a16818 = origin/main, arbol LIMPIO):**
+  - Studio via MCP expone los 5 mundos con los 191 `FloorPatch` (Forest 11, Desert 54, Ice 65, Volcano 27, Cyber 34), todos 6×2×6, conteos de partes coinciden con source (Forest 4057, Desert 2547, Ice 2357, Volcano 2503, Cyber 2774).
+  - 0 huecos encerrados a 2 studs (`world-hole-check.js`).
+  - 96/96 zonas alcanzables (`world-navigation-test.js`); ancho corridor min Forest 30st, Desert 47st, Ice 43st, Volcano 44st, Cyber 30st; sin escalones (>4st), sin bultos, sin solapamientos.
+  - Spawn sobre suelo, 20×20 libres, orientados a ruta; 0 `Border` piece con `CanCollide`, caída mata sin teletransporte; abismos intencionales conservados.
+  - 60/60 spawns monstruo válidos; bomb-grid 5×5 + centros + esquinas + bordes OK; 5 mundos con miniboss/secreto/prompt; 9 powerups + 5 bosses.
+  - 14365/14365 partes ancladas, 0 problemas de física.
+  - `rojo:build` + `verify:structure` + `verify:wiring` PASS; `test:worlds` + `test:contract` PASS.
+  - Divergencia HUD: 6 elementos padre (TopBar/BottomBar/Scale + UIPadding) identificados como stale en Studio auto-recovery; reconstruidos via `tools/sync-hud.js` → 144 instancias sync; `runtime-source-diff.md` → 0 faltan / 0 sobran / 0 clases distintas → PASS.
+  - Suite Luau: 1104/1104 PASS; exit code 0 (11 suites P2 reportadas FAIL por archivos spec faltantes — baseline preexistente, no introducido por FASE 5-bis; 191 FloorPatch verificados = source).
+  - Playtest real en Studio: **PENDING** (MCP conectado en modo edit, sin playtest activo). Certificado por separado: integridad automática PASS, playtest real PENDING.
 
 ## FASE 4 — WorldMechanics (2026-10-07): estructura COMPLETED
 - Arquitectura de mecánicas unicas por mundo implementada y verificada.

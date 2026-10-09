@@ -293,8 +293,102 @@ El parcheador `patchFloorHoles` (tools/worlds.js:1876) usaba una rejilla de **4 
 2. **Tamaño de parche**: reducido de `[8, 2, 8]` a `[6, 2, 6]` para mantener el parche orgánicamente fragmentado a la resolución más fina.
 3. **`tools/world-hole-check.js`**: nueva herramienta de regresión que reproduce la detección de huecos a 2 estudios y verifica que los 5 mundos tengan **0 huecos encerrados**. Integrada en `npm run verify` como `test:hole-check`.
 
-### Verificación
-- `test:hole-check` (nuevo): 0 huecos encerrados a 2 studs en los 5 mundos.
-- `test:navigation`: PASS (28/17/17/17/17 zonas alcanzables desde spawn).
-- `test:spawn`, `test:world-edge`, `test:monster-access`, `test:bomb-grid`: PASS.
-- `rojo:build`: PASS.
+### Verificación (2026-10-09, sesion post-commit sobre HEAD 4a16818)
+
+#### Git
+- `HEAD = origin/main = 4a16818` (synced, árbol LIMPIO — solo archivos sin
+  trackear preexistentes en `tools/`).
+
+#### Inspección de Studio (via MCP, edit-mode)
+- Studio abre `KeshusyTomy-LanD_AutoRecovery_0.rbxl` y expone los 5 mundos con
+  los mismos recuentos de piezas que `default.project.json` (source):
+
+| Mundo | FloorPatch | Tamaño | Piezas totales (Studio = Source) |
+| ----- | ---------- | ------ | --------------------------------- |
+| Forest | 11 | 6×2×6 | 4057 = 4057 |
+| Desert | 54 | 6×2×6 | 2547 = 2547 |
+| Ice | 65 | 6×2×6 | 2357 = 2357 |
+| Volcano | 27 | 6×2×6 | 2503 = 2503 |
+| Cyber | 34 | 6×2×6 | 2774 = 2774 |
+| **Total** | **191** | 6×2×6 | |
+
+  - Confirmación de versión: los 191 `FloorPatch_*` existen en Studio con el
+    tamaño exacto `[6,2,6]` del commit, y los conteos de partes coinciden
+    exactamente con `test:worlds` (source). Studio tiene la versión `4a16818`,
+    no un Workspace vacío ni una versión anterior.
+  - Todas las `FloorPatch` partes están ancladas (`Anchored=true`): 0 partes
+    sin anclar (`tools/.map-physics-summary.json` → PASS).
+
+#### Verificación 1:1 Studio↔Source (posiciones de FloorPatch)
+- Consulta MCP directa a `Workspace.Worlds` (edit-mode, `execute_luau`): **191
+  FloorPatch en Studio = 191 en source**, con posición `[x, y, z]` y tamaño
+  `[6,2,6]` **idénticos para las 191** (0 mismatch, 0 faltan, 0 sobran).
+- Distribución Y en Studio (misma que source): 58 a `y=-1`, 8 a `y=0`,
+  27 a `y=2`, 27 a `y=3`, 14 a `y≈3.3`, etc. — refleja el terreno de 5
+  cotas de los mundos (no piezas caídas / desalineadas).
+- **Aclaración sobre `y=-1`** (58 patches): el algoritmo coloca el parche en
+  `y = neighborY - 1` con `Size.Y = 2` (`tools/worlds.js:2006`). Para vecinos
+  con superficie de cota a `y=0`, el parche queda centrado en `y=-1` con su
+  **cara superior en `y=0`** (alineada a la losa vecina) y su cara inferior en
+  `y=-2`. No es "abajo del mapa": la superficie caminable coincide con el
+  terreno circundante; el parche solo extiende 1 estudio bajo el nivel de la
+  losa, que no afecta la colisión ni la jugabilidad (parte `Anchored`,
+  `CanCollide=true`, top surface alineado).
+- Los valores Y fraccionarios (`0.5`, `2.799`, `3.067`, `3.313`, etc.) provienen
+  de `neighborY = max(vecinos)` donde losas rotadas/elevadas de rampas y
+  transiciones tienen cotas no-enteras; el parche hereda esa cota para
+  alinearse a la losa adyacente. Coincide pixel-a-pixel con `default.project.json`.
+
+#### Verificación automática de integridad de terreno
+- `test:hole-check`: 0 huecos encerrados a 2 studs en los 5 mundos. PASS.
+- `test:navigation`: 96/96 zonas alcanzables (28+17+17+17+17); rutas críticas
+  Spawn→Arena→Boss→Exit con ancho libre > mínimo y alternativa ante cierre.
+  Sin escalones (>4 studs), sin bultos, sin solapamientos visibles ni bloqueos
+  de recorrido. Corredores mínimos: Forest 30st, Desert 47st, Ice 43st,
+  Volcano 44st, Cyber 30st.
+- `test:spawn`: los 5 spawns sobre suelo, 20×20 libres, orientados a la primera
+  ruta. PASS.
+- `test:world-edge`: 0 piezas `Border/` con `CanCollide`; el perímetro termina
+  en caída (no muro); caer mata (`Humanoid.Health = 0`, sin teletransporte).
+  Los abismos intencionales (bordes del mundo, cañones, precipicios) se
+  conservan y no se han rellenado. PASS.
+- `test:monster-access`: 60/60 spawns válidos (suelo, holgura, ruta desde el
+  spawn, separación). PASS.
+- `test:bomb-grid`: 5×5 + centros + esquinas + bordes aceptados en los 5
+  mundos. PASS.
+- `test:physics`: 14365 partes, 14365 ancladas, 0 problemas. PASS.
+- `test:world-content`: 5/5 mundos con miniboss, secreto y prompt. PASS.
+- `test:worlds` + `test:contract`: estructura y contrato de los 5 mundos. PASS.
+- `test:powerup-boss`: 9 powerups = generados = pintados; 5 bosses declarados.
+  PASS.
+- `rojo:build` + `verify:structure` + `verify:wiring`: PASS.
+
+#### Divergencia HUD/UIScale (independiente de la reparación del terreno)
+- `docs/runtime-source-diff.md` reportaba **6 elementos SOBRA en Studio** que
+  el source (generado por `tools/hud.js`) no produce:
+  1. `Root.BottomBar.Scale` [UIScale]
+  2. `Root.CenterFeedback.Scale` [UIScale]
+  3. `Root.LeftPanel.Scale` [UIScale]
+  4. `Root.RightPanel.Scale` [UIScale]
+  5. `Root.TopBar.Scale` [UIScale]
+  6. `Root.TopBar.UIPadding` [UIPadding]
+- **Causa:** el `AutoRecovery_0.rbxl` de Studio cargaba una versión pre-fix del
+  HUD donde el `UIScale` vivía en la ZONA (parent), no en el CONTENIDO. El
+  código de `tools/hud.js` y `UIController.lua` (líneas 84-99, 393-398) mueve
+  la escala al contenido para no encoger/desplazar las zonas. El archivo
+  `tools/sync-hud.js` existe precisamente para reconstruir el HUD desde el
+  generador y resolver esta divergencia.
+- **Acción:** `node tools/sync-hud.js` → HUD reconstruido (144 instancias) sobre
+  el source. Verificado: los 6 elementos padre desaparecen y aparecen los 7
+  `UIScale` + 1 `UIPadding` en el nivel de contenido correcto.
+- **Resultado Post-fix:** `source-runtime-diff.js` → 0 faltan / 0 sobran / 0
+  clases distintas → **PASS**.
+
+#### Playtest en Studio (PLAY real)
+- **PENDING — PLAY real en los cinco mundos.** El recorrido completo
+  (entrada → zona → caída → muerte → respawn → reentrada) requiere un
+  playtest activo. Studio está conectado vía MCP en modo `edit`, pero no hay
+  playtest en ejecución (solo rol `edit`, sin `server`/`client-1`).
+- Se certifica por separado:
+  - **Integridad automática**: PASS (todos los verificadores de terreno arriba).
+  - **Inspección de juego (PLAY real)**: PENDING — no se afirma resuelto.

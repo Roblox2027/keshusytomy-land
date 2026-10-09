@@ -1,6 +1,6 @@
 # KESHUSYTOMY-LAN-D - CONTEXTO IA
 
-Generado: 2026-10-09T01:24:00.129Z
+Generado: 2026-10-09T02:38:34.936Z
 
 > Este archivo es un INDICE generado, no una fuente de verdad.
 > La fuente de verdad del estado del desarrollo es `docs/phases.md`.
@@ -9,7 +9,7 @@ Generado: 2026-10-09T01:24:00.129Z
 ## Git
 
 - Rama: `main`
-- Commit: `e3a4d46` - fix: anchor static world geometry
+- Commit: `4a16818` - fix: close floor holes in all 5 worlds via 2-stud grid patching in patchFloorHoles
 - Arbol: CON CAMBIOS SIN COMMITear
 
 ## FUENTES DE VERDAD (leer antes de decidir)
