@@ -1,9 +1,9 @@
 ﻿{
-    "mission": "KESHUSYTOMY-LAND V2 - FASE 6 Eventos dinamicos: maquina de 5 estados (IDLE/WARNING/ACTIVE/RECOVERY/COOLDOWN), 20 eventos de mundo + 3 universal + 3 COOP, cuerpos temporales, spawn con cooldowns, recompensas, limpieza",
-    "phase": "FASE-6-DYNAMIC_EVENTS",
-    "subphase": "FASE 6 COMPLETED — Eventos dinamicos con maquina de 5 estados (IDLE→WARNING→ACTIVE→RECOVERY→COOLDOWN). 20 eventos de mundo (4 por mundo). Catalogo universal (TreasureRush, MonsterSurge, EliteSpawn) y COOP (SharedThreat, TwinBosses, Nexus con MinPlayers/MaxPlayers). Cuerpos temporales. Spawn por zona con cooldowns, recompensas, limpieza automatica. RemoteEvent EventAction para UI. Tests: 1099/1099 PASS. verify:structure PASS (45). verify:wiring PASS (36/24/51).",
+    "mission": "Brainrot expansion FASES 9.3/9.5/9.7 - IA diferenciada por arquetipo, poblacion masiva, misiones con progreso real (verificado en runtime Studio)",
+    "phase": "BRAINROT-EXPANSION-9.3-9.5-9.7",
+    "subphase": "FASE 9.3 (IA diferenciada) + 9.5 (poblacion masiva) + 9.7 (misiones progreso real) COMPLETED. 9.2 (identidad visual) y 9.6 (poderes recogibles) ya estaban implementadas (VisualKit + SkillCatalog/SkillService). 9.4 (audio espacial) BLOQUEADA por assets externos (no se inventan IDs). 9.8 playtest visual de mundo PENDING (no bloquea logica).",
     "branch": "main",
-    "task": "FASE 2: consolidar y proteger todo el trabajo existente. Bloques 1-4 ya estaban commited en HEAD 06727a7 (=origin/main). Bloque 5 (PuzzleService) estaba en el arbol sin commit. Se comitio Bloque 5 (7941e83) + FASE 1 RE-AUDIT docs (41a2a94) y continuidad FASE 2 (6545120), push a origin/main. HEAD real = origin/main = 6545120 (commit de continuidad FASE 2 COMPLETED; source idéntico a 41a2a94). STATE sincerado. 09007f3 no es phantom: es un commit real de FASE 0+1, detras de HEAD. FASE 3: implementada localmente, playtesteada en Studio/MCP (CONECTADO), commited y push (ced7b56 = origin/main). FASE 4: WorldMechanics implementado, verificado localmente (1062/1062 PASS, verify PASS, rojo build PASS). analyze.js FAIL baseline preexistente. Studio/MCP CONECTADO. FASE 5: Exploracion vertical implementada — cuevas subterraneas, descensos secretos, reparacion de 80 huecos a 0, sistema HOLE_TYPES. Cadena completa PASS (1064/1064).",
+    "task": "Completar las peticiones Brainrot que quedaron a medias. Implementadas y verificadas las 3 fases verificables sin assets externos. Tests: 1299/1299 PASS (78 suites). verify-structure PASS (50). verify-wiring PASS (41 servicios, 116 llamadas). rojo build PASS. Verificado en runtime Studio via MCP: IsBrainrot/Classify/Groups responden correctamente.",
     "done": true,
     "fases_completadas": [
         "FASE 0 - Continuidad (commit 09007f3)",
@@ -117,20 +117,20 @@
         "FASE 6 playtest runtime (Studio/MCP) pendiente — validar maquina de 5 estados, spawn de cuerpos y recompensas"
     ],
     "brainrot_visual_followup": [],
-    "checkpoint": "FASE 6 COMPLETED — Maquina de 5 estados (IDLE/WARNING/ACTIVE/RECOVERY/COOLDOWN), 20 eventos de mundo + 3 universal + 3 COOP, cuerpos temporales con DynamicBodyKind, spawn por zona con cooldowns, recompensas via EconomyService/InventoryService, limpieza automatica, RemoteEvent EventAction para UI. Tests: 1099/1099 PASS. verify:structure PASS (45). verify:wiring PASS (36/24/51). arbol DIRTY pendiente commit FASE 6.",
-    "last_action": "FASE 6: implementado + verificado localmente (1099/1099 PASS, verify completo PASS, rojo build PASS). Modificaciones en EventRules.lua (5-state machine, 20 eventos, catalogos, DynamicBodies), EventService.lua (phase transitions, cooldowns, spawn, rewards, cleanup), ServerMain.server.lua (wiring SetDependencies), Remotes.model.json (EventAction remote), GameConstants.lua (RemoteAction.Event), RemoteSchema.lua ([EventAction] channel). Events.spec.lua extendido con 35 tests FASE 6. Arbol DIRTY pendiente commit FASE 6.",
-    "next_action": "Commit + push FASE 6 a origin/main. Playtest runtime en Studio/MCP para validar maquina de 5 estados, spawn de cuerpos y recompensas. Siguiente: FASE 7 — Panel World Completion UI (FASE 44) + cofres fisicos (FASE 24) + cadenas de misiones (FASE 41).",
-    "fase_actual": "FASE 6 - Eventos dinamicos: maquina de 5 estados, 20 eventos de mundo + 3 universal + 3 COOP — COMPLETED (2026-10-08)",
-    "fase_completada": "FASE 6 - Eventos dinamicos: maquina de 5 estados (IDLE/WARNING/ACTIVE/RECOVERY/COOLDOWN), 20 eventos de mundo + 3 universal + 3 COOP, cuerpos temporales, spawn con cooldowns, recompensas, limpieza — COMPLETED (2026-10-08)",
-    "fase_siguiente": "FASE 7 — Panel World Completion UI (FASE 44) + cofres fisicos (FASE 24) + cadenas de misiones (FASE 41)",
-    "commit": "9247d7a",
-    "head": "9247d7a",
-    "origin": "9247d7a",
-    "tree": "DIRTY — FASE 5 commited en 9247d7a (=origin/main) + FASE 6 en progreso (EventRules.lua, EventService.lua, ServerMain.server.lua, Remotes.model.json, GameConstants.lua, RemoteSchema.lua, Events.spec.lua); pendiente commit FASE 6",
+    "checkpoint": "Brainrot FASES 9.3/9.5/9.7 COMPLETED y subidas a origin/main (HEAD 642be5e). FASE 9.1 (58171c9): 15 especies + suites de integracion + rebuild de mundos. FASE 9.3: BrainrotBehaviorRules (puro) + cableado aditivo en MonsterService.StepAI (percepcion por arquetipo). FASE 9.5: GroupConfig 20x2-4, MaxAlive 8-10, MaxMonsters 200. FASE 9.7: metrica BrainrotDefeated + misiones WORLD_BRAINROT_10/30 + IsBrainrot frontera. Tests 1299/1299 PASS. verify PASS. rojo build PASS. Verificado en runtime Studio.",
+    "last_action": "Completadas FASES 9.3/9.5/9.7 de la expansion Brainrot. Subido todo el trabajo pendiente (58171c9 FASE 9.1 + 642be5e FASES 9.3/9.5/9.7). Basura local excluida del repo (Continue, fotos/, tols/, Nueva carpeta/, screenshots) via .gitignore. Verificado en runtime Studio que IsBrainrot/Classify/Groups responden.",
+    "next_action": "FASE 9.4 (audio espacial) requiere assets reales de Roblox (BLOCKED_EXTERNAL, no se inventan IDs). FASE 9.8 playtest visual de los 5 mundos cuando se quiera capturar evidencia grafica. La logica Brainrot esta completa y verificada.",
+    "fase_actual": "Brainrot expansion - FASES 9.1/9.2/9.3/9.5/9.6/9.7 COMPLETED; 9.4 BLOQUEADA (assets); 9.8 PENDING (playtest visual)",
+    "fase_completada": "Brainrot FASES 9.3/9.5/9.7 (IA diferenciada, poblacion masiva, misiones progreso real) — COMPLETED (HEAD 642be5e)",
+    "fase_siguiente": "FASE 9.4 audio espacial (BLOQUEADA assets) o FASE 9.8 playtest visual de mundos",
+    "commit": "642be5e",
+    "head": "642be5e",
+    "origin": "642be5e",
+    "tree": "CLEAN — todo commiteado y pusheado a origin/main (HEAD 642be5e = origin/main)",
     "continuidad": {
-        "ultimo_estado_verificado": "9247d7a",
-        "ultima_fuente_verificada": "9247d7a",
-        "ultima_fuente_label": "FASE 2 COMPLETED (6545120) + FASE 3 COMPLETED (ced7b56) + FASE 4 COMPLETED (9247d7a, WorldMechanics implementado, 1062/1062 PASS, verify PASS, rojo build PASS) + FASE 5 COMPLETED (9247d7a). FASE 6 COMPLETED (1099/1099 PASS, verify PASS, rojo build PASS).",
-        "convencion": "Los campos head/origin/commit conservan 9247d7a, el HEAD inmediatamente anterior y ultimo estado verificado, por la convencion de continuidad del proyecto (no autorreferencia). 6545120 es el commit FASE 2 COMPLETED, fuente idéntica a 41a2a94. ced7b56 es el commit FASE 3 COMPLETED. 9247d7a es el commit FASE 4+5 COMPLETED."
+        "ultimo_estado_verificado": "642be5e",
+        "ultima_fuente_verificada": "642be5e",
+        "ultima_fuente_label": "58171c9 (FASE 9.1 Brainrot especies + integracion + rebuild mundos) + 642be5e (FASES 9.3/9.5/9.7 IA diferenciada, poblacion masiva, misiones). Verificado en runtime Studio. Tests 1299/1299 PASS.",
+        "convencion": "head/origin/commit apuntan a 642be5e, el HEAD real y sincronizado con origin/main. Trabajo previo de Kilo (.kilo/, ignorado por git) subido en 58171c9."
     }
 }
