@@ -65,15 +65,15 @@ return function()
 	end)
 
 	Harness.describe("Configuración de grupos", function()
-		Harness.it("Forest genera 8 grupos", function()
+		Harness.it("Forest genera 20 grupos (población masiva FASE 9.5)", function()
 			local config = Rules.GetGroupConfig("Forest")
 			expect.toBeTruthy(config)
-			expect.toBe(config.Groups, 8)
+			expect.toBe(config.Groups, 20)
 		end)
 
-		Harness.it("Cyber genera 8 grupos", function()
+		Harness.it("Cyber genera 20 grupos", function()
 			local config = Rules.GetGroupConfig("Cyber")
-			expect.toBe(config.Groups, 8)
+			expect.toBe(config.Groups, 20)
 		end)
 
 		Harness.it("PerGroup tiene Min y Max coherentes", function()
@@ -85,11 +85,27 @@ return function()
 		end)
 	end)
 
+	Harness.describe("Población masiva (FASE 9.5)", function()
+		Harness.it("cada mundo apunta a 40+ brainrots potenciales", function()
+			-- La intención de población: Groups * Min debe superar el rango
+			-- pedido (40-80 por mundo). El tope real lo pone MonsterService
+			-- (MaxAlive por especie + MaxMonsters global); aquí solo se fija
+			-- la INTENCIÓN de que el mapa esté vivo.
+			for _, worldId in ipairs(Rules.GetWorlds()) do
+				local config = Rules.GetGroupConfig(worldId)
+				local minPopulation = config.Groups * config.PerGroup.Min
+				local maxPopulation = config.Groups * config.PerGroup.Max
+				expect.toBe(minPopulation >= 40, true, (("%s: min %d < 40"):format(worldId, minPopulation)))
+				expect.toBe(maxPopulation <= 200, true)
+			end
+		end)
+	end)
+
 	Harness.describe("RollGroups", function()
 		Harness.it("genera el número correcto de grupos", function()
 			local groups = Rules.RollGroups("Forest", deterministicRoll(42))
 			expect.toBeTruthy(groups)
-			expect.toBe(#groups, 8)
+			expect.toBe(#groups, 20)
 		end)
 
 		Harness.it("cada grupo tiene Species, Count y Slot", function()
@@ -100,7 +116,7 @@ return function()
 				expect.toBeTruthy(type(group.Count) == "number")
 				expect.toBe(group.Slot, i - 1)
 				expect.toBeTruthy(group.Count >= 1)
-				expect.toBeTruthy(group.Count <= 3)
+				expect.toBeTruthy(group.Count <= 4)
 			end
 		end)
 
@@ -170,6 +186,40 @@ return function()
 			expect.toBeTruthy(table.find(worlds, "Ice"))
 			expect.toBeTruthy(table.find(worlds, "Volcano"))
 			expect.toBeTruthy(table.find(worlds, "Cyber"))
+		end)
+	end)
+
+	Harness.describe("IsBrainrot", function()
+		Harness.it("reconoce una especie brainrot de cada mundo", function()
+			expect.toBe(Rules.IsBrainrot("Locotto"), true)
+			expect.toBe(Rules.IsBrainrot("Explodini"), true)
+			expect.toBe(Rules.IsBrainrot("Fantasmitti"), true)
+			expect.toBe(Rules.IsBrainrot("Magmatico"), true)
+			expect.toBe(Rules.IsBrainrot("Virusini"), true)
+		end)
+
+		Harness.it("no confunde un monstruo normal con brainrot", function()
+			-- Los monstruos de arena/jefe NO son fauna brainrot.
+			expect.toBe(Rules.IsBrainrot("Slime"), false)
+			expect.toBe(Rules.IsBrainrot("Hunter"), false)
+			expect.toBe(Rules.IsBrainrot("Grooty"), false)
+		end)
+
+		Harness.it("es robusto ante entradas no validas", function()
+			-- Un id nil, un numero o una tabla no deben romper la frontera
+			-- que consulta `MonsterService` en cada muerte.
+			expect.toBe(Rules.IsBrainrot(nil), false)
+			expect.toBe(Rules.IsBrainrot(42), false)
+			expect.toBe(Rules.IsBrainrot({}), false)
+			expect.toBe(Rules.IsBrainrot(""), false)
+		end)
+
+		Harness.it("todo id de GetAllSpeciesIds es brainrot", function()
+			-- Coherencia: el conjunto O(1) que usa IsBrainrot debe cuadrar
+			-- con la lista que devuelve GetAllSpeciesIds.
+			for _, id in ipairs(Rules.GetAllSpeciesIds()) do
+				expect.toBe(Rules.IsBrainrot(id), true)
+			end
 		end)
 	end)
 end

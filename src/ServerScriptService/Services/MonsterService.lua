@@ -22,6 +22,9 @@ local FeatureConfig = require(CONFIG:WaitForChild("FeatureConfig"))
 local GameConfig = require(CONFIG:WaitForChild("GameConfig"))
 local PerformanceConfig = require(CONFIG:WaitForChild("PerformanceConfig"))
 local AIService = require(SHARED:WaitForChild("Libraries"):WaitForChild("AIService"))
+local BrainrotRules = require(SHARED:WaitForChild("Libraries"):WaitForChild("BrainrotRules"))
+local BrainrotBehaviorRules =
+	require(SHARED:WaitForChild("Libraries"):WaitForChild("BrainrotBehaviorRules"))
 local MonsterDeathRules =
 	require(SHARED:WaitForChild("Libraries"):WaitForChild("MonsterDeathRules"))
 local MonsterScaleRules =
@@ -990,6 +993,15 @@ function Service.OnMonsterDied(monsterId: number): boolean
 			if record.IsBoss then
 				Service._questService.RecordMetric(killer, "BossDefeated", 1)
 			end
+
+			-- BRAINROT (FASE 9.7): la fauna brainrot cuenta aparte de un
+			-- monstruo generico. Sin metrica propia, las misiones
+			-- "derrota N brainrots" del `QuestCatalog` no progresarian nunca.
+			-- `BrainrotRules.IsBrainrot` es la frontera: la decision de QUE
+			-- es un brainrot vive en las reglas puras, no aqui.
+			if BrainrotRules.IsBrainrot(def.Id) then
+				Service._questService.RecordMetric(killer, "BrainrotDefeated", 1)
+			end
 		end
 
 		-- ActivityService (FASE 3): las actividades de caza avanzan por
@@ -1704,10 +1716,19 @@ function Service.StepAI(dt: number)
 			local def = record.Def
 			local origin = record.RootPart.Position
 
+			-- 0. ARQUETIPO (FASE 9.3, IA diferenciada). El rango de deteccion
+			-- declarado se MODULA por el comportamiento de la especie: un
+			-- volador o un tecnologico ve mas lejos; un pesado o un espectral,
+			-- menos. Es ADITIVO y no toca la maquina de estados ni el
+			-- pathfinding (validados en PLAY): solo cambia CUANTO ve cada tipo,
+			-- que es justo lo que hace que un mosquito y un yeti se sientan
+			-- distintos. La decision vive en `BrainrotBehaviorRules` (pura).
+			local detectionRange = BrainrotBehaviorRules.EffectiveDetectionRange(def)
+
 			-- 1. PERCEPCION. El jugador mas cercano DENTRO del rango de
 			-- deteccion. Es percepcion, no memoria: si no hay nadie dentro, el
 			-- monstruo no recuerda a nadie.
-			local target = Service.FindNearestPlayer(origin, def.DetectionRange)
+			local target = Service.FindNearestPlayer(origin, detectionRange)
 
 			local targetRoot = target
 				and target.Character

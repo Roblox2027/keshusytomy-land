@@ -40,7 +40,15 @@ return {
 	-- Limites duros del mundo en ejecucion.
 	Limits = {
 		MaxPlayers = 12,
-		MaxMonsters = 80,
+		-- FASE 9.5 (poblacion masiva): antes 80. Ese tope era el presupuesto
+		-- GLOBAL de monstruos vivos, compartido entre la arena, los bosses y la
+		-- fauna brainrot de los 5 mundos. Con la fauna expandida (hasta ~80
+		-- brainrots por mundo via `BrainrotRules.GroupConfig`), 80 dejaba los
+		-- mundos practicamente vacios: `MonsterService.Spawn` rechazaba el
+		-- exceso en cuanto el global se llenaba. 200 da margen para que la
+		-- poblacion pedida (40-80/mundo) sea real sin degradar el servidor:
+		-- sigue siendo un tope DURO, solo que mas honesto con el contenido.
+		MaxMonsters = 200,
 		MaxBombs = 100,
 		MaxExplosions = 100,
 		MaxProjectiles = 200,

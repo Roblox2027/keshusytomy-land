@@ -64,6 +64,12 @@ QuestCatalog.Metric = {
 	SecretDiscovered = "SecretDiscovered",
 	EventCompleted = "EventCompleted",
 	MiniBossDefeated = "MiniBossDefeated",
+	-- FASE 9.7 (expansion Brainrot): derrotar a un brainrot (Locotto,
+	-- Bombino, Virusini, ...) cuenta APARTE de un monstruo generico. Sin
+	-- metrica propia, "derrota 10 brainrots" seria indistinguible de
+	-- "derrota 10 slimes". La emite `MonsterService` al morir, consultando
+	-- `BrainrotRules.IsBrainrot`.
+	BrainrotDefeated = "BrainrotDefeated",
 }
 local ALL = {
 	-- --- Mundo (permanentes) ---------------------------------------------
@@ -154,6 +160,31 @@ local ALL = {
 		Metric = QuestCatalog.Metric.PowerupCollected,
 		Target = 5,
 		Rewards = { Coins = 100 },
+	},
+
+	-- --- Expansion Brainrot (FASE 9.7) -----------------------------------
+	--
+	-- Misiones de progreso real sobre la fauna brainrot. La metrica
+	-- `BrainrotDefeated` la emite `MonsterService` cuando mata a un brainrot
+	-- (frontera `BrainrotRules.IsBrainrot`), igual que `MonsterDefeated` para
+	-- un monstruo generico: son misiones que avanzan solas al jugar.
+	{
+		Id = "WORLD_BRAINROT_10",
+		Title = "Cazador de brainrots",
+		Description = "Derrota 10 brainrots repartidos por los mundos.",
+		Type = QuestCatalog.QuestType.World,
+		Metric = QuestCatalog.Metric.BrainrotDefeated,
+		Target = 10,
+		Rewards = { Coins = 250, Gems = 3 },
+	},
+	{
+		Id = "WORLD_BRAINROT_30",
+		Title = "Coleccionista de fauna",
+		Description = "Derrota 30 brainrots.",
+		Type = QuestCatalog.QuestType.World,
+		Metric = QuestCatalog.Metric.BrainrotDefeated,
+		Target = 30,
+		Rewards = { Coins = 600, Gems = 8 },
 	},
 
 	-- --- Achievements (logro interno, ver spec 28) ----------------------

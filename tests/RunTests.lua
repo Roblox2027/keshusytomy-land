@@ -82,6 +82,7 @@ local SUITES = {
 	{ name = "WorldCompletionRules", path = "./shared/WorldCompletionRules.spec" },
 	{ name = "ChestRules", path = "./shared/ChestRules.spec" },
 	{ name = "BrainrotRules", path = "./shared/BrainrotRules.spec" },
+	{ name = "BrainrotBehaviorRules", path = "./shared/BrainrotBehaviorRules.spec" },
 	{ name = "SkillCatalog", path = "./shared/SkillCatalog.spec" },
 	{ name = "SkillRules", path = "./shared/SkillRules.spec" },
 	{ name = "BombSkillIntegration", path = "./shared/BombSkillIntegration.spec" },

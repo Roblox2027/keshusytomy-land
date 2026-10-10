@@ -907,7 +907,7 @@ end
 define({
     Id = "Locotto", Name = "Tronquito Locotto", Health = 140, Speed = 10,
     Damage = 25, XP = 10, Coins = 6, DetectionRange = 42, AggroRadius = 52,
-    AttackRange = 7, MaxAlive = 4, Pressure = 0.55,
+    AttackRange = 7, MaxAlive = 10, Pressure = 0.55,
     Color = Color3.fromRGB(60, 140, 55),
     Material = Enum.Material.SmoothPlastic,
     PatrolSpeed = 5, ChaseSpeed = 10, ChargeSpeed = 14, DetectSpeed = 0,
@@ -919,7 +919,7 @@ define({
 define({
     Id = "Bambino", Name = "Mosquito Bambino", Health = 60, Speed = 15,
     Damage = 16, XP = 8, Coins = 5, DetectionRange = 70, AggroRadius = 80,
-    AttackRange = 5, MaxAlive = 4, Pressure = 0.55,
+    AttackRange = 5, MaxAlive = 10, Pressure = 0.55,
     Color = Color3.fromRGB(220, 230, 240),
     Material = Enum.Material.SmoothPlastic,
     PatrolSpeed = 12, ChaseSpeed = 15, ChargeSpeed = 19, DetectSpeed = 0,
@@ -931,7 +931,7 @@ define({
 define({
     Id = "Bombino", Name = "Honguito Bombino", Health = 90, Speed = 8,
     Damage = 18, XP = 10, Coins = 6, DetectionRange = 30, AggroRadius = 38,
-    AttackRange = 8, MaxAlive = 3, Pressure = 0.55,
+    AttackRange = 8, MaxAlive = 10, Pressure = 0.55,
     Color = Color3.fromRGB(255, 180, 90),
     Material = Enum.Material.SmoothPlastic,
     PatrolSpeed = 4, ChaseSpeed = 8, ChargeSpeed = 12, DetectSpeed = 0,
@@ -947,7 +947,7 @@ define({
 define({
     Id = "Explodini", Name = "Camellini Explodini", Health = 150, Speed = 11,
     Damage = 28, XP = 11, Coins = 6, DetectionRange = 46, AggroRadius = 56,
-    AttackRange = 8, MaxAlive = 4, Pressure = 0.58,
+    AttackRange = 8, MaxAlive = 10, Pressure = 0.58,
     Color = Color3.fromRGB(200, 120, 40),
     Material = Enum.Material.SmoothPlastic,
     PatrolSpeed = 6, ChaseSpeed = 11, ChargeSpeed = 18, DetectSpeed = 0,
@@ -960,7 +960,7 @@ define({
 define({
     Id = "Bailarino", Name = "Cactuso Bailarino", Health = 110, Speed = 9,
     Damage = 22, XP = 10, Coins = 6, DetectionRange = 38, AggroRadius = 46,
-    AttackRange = 7, MaxAlive = 3, Pressure = 0.58,
+    AttackRange = 7, MaxAlive = 10, Pressure = 0.58,
     Color = Color3.fromRGB(220, 200, 90),
     Material = Enum.Material.SmoothPlastic,
     PatrolSpeed = 5, ChaseSpeed = 9, ChargeSpeed = 13, DetectSpeed = 0,
@@ -973,7 +973,7 @@ define({
 define({
     Id = "Sandwichini", Name = "Sandwichini del Desierto", Health = 70, Speed = 15,
     Damage = 18, XP = 8, Coins = 5, DetectionRange = 44, AggroRadius = 52,
-    AttackRange = 6, MaxAlive = 3, Pressure = 0.58,
+    AttackRange = 6, MaxAlive = 10, Pressure = 0.58,
     Color = Color3.fromRGB(255, 210, 140),
     Material = Enum.Material.SmoothPlastic,
     PatrolSpeed = 11, ChaseSpeed = 15, ChargeSpeed = 20, DetectSpeed = 0,
@@ -989,7 +989,7 @@ define({
 define({
     Id = "Glaciacino", Name = "Pinguini Glaciarini", Health = 100, Speed = 13,
     Damage = 20, XP = 9, Coins = 5, DetectionRange = 44, AggroRadius = 52,
-    AttackRange = 6, MaxAlive = 4, Pressure = 0.62,
+    AttackRange = 6, MaxAlive = 10, Pressure = 0.62,
     Color = Color3.fromRGB(170, 220, 245),
     Material = Enum.Material.SmoothPlastic,
     PatrolSpeed = 7, ChaseSpeed = 13, ChargeSpeed = 17, DetectSpeed = 0,
@@ -1002,7 +1002,7 @@ define({
 define({
     Id = "Macarronni", Name = "Yeti Macarroni", Health = 260, Speed = 8,
     Damage = 35, XP = 14, Coins = 8, DetectionRange = 36, AggroRadius = 44,
-    AttackRange = 7, MaxAlive = 2, Pressure = 0.62,
+    AttackRange = 7, MaxAlive = 8, Pressure = 0.62,
     Color = Color3.fromRGB(220, 220, 240),
     Material = Enum.Material.SmoothPlastic,
     PatrolSpeed = 4, ChaseSpeed = 8, ChargeSpeed = 12, DetectSpeed = 0,
@@ -1016,7 +1016,7 @@ define({
 define({
     Id = "Fantasmitti", Name = "Cubetti Fantasmitti", Health = 55, Speed = 12,
     Damage = 14, XP = 7, Coins = 4, DetectionRange = 40, AggroRadius = 48,
-    AttackRange = 5, MaxAlive = 3, Pressure = 0.62,
+    AttackRange = 5, MaxAlive = 10, Pressure = 0.62,
     Color = Color3.fromRGB(220, 230, 245),
     Material = Enum.Material.SmoothPlastic,
     PatrolSpeed = 9, ChaseSpeed = 12, ChargeSpeed = 16, DetectSpeed = 0,
@@ -1033,7 +1033,7 @@ define({
 define({
     Id = "Lavaccino", Name = "Lavaccino Infernal", Health = 130, Speed = 11,
     Damage = 26, XP = 11, Coins = 6, DetectionRange = 42, AggroRadius = 50,
-    AttackRange = 7, MaxAlive = 4, Pressure = 0.68,
+    AttackRange = 7, MaxAlive = 10, Pressure = 0.68,
     Color = Color3.fromRGB(255, 110, 30),
     Material = Enum.Material.SmoothPlastic,
     PatrolSpeed = 6, ChaseSpeed = 11, ChargeSpeed = 16, DetectSpeed = 0,
@@ -1046,7 +1046,7 @@ define({
 define({
     Id = "Peperoni", Name = "Draconi Peperoni", Health = 100, Speed = 14,
     Damage = 30, XP = 10, Coins = 6, DetectionRange = 44, AggroRadius = 52,
-    AttackRange = 6, MaxAlive = 4, Pressure = 0.68,
+    AttackRange = 6, MaxAlive = 10, Pressure = 0.68,
     Color = Color3.fromRGB(255, 90, 40),
     Material = Enum.Material.SmoothPlastic,
     PatrolSpeed = 7, ChaseSpeed = 14, ChargeSpeed = 19, DetectSpeed = 0,
@@ -1059,7 +1059,7 @@ define({
 define({
     Id = "Magmatico", Name = "Bombardiro Magmatico", Health = 220, Speed = 9,
     Damage = 38, XP = 13, Coins = 7, DetectionRange = 34, AggroRadius = 40,
-    AttackRange = 8, MaxAlive = 2, Pressure = 0.68,
+    AttackRange = 8, MaxAlive = 8, Pressure = 0.68,
     Color = Color3.fromRGB(255, 90, 30),
     Material = Enum.Material.SmoothPlastic,
     PatrolSpeed = 5, ChaseSpeed = 9, ChargeSpeed = 13, DetectSpeed = 0,
@@ -1076,7 +1076,7 @@ define({
 define({
     Id = "Glitchino", Name = "Robottino Glitchino", Health = 90, Speed = 14,
     Damage = 24, XP = 9, Coins = 5, DetectionRange = 48, AggroRadius = 56,
-    AttackRange = 6, MaxAlive = 3, Pressure = 0.85,
+    AttackRange = 6, MaxAlive = 10, Pressure = 0.85,
     Color = Color3.fromRGB(90, 230, 240),
     Material = Enum.Material.SmoothPlastic,
     PatrolSpeed = 8, ChaseSpeed = 14, ChargeSpeed = 19, DetectSpeed = 0,
@@ -1090,7 +1090,7 @@ define({
 define({
     Id = "Pixeloni", Name = "Pixeloni Cacciatori", Health = 65, Speed = 15,
     Damage = 15, XP = 7, Coins = 4, DetectionRange = 56, AggroRadius = 64,
-    AttackRange = 5, MaxAlive = 4, Pressure = 0.85,
+    AttackRange = 5, MaxAlive = 10, Pressure = 0.85,
     Color = Color3.fromRGB(200, 255, 220),
     Material = Enum.Material.SmoothPlastic,
     PatrolSpeed = 11, ChaseSpeed = 15, ChargeSpeed = 21, DetectSpeed = 0,
@@ -1104,7 +1104,7 @@ define({
 define({
     Id = "Virusini", Name = "Virusini Meccanici", Health = 40, Speed = 13,
     Damage = 12, XP = 6, Coins = 3, DetectionRange = 36, AggroRadius = 42,
-    AttackRange = 4, MaxAlive = 3, Pressure = 0.85,
+    AttackRange = 4, MaxAlive = 10, Pressure = 0.85,
     Color = Color3.fromRGB(220, 120, 200),
     Material = Enum.Material.SmoothPlastic,
     PatrolSpeed = 10, ChaseSpeed = 13, ChargeSpeed = 17, DetectSpeed = 0,

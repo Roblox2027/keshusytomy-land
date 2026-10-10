@@ -66,20 +66,24 @@ Rules.SpeciesByWorld = {
 -- ---------------------------------------------------------------------------
 --
 -- Cuántos grupos generar y cuántos individuos por grupo. Estos números
--- están calibrados para que un mundo tenga "vida" sin saturar el servidor:
--- 3-4 grupos por mundo, 1-2 individuos por grupo. El jugador no debe ver
--- todo el mapa lleno de NPCs, pero sí debe encontrar sorpresas al explorar.
+-- están calibrados para que un mundo tenga "vida" sin saturar el servidor.
 --
--- 8-10 grupos por mundo, 2-3 individuos por grupo. El jugador debe
--- encontrar brainrots repartidos por todo el mapa, no solo en 3-4 puntos.
--- El formato es: { Groups = N, PerGroup = { min, max } }
+-- FASE 9.5 (población masiva): antes eran 8 grupos x 2-3 (~20 brainrots por
+-- mundo, un mapa que se sentía vacío al recorrerlo). Ahora 20 grupos x 2-4,
+-- lo que acerca cada mundo al rango pedido (40-80 brainrots). El tope REAL
+-- lo sigue poniendo `MonsterService`: `MaxAlive` por especie acota cuántos
+-- individuos de cada tipo coexisten, y `PerformanceConfig.Limits.MaxMonsters`
+-- (=80) es el presupuesto global del servidor. Estos números son la INTENCIÓN
+-- de población; los topes duros son la garantía de que no se degrada.
+--
+-- El formato es: { Groups = N, PerGroup = { Min, Max } }
 
 Rules.GroupConfig = {
-	Forest = { Groups = 8, PerGroup = { Min = 2, Max = 3 } },
-	Desert = { Groups = 8, PerGroup = { Min = 2, Max = 3 } },
-	Ice = { Groups = 8, PerGroup = { Min = 2, Max = 3 } },
-	Volcano = { Groups = 8, PerGroup = { Min = 2, Max = 3 } },
-	Cyber = { Groups = 8, PerGroup = { Min = 2, Max = 3 } },
+	Forest = { Groups = 20, PerGroup = { Min = 2, Max = 4 } },
+	Desert = { Groups = 20, PerGroup = { Min = 2, Max = 4 } },
+	Ice = { Groups = 20, PerGroup = { Min = 2, Max = 4 } },
+	Volcano = { Groups = 20, PerGroup = { Min = 2, Max = 4 } },
+	Cyber = { Groups = 20, PerGroup = { Min = 2, Max = 4 } },
 }
 
 -- ---------------------------------------------------------------------------
@@ -150,6 +154,31 @@ function Rules.GetWorlds(): { string }
 	end
 	table.sort(worlds)
 	return worlds
+end
+
+-- Conjunto de TODOS los ids de especie brainrot, construido una vez.
+--
+-- Existe para que `IsBrainrot` sea O(1): `MonsterService` lo consulta en
+-- cada muerte de monstruo, y recorrer `SpeciesByWorld` cada vez seria trabajo
+-- tirado a la basura en el camino caliente del juego.
+local BRAINROT_SET: { [string]: boolean } = {}
+for _, worldId in ipairs(Rules.GetWorlds()) do
+	for _, id in ipairs(Rules.GetSpecies(worldId)) do
+		BRAINROT_SET[id] = true
+	end
+end
+Rules._BrainrotSet = BRAINROT_SET
+
+--- ?Este id de monstruo es un brainrot?
+---
+--- Es la FRONTERA que usa `MonsterService` para decidir si una muerte emite
+--- la metrica `BrainrotDefeated`. Se resuelve contra el conjunto precalculado
+--- para no depender de recorrer tablas en caliente.
+---
+--- @param monsterId any id tal como aparece en `MonsterDefinitions`
+--- @return boolean
+function Rules.IsBrainrot(monsterId: any): boolean
+	return type(monsterId) == "string" and BRAINROT_SET[monsterId] == true
 end
 
 --- Genera los grupos de brainrots para un mundo.
