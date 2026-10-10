@@ -45,6 +45,7 @@ Service.IsInitialized = false
 -- Servicios inyectados por ServerMain para evitar dependencias circulares.
 Service._roundService = nil
 Service._explosionService = nil
+Service._skillService = nil
 
 -- QuestService: receptor del progreso de misiones (bombas colocadas).
 --
@@ -158,6 +159,14 @@ end
 function Service.SetDependencies(roundService: any, explosionService: any)
 	Service._roundService = roundService
 	Service._explosionService = explosionService
+end
+
+--- Inyecta SkillService para leer habilidades de bomba del jugador.
+---
+--- Es OPCIONAL: sin el, las bombas usan los valores base de GameConfig.
+--- @param skillService any?
+function Service.SetSkillService(skillService: any?)
+	Service._skillService = skillService
 end
 
 --- Inyecta el registro de mundos.
@@ -536,9 +545,11 @@ local function detonateBomb(bombId: number, depth: number)
 	if Service._explosionService then
 		Service._explosionService.Detonate(
 			position,
-			GameConfig.DefaultBombRadius,
+			record.EffectiveRadius or GameConfig.DefaultBombRadius,
 			ownerId,
-			record.World
+			record.World,
+			record.DamageMult or 1,
+			record.Flavor or "default"
 		)
 	end
 
@@ -623,9 +634,19 @@ end
 --- @param ownerId number?
 --- @param position Vector3
 --- @param worldId string? mundo del dueno: decide la PIEL de la bomba
+--- @param effectiveRadius number radio de explosion con skills aplicado
+--- @param damageMult number multiplicador de daño con skills aplicado
+--- @param flavor string sabor visual de la bomba
 --- @return number bombId
-local function spawnBomb(ownerId: number?, position: Vector3, worldId: string?): number
-	local bomb = VisualKit.BuildBomb(worldId, position, GameConfig.DefaultBombRadius)
+local function spawnBomb(
+	ownerId: number?,
+	position: Vector3,
+	worldId: string?,
+	effectiveRadius: number,
+	damageMult: number,
+	flavor: string
+): number
+	local bomb = VisualKit.BuildBomb(worldId, position, effectiveRadius, flavor)
 
 	if not bomb then
 		-- Sin modelo NO hay bomba. Antes se creaba una `Part` minima y el
@@ -659,6 +680,8 @@ local function spawnBomb(ownerId: number?, position: Vector3, worldId: string?):
 	-- instancias creadas desde codigo. Medido, no supuesto: `Parent =` si
 	-- funciona y produce exactamente el mismo arbol.
 	bomb.Parent = Service._bombFolder
+	bomb:SetAttribute("Flavor", flavor)
+
 	Service._activeBombs[bombId] = {
 		Part = root,
 		Model = bomb,
@@ -666,6 +689,9 @@ local function spawnBomb(ownerId: number?, position: Vector3, worldId: string?):
 		Position = position,
 		World = worldId,
 		Depth = 0,
+		EffectiveRadius = effectiveRadius,
+		DamageMult = damageMult,
+		Flavor = flavor,
 	}
 
 	-- El HUD sube aqui, en el servidor, que es quien decide si la bomba
@@ -806,7 +832,12 @@ end
 --- @return number capacity
 function Service.GetPlayerCapacity(userId: number): number
 	local extra = Service._capacityBonus[userId] or 0
-	local base = GameConfig.BombCapacity + extra
+	local skillCapacity = 0
+	if Service._skillService then
+		local stats = Service._skillService.GetBombStats(userId)
+		skillCapacity = stats.capacity
+	end
+	local base = GameConfig.BombCapacity + extra + skillCapacity
 	local tope = PerformanceConfig.Limits.MaxBombsPerPlayer
 
 	if base > tope then
@@ -1021,7 +1052,20 @@ function Service.TryPlaceBomb(player: Player, position: any): (boolean, string?)
 	end
 
 	local placement = resolvePlacement(position, rootPart :: BasePart?)
-	local bombId = spawnBomb(player.UserId, placement, worldId)
+
+	-- Estadísticas de bomba del jugador (skills + base). Si SkillService no
+	-- está inyectado, se usan los valores base de GameConfig (modo seguro).
+	local effectiveRadius = GameConfig.DefaultBombRadius
+	local damageMult = 1
+	local flavor = "default"
+
+	if Service._skillService then
+		effectiveRadius = Service._skillService.GetEffectiveBombRadius(player.UserId)
+		damageMult = Service._skillService.GetEffectiveDamageMult(player.UserId)
+		flavor = Service._skillService.GetEffectiveFlavor(player.UserId)
+	end
+
+	local bombId = spawnBomb(player.UserId, placement, worldId, effectiveRadius, damageMult, flavor)
 
 	if bombId == 0 then
 		-- El modelo no se pudo construir: se devuelve el cooldown para que el
@@ -1374,6 +1418,7 @@ function Service.Destroy(): boolean
 	Service._worldService = nil
 	Service._roundService = nil
 	Service._explosionService = nil
+	Service._skillService = nil
 	Service._questService = nil
 	Service._maid = nil
 	Service.IsInitialized = false

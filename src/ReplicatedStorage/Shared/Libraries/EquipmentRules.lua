@@ -42,6 +42,16 @@ Rules.Caps = {
 	-- Multiplicador del cooldown de la habilidad: entre 0.75 y 1.
 	-- Bajarlo demasiado convertiria la habilidad en el ataque basico.
 	AbilityCooldownMult = { Min = 0.75, Max = 1.0 },
+	-- Bono de JumpPower: entre 0 y 100. El salto base del personaje es 50;
+	-- un bono de 100 lo duplica, suficiente para plataformas altas sin
+	-- volar sin control.
+	JumpPowerBonus = { Min = 0, Max = 100 },
+	-- Multiplicador de daño melee: entre 0.75 y 1.4. Empieza en 1 (100 %);
+	-- el tope de 1.4 impone un +40 % como maximo absoluto, incluso si el
+	-- jugador gana todas las armas. La bomba (120) sigue siendo la herramienta
+	-- de daño de area: tres golpes de melee (floor(34 * 1.4) = 47 por golpe,
+	-- 141 por combo de 3) no debilitan una bomba que pega a todo lo que rodea.
+	MeleeDamageMult = { Min = 0.75, Max = 1.4 },
 }
 
 -- ---------------------------------------------------------------------------
@@ -60,6 +70,8 @@ function Rules.ComputeStats(equippedIds: any, catalog: any): { [string]: number 
 		WalkSpeedMult = 1,
 		MaxHealthBonus = 0,
 		AbilityCooldownMult = 1,
+		JumpPowerBonus = 0,
+		MeleeDamageMult = 1,
 	}
 
 	if
@@ -78,6 +90,8 @@ function Rules.ComputeStats(equippedIds: any, catalog: any): { [string]: number 
 			totals.WalkSpeedMult += tonumber(stats.WalkSpeedMult) or 0
 			totals.MaxHealthBonus += tonumber(stats.MaxHealthBonus) or 0
 			totals.AbilityCooldownMult += tonumber(stats.AbilityCooldownMult) or 0
+			totals.JumpPowerBonus += tonumber(stats.JumpPowerBonus) or 0
+			totals.MeleeDamageMult += tonumber(stats.MeleeDamageMult) or 0
 		end
 	end
 
@@ -93,6 +107,16 @@ function Rules.ComputeStats(equippedIds: any, catalog: any): { [string]: number 
 		totals.AbilityCooldownMult,
 		Rules.Caps.AbilityCooldownMult.Min,
 		Rules.Caps.AbilityCooldownMult.Max
+	)
+	totals.JumpPowerBonus = math.clamp(
+		totals.JumpPowerBonus,
+		Rules.Caps.JumpPowerBonus.Min,
+		Rules.Caps.JumpPowerBonus.Max
+	)
+	totals.MeleeDamageMult = math.clamp(
+		totals.MeleeDamageMult,
+		Rules.Caps.MeleeDamageMult.Min,
+		Rules.Caps.MeleeDamageMult.Max
 	)
 
 	return totals

@@ -97,9 +97,11 @@ function runWithEnv(env, script, args = []) {
 function lua(file) {
 	console.log("");
 	console.log("=== " + path.basename(file) + " ===");
-	const out = execFileSync("node", [path.join(__dirname, "studio-mcp.js"), "execute_luau", "--file", file], {
+	const args = [path.join(__dirname, "studio-mcp.js"), "execute_luau", "--file", file];
+	const out = execFileSync("node", args, {
 		cwd: ROOT,
 		encoding: "utf8",
+		env: { ...process.env, MCP_INSTANCE_ID: process.env.MCP_INSTANCE_ID || "" },
 		maxBuffer: 128 * 1024 * 1024,
 	});
 	console.log(out.trimEnd());
@@ -126,17 +128,46 @@ function main() {
 	lua(path.join("tools", "reset-map.lua"));
 
 	// El `import_rbxm` necesita la ruta ABSOLUTA del .rbxm.
-	const argsFile = path.join(CACHE, "mcp-args.json");
-	fs.writeFileSync(
-		argsFile,
-		JSON.stringify({
-			source: { path: path.join(CACHE, "workspace-source.rbxm") },
-			parent_path: "game.Workspace",
-			target: "edit",
-		}),
-		"utf8"
-	);
-	run("studio-mcp.js", ["import_rbxm", "--jsonfile", argsFile]);
+	const workspaceRbxm = path.join(CACHE, "workspace-source.rbxm");
+
+	// El workspace supera los 39MB del MCP (42K partes en 5 mundos).
+	// Se importa en chunks: primero el base (Environment/Lobby/SpawnLocations +
+	// Worlds vacio), luego cada mundo individualmente a game.Workspace.Worlds.
+	// El script maneja merge, unwrap y dedupe internamente.
+	const wsSize = fs.statSync(workspaceRbxm).size;
+	const MCP_LIMIT = 35 * 1024 * 1024;
+	if (wsSize > MCP_LIMIT) {
+		console.log("");
+		console.log("=== import-workspace-chunked.js (workspace > " + (MCP_LIMIT / 1024 / 1024) + "MB) ===");
+		try {
+			execFileSync(
+				"node",
+				[path.join(__dirname, "import-workspace-chunked.js"), process.env.MCP_INSTANCE_ID || ""],
+				{
+					cwd: ROOT,
+					encoding: "utf8",
+					stdio: "inherit",
+					env: { ...process.env, MCP_INSTANCE_ID: process.env.MCP_INSTANCE_ID || "" },
+					maxBuffer: 128 * 1024 * 1024,
+				}
+			);
+		} catch (err) {
+			console.log("FALLO: " + (err.stderr || err.message).toString().trim());
+			process.exit(1);
+		}
+	} else {
+		const argsFile = path.join(CACHE, "mcp-args.json");
+		fs.writeFileSync(
+			argsFile,
+			JSON.stringify({
+				source: { path: workspaceRbxm },
+				parent_path: "game.Workspace",
+				target: "edit",
+			}),
+			"utf8"
+		);
+		run("studio-mcp.js", ["import_rbxm", "--jsonfile", argsFile]);
+	}
 
 	// 2-bis. EL HUD DE STARTERGUI.
 	//
@@ -164,14 +195,17 @@ function main() {
 	// parser divergen en cuanto una corrige un caso y la otra no.
 	runWithEnv(
 		{
-// Rojo NO emite un <Item class="StarterGui">: emite un Folder
-// llamado StarterGui colgando de la raiz del build. Extraer por la
-// clase del servicio fallaba con "No se encontro".
-SYNC_CLASS: "Folder",
+// SEGURIDAD: segun como este declarado en default.project.json,
+// Rojo emite el servicio real `<Item class="StarterGui">` (hoy) o
+// un Folder llamado StarterGui (versiones anteriores). Se aceptan
+// las dos clases y se distingue por NOMBRE: la extraccion por una
+// sola clase empezo a fallar con "No se encontro" y dejaba el HUD
+// sin sincronizar (46 interfaces de menos en source-runtime-diff).
+SYNC_CLASS: "StarterGui|Folder",
 SYNC_NAME: "StarterGui",
 SYNC_MATCH: "StarterGui",
 SYNC_OUT: path.join(CACHE, "startergui-source.rbxm"),
-},
+		},
 		"sync-workspace.js"
 	);
 	run("studio-mcp.js", ["import_rbxm", "--jsonfile", guiArgsFile]);

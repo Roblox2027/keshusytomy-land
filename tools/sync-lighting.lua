@@ -12,6 +12,7 @@ local Lighting = game:GetService("Lighting")
 
 -- Ajustes del propio Servicio.
 Lighting.GlobalShadows = true
+pcall(function() Lighting.Technology = "Future" end) -- requiere RobloxScript: se intenta, no aborta
 Lighting.ClockTime = 15.2
 Lighting.Brightness = 1.05
 Lighting.Ambient = Color3.fromRGB(52, 62, 78)
@@ -34,6 +35,25 @@ end
 	fx.Decay = Color3.fromRGB(96, 124, 116)
 	fx.Glare = 0.02
 	fx.Offset = 0.15
+
+-- KeshusySky: se reutiliza si ya existe, para no duplicar el efecto.
+local fx = Lighting:FindFirstChild("KeshusySky")
+if not (fx and fx:IsA("Sky")) then
+	fx = Instance.new("Sky")
+	fx.Name = "KeshusySky"
+	fx.Parent = Lighting
+end
+	fx.CelestialBodiesShown = true
+	fx.MoonAngularSize = 11
+	fx.SunAngularSize = 21
+	fx.SkyboxBk = "rbxassetid://6444885077"
+	fx.SkyboxDn = "rbxassetid://6444885459"
+	fx.SkyboxFt = "rbxassetid://6444884785"
+	fx.SkyboxLf = "rbxassetid://6444885077"
+	fx.SkyboxRt = "rbxassetid://6444884785"
+	fx.SkyboxUp = "rbxassetid://6444884335"
+	fx.SunTextureId = "rbxassetid://6196665106"
+	fx.MoonTextureId = "rbxassetid://6444320595"
 
 -- KeshusyGrade: se reutiliza si ya existe, para no duplicar el efecto.
 local fx = Lighting:FindFirstChild("KeshusyGrade")

@@ -47,8 +47,12 @@ Rules.Melee = {
 	-- Producto punto minimo entre la mirada y la victima: el golpe
 	-- alcanza lo que esta DELANTE, no lo que rodea. 0.35 ~ 70 grados.
 	MinDot = 0.35,
-	-- Dano base del golpe.
-	Damage = 24,
+	-- Dano base del golpe. Subido de 24 a 34 para que el cuerpo a cuerpo sea
+	-- una decision de peso y no un rasguo: tres golpes (sin combo) tumban a un
+	-- enemigo de 100 de vida, asi que plantarse a pegar es arriesgado y por
+	-- tanto divertido. Se mantiene por debajo de 40 (contrato de
+	-- `CombatRules.spec`) para no desplazar a la bomba como herramienta de dano.
+	Damage = 34,
 }
 
 --- Dash: impulso con invulnerabilidad breve.
@@ -78,8 +82,10 @@ Rules.Combo = {
 	Window = 1.4,
 	-- Golpe que dispara el especial (3 = golpe, golpe, ESPECIAL).
 	FinisherAt = 3,
-	-- Multiplicador del especial.
-	FinisherMultiplier = 1.8,
+	-- Multiplicador del especial. Subido de 1.8 a 2.0: encadenar el combo debe
+	-- pagar con un remate que se SIENTA (floor(34 * 2.0) = 68), no con un golpe
+	-- apenas mayor que el base. El contrato solo exige que supere al golpe base.
+	FinisherMultiplier = 2.0,
 }
 
 -- ---------------------------------------------------------------------------

@@ -127,6 +127,11 @@ export type MonsterDefinition = {
 	-- definicion: es el UNICO dato que un jefe necesita del mundo.
 	IsBoss: boolean,
 	World: string?,
+
+	-- Rasgos personalizados (brainrots/zombies): campos que no forman parte
+	-- del contrato historico pero que identifican el comportamiento del
+	-- monstruo (AppliesPoison, IsFlyer, LeavesNest, etc.).
+	[string]: any?,
 }
 
 -- ============================================================ COMPATIBILIDAD
@@ -258,6 +263,23 @@ local function define(def: { [string]: any })
 		IsBoss = def.IsBoss or false,
 		World = def.World,
 	}
+
+	-- Campos personalizados: cualquier trait que no sea parte del contrato
+	-- historico se copia tal cual. Los brainrots y zombies declaran rasgos
+	-- como `AppliesPoison`, `BlocksVision`, `IsFlyer`, `LeavesNest`, etc., que
+	-- identifican su comportamiento. Sin este bucle, `define` los borra de
+	-- la definicion y el monstruo sale como una caja sin identidad.
+	--
+	-- Se recorre el input y se copian los que no estan ya en la salida: los
+	-- campos enumerados arriba mantienen su default explicito, y los nuevos
+	-- pasan sin transformar.
+	local entry = DEFINITIONS[def.Id]
+
+	for key, value in pairs(def) do
+		if entry[key] == nil then
+			entry[key] = value
+		end
+	end
 end
 
 -- =========================================================================
@@ -879,4 +901,297 @@ function Definitions.GetAll(): { [string]: MonsterDefinition }
 	return DEFINITIONS
 end
 
+-- =========================================================================
+-- MUNDO 1 - Keshusy Forest (Nature, presion 0.55)
+-- =========================================================================
+define({
+    Id = "Locotto", Name = "Tronquito Locotto", Health = 140, Speed = 10,
+    Damage = 25, XP = 10, Coins = 6, DetectionRange = 42, AggroRadius = 52,
+    AttackRange = 7, MaxAlive = 4, Pressure = 0.55,
+    Color = Color3.fromRGB(60, 140, 55),
+    Material = Enum.Material.SmoothPlastic,
+    PatrolSpeed = 5, ChaseSpeed = 10, ChargeSpeed = 14, DetectSpeed = 0,
+    WarningSpeed = 0, RecoverySpeed = 3,
+    DetectTime = 0.5, WarningTime = 0.9, ChargeDuration = 0.6, RecoveryTime = 2.2,
+    VisualScale = 1.5,
+    LeavesNest = true,
+})
+define({
+    Id = "Bambino", Name = "Mosquito Bambino", Health = 60, Speed = 15,
+    Damage = 16, XP = 8, Coins = 5, DetectionRange = 70, AggroRadius = 80,
+    AttackRange = 5, MaxAlive = 4, Pressure = 0.55,
+    Color = Color3.fromRGB(220, 230, 240),
+    Material = Enum.Material.SmoothPlastic,
+    PatrolSpeed = 12, ChaseSpeed = 15, ChargeSpeed = 19, DetectSpeed = 0,
+    WarningSpeed = 0, RecoverySpeed = 6,
+    DetectTime = 0.35, WarningTime = 0.7, ChargeDuration = 0.5, RecoveryTime = 1.8,
+    VisualScale = 1.25,
+    IsFlyer = true,
+})
+define({
+    Id = "Bombino", Name = "Honguito Bombino", Health = 90, Speed = 8,
+    Damage = 18, XP = 10, Coins = 6, DetectionRange = 30, AggroRadius = 38,
+    AttackRange = 8, MaxAlive = 3, Pressure = 0.55,
+    Color = Color3.fromRGB(255, 180, 90),
+    Material = Enum.Material.SmoothPlastic,
+    PatrolSpeed = 4, ChaseSpeed = 8, ChargeSpeed = 12, DetectSpeed = 0,
+    WarningSpeed = 0, RecoverySpeed = 2.5,
+    DetectTime = 0.6, WarningTime = 1.0, ChargeDuration = 0.6, RecoveryTime = 2.5,
+    VisualScale = 1.6,
+    IsExplosive = true,
+    LeavesBomb = true,
+})
+-- =========================================================================
+-- MUNDO 2 - Boom Desert (Dry, presion 0.58)
+-- =========================================================================
+define({
+    Id = "Explodini", Name = "Camellini Explodini", Health = 150, Speed = 11,
+    Damage = 28, XP = 11, Coins = 6, DetectionRange = 46, AggroRadius = 56,
+    AttackRange = 8, MaxAlive = 4, Pressure = 0.58,
+    Color = Color3.fromRGB(200, 120, 40),
+    Material = Enum.Material.SmoothPlastic,
+    PatrolSpeed = 6, ChaseSpeed = 11, ChargeSpeed = 18, DetectSpeed = 0,
+    WarningSpeed = 0, RecoverySpeed = 3.5,
+    DetectTime = 0.5, WarningTime = 0.9, ChargeDuration = 0.6, RecoveryTime = 2.4,
+    VisualScale = 1.6,
+    IsCharger = true,
+    Sandsplash = true,
+})
+define({
+    Id = "Bailarino", Name = "Cactuso Bailarino", Health = 110, Speed = 9,
+    Damage = 22, XP = 10, Coins = 6, DetectionRange = 38, AggroRadius = 46,
+    AttackRange = 7, MaxAlive = 3, Pressure = 0.58,
+    Color = Color3.fromRGB(220, 200, 90),
+    Material = Enum.Material.SmoothPlastic,
+    PatrolSpeed = 5, ChaseSpeed = 9, ChargeSpeed = 13, DetectSpeed = 0,
+    WarningSpeed = 0, RecoverySpeed = 2.8,
+    DetectTime = 0.55, WarningTime = 0.8, ChargeDuration = 0.55, RecoveryTime = 2.2,
+    VisualScale = 1.7,
+    HasSpines = true,
+    Sways = true,
+})
+define({
+    Id = "Sandwichini", Name = "Sandwichini del Desierto", Health = 70, Speed = 15,
+    Damage = 18, XP = 8, Coins = 5, DetectionRange = 44, AggroRadius = 52,
+    AttackRange = 6, MaxAlive = 3, Pressure = 0.58,
+    Color = Color3.fromRGB(255, 210, 140),
+    Material = Enum.Material.SmoothPlastic,
+    PatrolSpeed = 11, ChaseSpeed = 15, ChargeSpeed = 20, DetectSpeed = 0,
+    WarningSpeed = 0, RecoverySpeed = 5,
+    DetectTime = 0.4, WarningTime = 0.8, ChargeDuration = 0.55, RecoveryTime = 1.9,
+    VisualScale = 1.3,
+    IsHunter = true,
+    Ambush = true,
+})
+-- =========================================================================
+-- MUNDO 3 - Frozen Tomy (Frost, presion 0.62)
+-- =========================================================================
+define({
+    Id = "Glaciacino", Name = "Pinguini Glaciarini", Health = 100, Speed = 13,
+    Damage = 20, XP = 9, Coins = 5, DetectionRange = 44, AggroRadius = 52,
+    AttackRange = 6, MaxAlive = 4, Pressure = 0.62,
+    Color = Color3.fromRGB(170, 220, 245),
+    Material = Enum.Material.SmoothPlastic,
+    PatrolSpeed = 7, ChaseSpeed = 13, ChargeSpeed = 17, DetectSpeed = 0,
+    WarningSpeed = 0, RecoverySpeed = 4,
+    DetectTime = 0.45, WarningTime = 0.85, ChargeDuration = 0.55, RecoveryTime = 2.0,
+    VisualScale = 1.5,
+    AppliesFreeze = true,
+    Waddles = true,
+})
+define({
+    Id = "Macarronni", Name = "Yeti Macarroni", Health = 260, Speed = 8,
+    Damage = 35, XP = 14, Coins = 8, DetectionRange = 36, AggroRadius = 44,
+    AttackRange = 7, MaxAlive = 2, Pressure = 0.62,
+    Color = Color3.fromRGB(220, 220, 240),
+    Material = Enum.Material.SmoothPlastic,
+    PatrolSpeed = 4, ChaseSpeed = 8, ChargeSpeed = 12, DetectSpeed = 0,
+    WarningSpeed = 0, RecoverySpeed = 2.5,
+    DetectTime = 0.6, WarningTime = 1.0, ChargeDuration = 0.6, RecoveryTime = 2.4,
+    VisualScale = 1.9,
+    IsHeavy = true,
+    Stomps = true,
+    FreezeCone = true,
+})
+define({
+    Id = "Fantasmitti", Name = "Cubetti Fantasmitti", Health = 55, Speed = 12,
+    Damage = 14, XP = 7, Coins = 4, DetectionRange = 40, AggroRadius = 48,
+    AttackRange = 5, MaxAlive = 3, Pressure = 0.62,
+    Color = Color3.fromRGB(220, 230, 245),
+    Material = Enum.Material.SmoothPlastic,
+    PatrolSpeed = 9, ChaseSpeed = 12, ChargeSpeed = 16, DetectSpeed = 0,
+    WarningSpeed = 0, RecoverySpeed = 4,
+    DetectTime = 0.4, WarningTime = 0.7, ChargeDuration = 0.5, RecoveryTime = 2.1,
+    VisualScale = 1.3,
+    IsSpectral = true,
+    Vanishes = true,
+    Ethereal = true,
+})
+-- =========================================================================
+-- MUNDO 4 - Volcano Rage (Magma, presion 0.68)
+-- =========================================================================
+define({
+    Id = "Lavaccino", Name = "Lavaccino Infernal", Health = 130, Speed = 11,
+    Damage = 26, XP = 11, Coins = 6, DetectionRange = 42, AggroRadius = 50,
+    AttackRange = 7, MaxAlive = 4, Pressure = 0.68,
+    Color = Color3.fromRGB(255, 110, 30),
+    Material = Enum.Material.SmoothPlastic,
+    PatrolSpeed = 6, ChaseSpeed = 11, ChargeSpeed = 16, DetectSpeed = 0,
+    WarningSpeed = 0, RecoverySpeed = 3.5,
+    DetectTime = 0.5, WarningTime = 0.9, ChargeDuration = 0.6, RecoveryTime = 2.3,
+    VisualScale = 1.6,
+    LeavesLava = true,
+    Molten = true,
+})
+define({
+    Id = "Peperoni", Name = "Draconi Peperoni", Health = 100, Speed = 14,
+    Damage = 30, XP = 10, Coins = 6, DetectionRange = 44, AggroRadius = 52,
+    AttackRange = 6, MaxAlive = 4, Pressure = 0.68,
+    Color = Color3.fromRGB(255, 90, 40),
+    Material = Enum.Material.SmoothPlastic,
+    PatrolSpeed = 7, ChaseSpeed = 14, ChargeSpeed = 19, DetectSpeed = 0,
+    WarningSpeed = 0, RecoverySpeed = 4,
+    DetectTime = 0.4, WarningTime = 0.8, ChargeDuration = 0.55, RecoveryTime = 2.0,
+    VisualScale = 1.5,
+    Burns = true,
+    Fireblast = true,
+})
+define({
+    Id = "Magmatico", Name = "Bombardiro Magmatico", Health = 220, Speed = 9,
+    Damage = 38, XP = 13, Coins = 7, DetectionRange = 34, AggroRadius = 40,
+    AttackRange = 8, MaxAlive = 2, Pressure = 0.68,
+    Color = Color3.fromRGB(255, 90, 30),
+    Material = Enum.Material.SmoothPlastic,
+    PatrolSpeed = 5, ChaseSpeed = 9, ChargeSpeed = 13, DetectSpeed = 0,
+    WarningSpeed = 0, RecoverySpeed = 3,
+    DetectTime = 0.55, WarningTime = 0.9, ChargeDuration = 0.6, RecoveryTime = 2.4,
+    VisualScale = 1.8,
+    IsHeavy = true,
+    Presses = true,
+    Destroys = true,
+})
+-- =========================================================================
+-- MUNDO 5 - Cyber Keshusy (Tech, presion 0.85)
+-- =========================================================================
+define({
+    Id = "Glitchino", Name = "Robottino Glitchino", Health = 90, Speed = 14,
+    Damage = 24, XP = 9, Coins = 5, DetectionRange = 48, AggroRadius = 56,
+    AttackRange = 6, MaxAlive = 3, Pressure = 0.85,
+    Color = Color3.fromRGB(90, 230, 240),
+    Material = Enum.Material.SmoothPlastic,
+    PatrolSpeed = 8, ChaseSpeed = 14, ChargeSpeed = 19, DetectSpeed = 0,
+    WarningSpeed = 0, RecoverySpeed = 4.5,
+    DetectTime = 0.35, WarningTime = 0.7, ChargeDuration = 0.55, RecoveryTime = 2.0,
+    VisualScale = 1.3,
+    IsTech = true,
+    Teleports = true,
+    Hacks = true,
+})
+define({
+    Id = "Pixeloni", Name = "Pixeloni Cacciatori", Health = 65, Speed = 15,
+    Damage = 15, XP = 7, Coins = 4, DetectionRange = 56, AggroRadius = 64,
+    AttackRange = 5, MaxAlive = 4, Pressure = 0.85,
+    Color = Color3.fromRGB(200, 255, 220),
+    Material = Enum.Material.SmoothPlastic,
+    PatrolSpeed = 11, ChaseSpeed = 15, ChargeSpeed = 21, DetectSpeed = 0,
+    WarningSpeed = 0, RecoverySpeed = 5.5,
+    DetectTime = 0.35, WarningTime = 0.65, ChargeDuration = 0.5, RecoveryTime = 1.8,
+    VisualScale = 1.4,
+    IsHunter = true,
+    Coordinated = true,
+    Drones = true,
+})
+define({
+    Id = "Virusini", Name = "Virusini Meccanici", Health = 40, Speed = 13,
+    Damage = 12, XP = 6, Coins = 3, DetectionRange = 36, AggroRadius = 42,
+    AttackRange = 4, MaxAlive = 3, Pressure = 0.85,
+    Color = Color3.fromRGB(220, 120, 200),
+    Material = Enum.Material.SmoothPlastic,
+    PatrolSpeed = 10, ChaseSpeed = 13, ChargeSpeed = 17, DetectSpeed = 0,
+    WarningSpeed = 0, RecoverySpeed = 4,
+    DetectTime = 0.4, WarningTime = 0.7, ChargeDuration = 0.5, RecoveryTime = 2.0,
+    VisualScale = 1.25,
+    IsVirus = true,
+    Swarm = true,
+})
+-- =========================================================================
+-- ZOMBIE BRAINROTS (Halloween theme)
+--
+-- Los zombies son brainrots de apariencia halloween: lentos, pacíficos, pero
+-- con detalles visuales de descomposición, vendas, cristales de hielo,
+-- brasas y componentes cibernéticos. Cada uno pertenece a su bioma.
+-- =========================================================================
+
+-- FOREST: Zombini - zombie cubierto de musgo y raíces.
+define({
+    Id = "Zombini", Name = "Zombini del Bosque", Health = 80, Speed = 6,
+    Damage = 12, XP = 6, Coins = 3, DetectionRange = 28, AggroRadius = 34,
+    AttackRange = 5, MaxAlive = 12, Pressure = 0.55,
+    Color = Color3.fromRGB(80, 140, 60),
+    Material = Enum.Material.SmoothPlastic,
+    PatrolSpeed = 3, ChaseSpeed = 6, ChargeSpeed = 8, DetectSpeed = 0,
+    WarningSpeed = 0, RecoverySpeed = 2,
+    DetectTime = 0.6, WarningTime = 1.0, ChargeDuration = 0.5, RecoveryTime = 2.2,
+    VisualScale = 1.4,
+    AppliesPoison = true,
+})
+
+-- DESERT: Mumifico - zombie envuelto en vendajes de lino antiguo.
+define({
+    Id = "Mumifico", Name = "Mumifico del Desierto", Health = 90, Speed = 7,
+    Damage = 14, XP = 7, Coins = 4, DetectionRange = 30, AggroRadius = 36,
+    AttackRange = 5, MaxAlive = 12, Pressure = 0.58,
+    Color = Color3.fromRGB(180, 150, 100),
+    Material = Enum.Material.SmoothPlastic,
+    PatrolSpeed = 3.5, ChaseSpeed = 7, ChargeSpeed = 10, DetectSpeed = 0,
+    WarningSpeed = 0, RecoverySpeed = 2.5,
+    DetectTime = 0.55, WarningTime = 0.95, ChargeDuration = 0.55, RecoveryTime = 2.1,
+    VisualScale = 1.45,
+    BlocksVision = true,
+})
+
+-- ICE: Congelado - zombie cristalizado con grietas de hielo.
+define({
+    Id = "Congelado", Name = "Congelado del Glaciar", Health = 75, Speed = 6,
+    Damage = 12, XP = 6, Coins = 3, DetectionRange = 28, AggroRadius = 34,
+    AttackRange = 5, MaxAlive = 12, Pressure = 0.62,
+    Color = Color3.fromRGB(150, 210, 240),
+    Material = Enum.Material.SmoothPlastic,
+    PatrolSpeed = 3, ChaseSpeed = 6, ChargeSpeed = 9, DetectSpeed = 0,
+    WarningSpeed = 0, RecoverySpeed = 2.2,
+    DetectTime = 0.6, WarningTime = 1.1, ChargeDuration = 0.5, RecoveryTime = 2.3,
+    VisualScale = 1.5,
+    AppliesFreeze = true,
+    CrackedIce = true,
+})
+
+-- VOLCANO: Carbonizado - zombie carbonizado con brasas visibles.
+define({
+    Id = "Carbonizado", Name = "Carbonizado del Volcán", Health = 95, Speed = 8,
+    Damage = 16, XP = 7, Coins = 4, DetectionRange = 32, AggroRadius = 38,
+    AttackRange = 6, MaxAlive = 12, Pressure = 0.68,
+    Color = Color3.fromRGB(60, 50, 50),
+    Material = Enum.Material.SmoothPlastic,
+    PatrolSpeed = 4, ChaseSpeed = 8, ChargeSpeed = 11, DetectSpeed = 0,
+    WarningSpeed = 0, RecoverySpeed = 2.8,
+    DetectTime = 0.55, WarningTime = 0.9, ChargeDuration = 0.55, RecoveryTime = 2.0,
+    VisualScale = 1.5,
+    AppliesBurn = true,
+    Embers = true,
+})
+
+-- CYBER: Necrobyte - zombie cibernético con piezas metálicas oxidadas.
+define({
+    Id = "Necrobyte", Name = "Necrobyte del Circuito", Health = 85, Speed = 9,
+    Damage = 15, XP = 7, Coins = 4, DetectionRange = 34, AggroRadius = 40,
+    AttackRange = 5, MaxAlive = 12, Pressure = 0.85,
+    Color = Color3.fromRGB(130, 110, 140),
+    Material = Enum.Material.SmoothPlastic,
+    PatrolSpeed = 4.5, ChaseSpeed = 9, ChargeSpeed = 12, DetectSpeed = 0,
+    WarningSpeed = 0, RecoverySpeed = 3,
+    DetectTime = 0.5, WarningTime = 0.85, ChargeDuration = 0.5, RecoveryTime = 2.1,
+    VisualScale = 1.4,
+    IsTech = true,
+    StaticDischarge = true,
+})
 return Definitions

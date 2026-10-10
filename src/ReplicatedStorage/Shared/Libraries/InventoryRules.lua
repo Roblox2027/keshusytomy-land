@@ -63,7 +63,7 @@ InventoryRules.__index = InventoryRules
 --- Son una propiedad del JUGADOR (que lleva equipado), no del item, asi
 --- que viven aqui y no en el catalogo. Anadir una ranura es un cambio de
 --- contenido, no de codigo.
-InventoryRules.Slots = { "Head", "Body", "Back", "Trail" }
+InventoryRules.Slots = { "Head", "Body", "Back", "Trail", "Wings", "Weapon" }
 
 --- Crea un conjunto de reglas con su catalogo.
 --- @param catalog any modulo `ItemCatalog`

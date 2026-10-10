@@ -155,22 +155,26 @@ end
 --- una nube, pero no el nucleo ni la onda, y sobre todo no el RADIO. El
 --- jugador no puede esquivar con conocimiento lo que no puede medir.
 ---
---- Ahora son tres cosas que se leen de una vistazo:
+--- Ahora son tres cosas que se leen de una vista:
 ---   nucleo  -> el IMPACTO (donde explota)
 ---   onda   -> el RADIO (hasta donde llega)
 ---   luz    -> la duracion (todo esto dura menos de medio segundo)
+---
+--- El `flavor` ajusta colores, intensidad y extras según las habilidades
+--- de bomba del jugador (ver `VisualKit.EXPLOSION_FLAVORS`).
 ---
 --- Se autodestruye. El limite `MaxVFX` evita que 100 explosiones
 --- simultaneas creen cientos de instancias.
 --- @param center Vector3
 --- @param radius number
 --- @param worldId string?
-local function spawnExplosionVfx(center: Vector3, radius: number, worldId: string?)
+--- @param flavor string?
+local function spawnExplosionVfx(center: Vector3, radius: number, worldId: string?, flavor: string?)
 	if not Service._vfxFolder or Service._activeVFX >= PerformanceConfig.Limits.MaxVFX then
 		return
 	end
 
-	local model = VisualKit.BuildExplosion(center, radius, worldId, Service._vfxFolder)
+	local model = VisualKit.BuildExplosion(center, radius, worldId, Service._vfxFolder, flavor)
 
 	if not model then
 		return
@@ -243,11 +247,15 @@ end
 
 --- Resuelve una explosion en el servidor.
 ---
+--- `damageMult` (default 1) escala el daño base. `flavor` controla el VFX.
 --- @param center Vector3
 --- @param radius number
 --- @param sourceUserId number? quien coloco la bomba (atribucion)
+--- @param worldId string?
+--- @param damageMult number? multiplicador de daño (skills)
+--- @param flavor string? sabor visual (skills)
 --- @return number affected partes afectadas
-function Service.Detonate(center: Vector3, radius: number, sourceUserId: number?, worldId: string?): number
+function Service.Detonate(center: Vector3, radius: number, sourceUserId: number?, worldId: string?, damageMult: number?, flavor: string?): number
 	-- Un radio no positivo o una posicion no finita indicaria un bug o
 	-- un intento de exploit: se ignora sin propagar el error.
 	local validPosition = CombatMath.ValidatePosition(center.X, center.Y, center.Z)
@@ -259,7 +267,8 @@ function Service.Detonate(center: Vector3, radius: number, sourceUserId: number?
 	end
 
 	Service._explosionCount += 1
-	spawnExplosionVfx(center, radius, worldId)
+	local mult = if damageMult and damageMult > 0 then damageMult else 1
+	spawnExplosionVfx(center, radius, worldId, flavor)
 
 	local affected = 0
 	-- Humanoids ya tocados: un personaje con varias partes dentro del
@@ -290,9 +299,10 @@ function Service.Detonate(center: Vector3, radius: number, sourceUserId: number?
 				-- Oclusion: un muro reduce el dano, no lo anula. Sin
 				-- esto, detras de un bloque el dano seria IDENTICO.
 				local sight = hasLineOfSight(center, rootPart or part)
+				local baseDamage = GameConfig.DefaultBombDamage * mult
 				local damage = CombatMath.ApplyOcclusion(
 					sight,
-					CombatMath.FalloffDamage(distance, radius, GameConfig.DefaultBombDamage)
+					CombatMath.FalloffDamage(distance, radius, baseDamage)
 				)
 
 				if damage > 0 then
@@ -327,7 +337,7 @@ function Service.Detonate(center: Vector3, radius: number, sourceUserId: number?
 		-- sola bomba borraba la estructura entera.
 		if Service._destruction then
 			local blockDamage = CombatMath.BlockDamageFromExplosion(
-				GameConfig.DefaultBombDamage * GameConfig.BlockDamageScale,
+				GameConfig.DefaultBombDamage * mult * GameConfig.BlockDamageScale,
 				1
 			)
 

@@ -1,0 +1,29 @@
+{
+  "timestamp": "2026-10-10T03:06:33.819Z",
+  "totalParts": 42337,
+  "anchoredTrue": 42337,
+  "anchoredFalse": 0,
+  "anchoredUnset": 0,
+  "streamingEnabled": false,
+  "streamingOk": true,
+  "problems": [],
+  "sourceProblems": [],
+  "perWorld": {
+    "Forest": {
+      "unanchored": 0
+    },
+    "Desert": {
+      "unanchored": 0
+    },
+    "Ice": {
+      "unanchored": 0
+    },
+    "Volcano": {
+      "unanchored": 0
+    },
+    "Cyber": {
+      "unanchored": 0
+    }
+  },
+  "overall": "PASS"
+}

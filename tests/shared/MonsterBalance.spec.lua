@@ -288,6 +288,32 @@ Harness.describe("Regla 5: todo monstruo tiene recompensa", function()
 			expect.toBe(def.WarningTime >= 0.8, true)
 			expect.toBe(def.RecoveryTime >= 4, true)
 		end)
+
+		Harness.it("los brainrots zombies conservan sus rasgos en la definicion", function()
+			-- Los zombies declaran traits personalizados que identifican su
+			-- comportamiento. Si `define` los borra, el monstruo sale como
+			-- una caja sin identidad y "no se ven reflejados en el juego".
+			local required = {
+				Zombini = { AppliesPoison = true },
+				Mumifico = { BlocksVision = true },
+				Congelado = { AppliesFreeze = true, CrackedIce = true },
+				Carbonizado = { AppliesBurn = true, Embers = true },
+				Necrobyte = { IsTech = true, StaticDischarge = true },
+			}
+
+			for id, traits in pairs(required) do
+				local def = MonsterDefinitions.Get(id)
+				expect.toBe(def ~= nil, true, ("falta el zombie %s"):format(id))
+
+				for trait, expected in pairs(traits) do
+					expect.toBe(
+						def[trait] == expected,
+						true,
+						("%s deberia tener %s = %s"):format(id, trait, tostring(expected))
+					)
+				end
+			end
+		end)
 	end)
 
 	Harness.describe("Validacion interna", function()

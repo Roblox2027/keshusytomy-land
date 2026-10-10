@@ -128,6 +128,24 @@ function Schema.new(remoteAction: { [string]: string })
 		-- (EventPhase, EventPhaseRemaining, EventObjective, etc.).
 		-- El canal existe para validacion y rate-limiting.
 		[remoteAction.Event] = {},
+		-- Cofres físicos (FASE 20). El cliente pide la oferta de habilidades
+		-- (RequestOffer), reclama (Claim) y consulta (Query). El servidor
+		-- decide el mundo del jugador, el slot de cofre y la recompensa.
+		--
+		-- El `Claim` lleva el `chestKey` como string: el servidor comprueba
+		-- proximidad, si ya fue abierto y el estado del perfil antes de
+		-- entregar la habilidad.
+		[remoteAction.Chest] = {
+			RequestOffer = PayloadType.None,
+			Claim = PayloadType.String,
+			Query = PayloadType.None,
+		},
+		-- Pickups brillantes en el mundo (FASE 32). El cliente envia el
+		-- `pickupId` (string) del objeto que quiere recoger. El servidor
+		-- valida proximidad y abre la puerta de pago de Robux.
+		[remoteAction.ItemDrop] = {
+			Collect = PayloadType.String,
+		},
 	}
 
 	local self = {

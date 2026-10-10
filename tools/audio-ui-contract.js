@@ -13,7 +13,7 @@ const channels = ["Master", "Music", "Sfx", "Ambience", "UI"];
 
 assert.deepStrictEqual(projectHud, generatedHud, "default.project.json HUD differs from tools/hud.js output");
 
-const audioToggle = projectHud.Root.LeftPanel.Mission.AudioToggle;
+const audioToggle = projectHud.Root.TopBar.Bar.AudioToggle;
 assert.strictEqual(audioToggle.$className, "TextButton", "Audio settings toggle is missing");
 
 const panel = projectHud.Root.Overlays.AudioSettings;

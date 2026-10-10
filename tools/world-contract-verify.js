@@ -28,6 +28,8 @@ const CONTRACT = [
 	"Hazards",
 	"MonsterSpawns",
 	"PowerupSpawns",
+	"BrainrotSpawns",
+	"ChestSpawns",
 	"BossSpawn",
 	"Exit",
 ];

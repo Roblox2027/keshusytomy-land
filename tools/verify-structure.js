@@ -127,17 +127,29 @@ function depthDelta(line) {
 		padded.match(/[^\w_][Ww][Hh][Ii][Ll][Ee][^\n]*\s[Dd][Oo][\s%w]/) || []
 	).length;
 
-	// Una EXPRESION `if` (`local x = if cond then a else b`) no lleva
-	// `end`: abre un bloque que el contador no puede cerrar. Es lo que hacia
-	// que la profundidad se fuera UNA UNIDAD ABAJO y que la puerta
-	// informara "falta un end" sobre archivos que Luau compila con EXIT 0.
+	// Una EXPRESION `if` (`local x = if cond then a else b` o
+	// `return if cond then a else b`) no lleva `end`: abre un bloque que
+	// el contador no puede cerrar. Es lo que hacia que la profundidad se
+	// fuera UNA UNIDAD ABAJO y que la puerta informara "falta un end" sobre
+	// archivos que Luau compila con EXIT 0.
 	//
 	// Se distinguen de un `if` de BLOQUE por una senal fiable: el `if` de
-	// expresion va precedido de una ASIGNACION (`= if ...`), mientras que el
-	// de bloque empieza una sentencia. Se exige que el `=` no sea de
-	// comparacion (`==`, `~=`, `<=`, `>=`), asi que `if a == b then` no
-	// cuenta como expresion.
-	const ifExpression = (padded.match(/=[^=<>~].*\b[Ii][Ff]\b/g) || []).length;
+	// expresion va precedido de una ASIGNACION (`= if ...`), de un `return`
+	// (`return if ...`), o de un operador/llamada que produce un valor.
+	// Se exige que el `=` no sea de comparacion (`==`, `~=`, `<=`, `>=`),
+	// asi que `if a == b then` no cuenta como expresion.
+	//
+	// ADVERTENCIA de doble conteo: un mismo `if` puede estar al alcance de
+	// varios activadores a la vez (ej: `x = tabla[if ...]` activa TANTO el
+	// patron de `=` como el de `[`). Como cada palabra `if` cuenta una vez en
+	// `countWord`, el numero de expresiones no puede superar el numero de
+	// apariciones de `if`. Se usa `min` para no restar de mas.
+	const ifCount = countWord(line, "[Ii][Ff]");
+	const exprCount =
+		(padded.match(/=[^=<>~].*\b[Ii][Ff]\b/g) || []).length +
+		(padded.match(/\b[Rr]eturn\b.*\b[Ii][Ff]\b/g) || []).length +
+		(padded.match(/[,:;\(\[%]\s*\b[Ii][Ff]\b/g) || []).length;
+	const ifExpression = Math.min(ifCount, exprCount);
 
 	const ends = countWord(line, "[Ee][Nn][Dd]");
 

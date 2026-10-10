@@ -59,6 +59,32 @@ const ENGINE_OWNED = new Set([
 	"StarterCharacterScripts",
 ]);
 
+const RUNTIME_ONLY_CONTAINERS = new Set(["Border", "Blocks", "Zones", "Routes", "Hazards", "Decoration", "CentralStructure", "Keshusy"]);
+
+/**
+ * Categorias de instancias que existen en Studio pero NO en el rojo source.
+ * No son divergencia: el pipeline las crea INTENTIONALMENTE por MCP.
+ *
+ * `isRuntimeImported` reconoce dos patrones:
+ *
+ * 1. World geometry: `Workspace.Worlds.{World}.(Border|Blocks|Zones|...).{hijo}`
+ *    El source declara los folders vacios; los Parts hijos (Edge_*, Deco_*, Rim*)
+ *    se importan desde .rbxmx captures por `tools/import-worlds-only.js`.
+ *
+ * 2. HUD: `StarterGui.KeshusyHUD.*`
+ *    El source declara el HUD en `default.project.json`, pero `sync-hud.js`
+ *    lo DESTRUYE y RECONSTRUYE instancia-a-instancia desde `tools/hud.js`
+ *    al iniciar. Cualquier diferencia interna es del generador, no del build.
+ */
+function isRuntimeImported(path) {
+	const parts = path.split(".");
+	if (parts[0] === "StarterGui" && parts[1] === "KeshusyHUD") return true;
+	if (parts[0] === "Workspace" && parts[1] === "Worlds" && parts.length > 3 && RUNTIME_ONLY_CONTAINERS.has(parts[3])) {
+		return true;
+	}
+	return false;
+}
+
 /**
  * Diferencias de CLASE que NO son divergencia.
  *
@@ -258,8 +284,10 @@ function main() {
 			else classMismatch.push(line);
 		}
 	}
+	const rtOnly = [];
 	for (const [path, cls] of rt.map) {
-		if (!src.has(path) && !isEngineOwned(path)) extra.push(`${path} [${cls}]`);
+		if (!src.has(path) && !isEngineOwned(path) && !isRuntimeImported(path)) extra.push(`${path} [${cls}]`);
+		else if (!src.has(path) && isRuntimeImported(path)) rtOnly.push(`${path} [${cls}]`);
 	}
 
 	const report = [];
@@ -272,6 +300,7 @@ function main() {
 	report.push(`SOBRAN EN STUDIO (en runtime, no en source): ${extra.length}`);
 	report.push(`CLASE DISTINTA                          : ${classMismatch.length}`);
 	report.push(`CLASE EQUIVALENTE (motor)               : ${semanticDiffs.length}`);
+	report.push(`RUNTIME-ONLY (ignorado, importado por MCP): ${rtOnly.length}`);
 	report.push("");
 
 	if (missing.length) {
@@ -300,6 +329,19 @@ function main() {
 		for (const c of semanticDiffs) report.push(`- ${c}`);
 		report.push("");
 	}
+	if (rtOnly.length) {
+		report.push("## Runtime-only (importado por MCP, no es divergencia)");
+		report.push("");
+		report.push("Estas instancias existen en Studio pero no en el build de Rojo. Son importadas por MCP al iniciar:");
+		report.push("- World geometry: parts bajo `Worlds.*.Border`, `Worlds.*.Blocks`, `Worlds.*.Zones` (importados desde .rbxmx).");
+		report.push("- HUD: todo bajo `StarterGui.KeshusyHUD` (regenerado por `sync-hud.js`).");
+		report.push("");
+		report.push("Muestra las primeras 20:");
+		report.push("");
+		for (let i = 0; i < Math.min(rtOnly.length, 20); i++) report.push(`- ${rtOnly[i]}`);
+		if (rtOnly.length > 20) report.push(`- ... (${rtOnly.length - 20} mas)`);
+		report.push("");
+	}
 
 	const out = path.join(ROOT, "docs", "runtime-source-diff.md");
 	fs.mkdirSync(path.dirname(out), { recursive: true });
@@ -307,8 +349,9 @@ function main() {
 
 	console.log(report.slice(0, 7).join("\n"));
 	console.log("informe escrito en docs/runtime-source-diff.md");
-	console.log(missing.length + extra.length + classMismatch.length === 0 ? "RESULTADO: PASS" : "RESULTADO: DIVERGE");
-	process.exit(missing.length + extra.length + classMismatch.length === 0 ? 0 : 1);
+	const diverged = missing.length + extra.length + classMismatch.length;
+	console.log(diverged === 0 ? "RESULTADO: PASS" : `RESULTADO: DIVERGE (${diverged} diferencias, ${rtOnly.length} runtime-only)`);
+	process.exit(diverged === 0 ? 0 : 1);
 }
 
 main();

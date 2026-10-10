@@ -45,11 +45,11 @@ local ProfileSchema = {}
 --- arrancar y avisa si se desincronizan, porque un numero mayor aqui que
 --- alla significa "el codigo nuevo guardara perfiles que el codigo viejo
 --- no sabe leer" y al reves.
-ProfileSchema.CurrentVersion = 3
+ProfileSchema.CurrentVersion = 4
 
 --- Campos obligatorios de un perfil.
 ProfileSchema.RequiredFields =
-	{ "DataVersion", "Currencies", "Inventory", "Progression", "Secrets" }
+	{ "DataVersion", "Currencies", "Inventory", "Progression", "Secrets", "Skills" }
 
 --- Secciones que un perfil debe tener siempre, aunque esten vacias.
 ---
@@ -57,7 +57,7 @@ ProfileSchema.RequiredFields =
 --- una clave vacia obligan a todos los lectores a preguntar "ya existe?".
 --- Un perfil con la seccion siempre presente se lee sin `if`.
 ProfileSchema.Sections =
-	{ "Currencies", "Inventory", "Progression", "Settings", "Stats", "Codes", "Secrets" }
+	{ "Currencies", "Inventory", "Progression", "Settings", "Stats", "Codes", "Secrets", "Skills" }
 
 --- Crea un perfil NUEVO, listo para la version actual.
 --- @param playerId number
@@ -135,6 +135,9 @@ function ProfileSchema.NewProfile(playerId: number): any
 		Achievements = { Totals = {}, Unlocked = {} },
 		Titles = { Unlocked = {}, Equipped = "" },
 		Bestiary = { Species = {} },
+		-- FASE 20: habilidades pasivas desbloqueables de cofres.
+		-- `Unlocked` es un set de IDs; `OpenedChests` es un set de chestKeys.
+		Skills = { Unlocked = {}, OpenedChests = {} },
 	}
 end
 
@@ -310,6 +313,21 @@ function ProfileSchema.NormalizeSections(profile: any, playerId: number): boolea
 		changed = true
 	end
 
+	-- FASE 20: Skills (habilidades de cofres). Se rellena si falta.
+	if type(profile.Skills) ~= "table" then
+		profile.Skills = { Unlocked = {}, OpenedChests = {} }
+		changed = true
+	else
+		if type(profile.Skills.Unlocked) ~= "table" then
+			profile.Skills.Unlocked = {}
+			changed = true
+		end
+		if type(profile.Skills.OpenedChests) ~= "table" then
+			profile.Skills.OpenedChests = {}
+			changed = true
+		end
+	end
+
 	return changed
 end
 
@@ -366,6 +384,28 @@ MIGRATIONS[2] = function(profile: any)
 	end
 
 	profile.DataVersion = 3
+	return profile, notes
+end
+
+-- version 3 -> 4 (FASE 20): habilidades pasivas de cofres.
+MIGRATIONS[3] = function(profile: any)
+	local notes = {}
+
+	if type(profile.Skills) ~= "table" then
+		profile.Skills = { Unlocked = {}, OpenedChests = {} }
+		table.insert(notes, "se creo Skills")
+	else
+		if type(profile.Skills.Unlocked) ~= "table" then
+			profile.Skills.Unlocked = {}
+			table.insert(notes, "se creo Skills.Unlocked")
+		end
+		if type(profile.Skills.OpenedChests) ~= "table" then
+			profile.Skills.OpenedChests = {}
+			table.insert(notes, "se creo Skills.OpenedChests")
+		end
+	end
+
+	profile.DataVersion = 4
 	return profile, notes
 end
 

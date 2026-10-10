@@ -51,10 +51,11 @@ local CONFIG = SHARED:WaitForChild("Config")
 local UTILS = SHARED:WaitForChild("Utils")
 local CONTROLLERS = script.Parent
 
-local GameConstants = require(CONSTANTS:WaitForChild("GameConstants"))
-local GameConfig = require(CONFIG:WaitForChild("GameConfig"))
-local Logger = require(UTILS:WaitForChild("Logger"))
-local UIController = require(CONTROLLERS:WaitForChild("UIController"))
+	local GameConstants = require(CONSTANTS:WaitForChild("GameConstants"))
+	local GameConfig = require(CONFIG:WaitForChild("GameConfig"))
+	local Logger = require(UTILS:WaitForChild("Logger"))
+	local Maid = require(SHARED:WaitForChild("Libraries"):WaitForChild("Maid"))
+	local UIController = require(CONTROLLERS:WaitForChild("UIController"))
 local AudioController = require(CONTROLLERS:WaitForChild("AudioController"))
 
 local RemoteAction = GameConstants.RemoteAction
@@ -416,7 +417,7 @@ function Controller.Start(maid: any?): boolean
 	end
 
 	portalRemote = remote
-	_maid = maid
+	_maid = maid or Maid.new()
 	_lastRequestAt = 0
 	_pendingWorld = nil
 	_nearby = nil
@@ -536,8 +537,11 @@ function Controller.Destroy(): boolean
 	_nearby = nil
 	_pendingWorld = nil
 	_portals = {}
+	if _maid then
+		pcall(function()
+			_maid:Destroy()
+		end)
+	end
 	_maid = nil
 	return true
 end
-
-return Controller

@@ -337,24 +337,14 @@ local function bootReport(): { [string]: any }
 	if portalModule then
 		local okModule, controller = pcall(require, portalModule)
 		if okModule then
-			local okStart, startResult = pcall(function()
-				return controller.Start(nil)
-			end)
-			report.PORTAL_CHANNEL.IS_ACTIVE = controller.IsActive
-			report.PORTAL_CHANNEL.START_OK = okStart
-			report.PORTAL_CHANNEL.START_RESULT = if okStart then startResult or -1 else -1
-			report.PORTAL_CHANNEL.START_ERROR = if okStart then nil else tostring(startResult)
+			report.PORTAL_CHANNEL.IS_ACTIVE = controller.IsActive or false
+			report.PORTAL_CHANNEL.HAS_START = type(controller.Start) == "function"
+			report.PORTAL_CHANNEL.HAS_REQUEST_ENTER = type(controller.RequestEnter) == "function"
+			report.PORTAL_CHANNEL.HAS_REFRESH = type(controller.RefreshPortals) == "function"
 
-			-- Si `Start` funciona, la peticion deberia salir de verdad. Se
-			-- intenta de nuevo y se lee su valor de retorno, que antes el
-			-- reproductor ignoraba.
-			if type(controller.RequestEnter) == "function" then
-				local okReq, sent = pcall(function()
-					return controller.RequestEnter("Forest")
-				end)
-				report.PORTAL_CHANNEL.REQUEST_OK = okReq
-				report.PORTAL_CHANNEL.REQUEST_SENT = if okReq then sent or -1 else -1
-				report.PORTAL_CHANNEL.REQUEST_ERROR = if okReq then nil else tostring(sent)
+			if type(controller.RefreshPortals) == "function" then
+				local okRefresh, total = pcall(controller.RefreshPortals)
+				report.PORTAL_CHANNEL.REFRESH_RETURN = if okRefresh then total or -1 else -1
 			end
 		end
 	end

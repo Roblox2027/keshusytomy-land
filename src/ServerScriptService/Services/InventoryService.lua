@@ -390,6 +390,8 @@ function Service.ApplyEquipmentStats(player: Player?)
 	player:SetAttribute("WalkSpeedMult", stats.WalkSpeedMult)
 	player:SetAttribute("AbilityCooldownMult", stats.AbilityCooldownMult)
 	player:SetAttribute("MaxHealthBonus", stats.MaxHealthBonus)
+	player:SetAttribute("JumpPowerBonus", stats.JumpPowerBonus)
+	player:SetAttribute("MeleeDamageMult", stats.MeleeDamageMult)
 
 	local character = player.Character
 	local humanoid = character and character:FindFirstChildOfClass("Humanoid")
@@ -411,6 +413,17 @@ function Service.ApplyEquipmentStats(player: Player?)
 		-- no pelear con ella en el mismo instante.
 		if not player:GetAttribute("HazardSlowed") then
 			humanoid.WalkSpeed = 16 * stats.WalkSpeedMult
+		end
+
+		-- JumpPower: el bonus de las alas se aplica DIRECTAMENTE, no por
+		-- atributo intermedio. No hay una "arena movediza de salto" que
+		-- pelee con el valor, asi que es seguro escribirlo aqui. El base
+		-- de Roblox es 50; el bonus solo suma.
+		if humanoid.JumpPower then
+			local newJump = math.clamp(50 + stats.JumpPowerBonus, 0, 200)
+			if humanoid.JumpPower ~= newJump then
+				humanoid.JumpPower = newJump
+			end
 		end
 	end
 end

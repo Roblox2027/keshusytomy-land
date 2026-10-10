@@ -40,7 +40,7 @@ return {
 	-- Limites duros del mundo en ejecucion.
 	Limits = {
 		MaxPlayers = 12,
-		MaxMonsters = 30,
+		MaxMonsters = 80,
 		MaxBombs = 100,
 		MaxExplosions = 100,
 		MaxProjectiles = 200,

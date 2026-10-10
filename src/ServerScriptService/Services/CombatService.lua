@@ -40,6 +40,7 @@ local GameConfig = require(CONFIG:WaitForChild("GameConfig"))
 local GameConstants = require(SHARED:WaitForChild("Constants"):WaitForChild("GameConstants"))
 local CombatMath = require(SHARED:WaitForChild("Libraries"):WaitForChild("CombatMath"))
 local CombatRules = require(SHARED:WaitForChild("Libraries"):WaitForChild("CombatRules"))
+local PvpRules = require(SHARED:WaitForChild("Libraries"):WaitForChild("PvpRules"))
 local Logger = require(UTILS:WaitForChild("Logger"))
 
 local RoundState = GameConstants.RoundState
@@ -75,6 +76,12 @@ Service._damageEvents = 0
 Service._blockedDamage = 0
 Service._kills = {}
 
+-- Observador de kills PvP. Lo pone `PvpService` (marcador y killfeed). Es
+-- OPCIONAL y va con `pcall`: que el marcador falle no puede tumbar una muerte.
+-- `CombatService` sigue siendo la UNICA autoridad del killer; aqui solo AVISA,
+-- no decide. El listener recibe (killer: Player, victim: Player).
+Service._killListener = nil
+
 local MaidRef = nil
 
 --- Inyecta las dependencias del servicio.
@@ -85,6 +92,19 @@ function Service.SetDependencies(roundService: any, playerService: any, monsterS
 	Service._roundService = roundService
 	Service._playerService = playerService
 	Service._monsterService = monsterService
+end
+
+--- Conecta el observador de kills PvP (marcador/killfeed de la arena).
+---
+--- Es el mismo patron que `CoreService.SetBroadcast`: el servicio que es
+--- AUTORIDAD del dato (aqui, del killer) es el unico que lo emite, y el
+--- consumidor se suscribe. Sin esta flecha el marcador existiria pero no se
+--- enteraria de ninguna muerte: la arena no tendria forma de saber quien va
+--- ganando. Se invoca con `pcall` para que un fallo del consumidor no rompa
+--- el ciclo de muerte.
+--- @param listener ((Player, Player) -> ())?
+function Service.SetKillListener(listener: ((Player, Player) -> ())?)
+	Service._killListener = listener
 end
 
 --- Jugador al que pertenece un Humanoid, o nil.
@@ -194,12 +214,36 @@ function Service.ApplyDamage(
 		return false, "invulnerable"
 	end
 
-	-- Solo se hace dano con ronda en curso. El lobby es zona segura:
-	-- sin esta regla se podrian colocar bombas en el lobby para matar a
-	-- quien esta en un menu.
-	if Service._roundService and not Service._roundService.IsPlaying() then
+	-- El dano requiere contexto: o una ronda en curso, o que la victima este
+	-- en la arena PvP del lobby (`PvpActive`). El lobby sigue siendo zona
+	-- segura para quien NO esta en PvP: sin esta regla se podrian colocar
+	-- bombas en la plaza para matar a quien esta en un menu.
+	local inRound = (not Service._roundService) or Service._roundService.IsPlaying()
+	local targetInPvp = targetPlayer:GetAttribute("PvpActive") == true
+
+	if not inRound and not targetInPvp then
 		Service._blockedDamage += 1
 		return false, "no hay ronda en curso"
+	end
+
+	-- Fuego amigo: en la arena PvP se juega por equipos (A/B), y un
+	-- companero de equipo no puede danar a otro. Sin esta regla el duelo por
+	-- equipos era en la practica todos contra todos: la bomba o el golpe de un
+	-- aliado bajaba la vida de quien tenia al lado. Solo aplica cuando hay
+	-- fuente identificada y AMBOS comparten equipo; fuera de la arena no hay
+	-- equipo, asi que `IsFriendlyFire` devuelve false y no cambia nada.
+	if sourceUserId then
+		local sourcePlayer = Players:GetPlayerByUserId(sourceUserId)
+
+		if sourcePlayer
+			and PvpRules.IsFriendlyFire(
+				sourcePlayer:GetAttribute("PvpTeam"),
+				targetPlayer:GetAttribute("PvpTeam")
+			)
+		then
+			Service._blockedDamage += 1
+			return false, "fuego amigo"
+		end
 	end
 
 	local finalDamage = CombatMath.ApplyOcclusion(
@@ -250,6 +294,14 @@ function Service.OnHumanoidDied(humanoid: Humanoid)
 
 	if killer then
 		Service._kills[killer.UserId] = (Service._kills[killer.UserId] or 0) + 1
+
+		-- Aviso al marcador/killfeed PvP. Con `pcall`: un fallo del
+		-- consumidor (por ejemplo el BillboardGui) no puede impedir que la
+		-- muerte se procese. `CombatService` ya contabilizo la kill; esto es
+		-- solo el aviso para que se vea.
+		if Service._killListener then
+			pcall(Service._killListener, killer, victim)
+		end
 	end
 
 	if Service._playerService then
@@ -354,6 +406,45 @@ local function readyFor(player: Player, action: string, cooldown: number): (Huma
 	return humanoid, root
 end
 
+--- Dano a JUGADORES dentro del arco (modo PvP del lobby).
+---
+--- Complementa `monsters.DamageInArc`, que solo alcanza a los NPC. Aqui se
+--- recorre a los jugadores y se les aplica `ApplyDamage`, que es la autoridad:
+--- ella valida la invulnerabilidad, la ventana de esquiva y que la victima
+--- siga en PvP. Nadie se golpea a si mismo y solo cuentan las victimas
+--- marcadas con `PvpActive` (las que estan en la arena).
+---
+--- La llaman `TryMelee`/`TryAbility` UNICAMENTE cuando el atacante esta en
+--- PvP: fuera de la arena, el golpe sigue siendo solo contra monstruos.
+--- @param origin Vector3 posicion del atacante
+--- @param look Vector3 direccion de la mirada
+--- @param range number
+--- @param minDot number
+--- @param damage number
+--- @param sourceUserId number
+local function damagePlayersInArc(
+	origin: Vector3,
+	look: Vector3,
+	range: number,
+	minDot: number,
+	damage: number,
+	sourceUserId: number
+)
+	for _, other in ipairs(Players:GetPlayers()) do
+		if other.UserId ~= sourceUserId and other:GetAttribute("PvpActive") == true then
+			local character = other.Character
+			local humanoid = character and character:FindFirstChildOfClass("Humanoid")
+			local otherRoot = character and character:FindFirstChild("HumanoidRootPart")
+
+			if humanoid and otherRoot and otherRoot:IsA("BasePart") and humanoid.Health > 0 then
+				if CombatRules.InArc(origin, look, otherRoot.Position, range, minDot) then
+					Service.ApplyDamage(humanoid, damage, sourceUserId)
+				end
+			end
+		end
+	end
+end
+
 --- Ataque rapido cuerpo a cuerpo.
 ---
 --- El cliente NO manda objetivo ni dano: el servidor golpea a lo que
@@ -388,6 +479,14 @@ function Service.TryMelee(player: Player): boolean
 	combo.LastAt = now
 
 	local damage = CombatRules.DamageFor(step)
+
+	-- El daño del melee se multiplica por el equipo del jugador (arma en
+	-- la ranura "Weapon"). El atributo lo publica `InventoryService`; aquí
+	-- se lee como número seguro: si no está presente, el multiplicador
+	-- base es 1 (100 %). El `floor` evita que el daño acumule fracciones.
+	local damageMult = tonumber(player:GetAttribute("MeleeDamageMult")) or 1
+	damage = math.floor(damage * damageMult)
+
 	local look = root.CFrame.LookVector
 
 	monsters.DamageInArc(
@@ -398,6 +497,20 @@ function Service.TryMelee(player: Player): boolean
 		damage,
 		player.UserId
 	)
+
+	-- En la arena PvP el mismo golpe tambien alcanza a otros jugadores. Se
+	-- comprueba el arco con las MISMAS reglas que contra monstruos, asi que
+	-- apuntar sigue siendo lo que decide a quien se da.
+	if player:GetAttribute("PvpActive") == true then
+		damagePlayersInArc(
+			root.Position,
+			look,
+			CombatRules.Melee.Range,
+			CombatRules.Melee.MinDot,
+			damage,
+			player.UserId
+		)
+	end
 
 	-- El paso de combo se publica para que el cliente pueda MOSTRAR el
 	-- especial (distinto color/sonido). Lo decide el servidor.
@@ -459,6 +572,19 @@ function Service.TryAbility(player: Player): boolean
 		CombatRules.Ability.Damage,
 		player.UserId
 	)
+
+	-- El golpe de area, en PvP, revuelve a los jugadores cercanos: es el
+	-- "despejar la zona" que vale la pena cuando te rodean.
+	if player:GetAttribute("PvpActive") == true then
+		damagePlayersInArc(
+			root.Position,
+			Vector3.new(0, 0, 1),
+			CombatRules.Ability.Range,
+			CombatRules.Ability.MinDot,
+			CombatRules.Ability.Damage,
+			player.UserId
+		)
+	end
 
 	player:SetAttribute("AbilityAt", os.clock())
 

@@ -181,11 +181,12 @@ async function main() {
 		return;
 	}
 
-	// Un argumento que empieza por `{` se trata como literal, NO como JSON.
+	// Un argumento que empiece por `{` se trata como literal, NO como JSON.
 	// Luau usa `{ ... }` para tablas y el codigo de auditoria empieza
 	// siempre por ahi, asi que interpretarlo como JSON rompe la llamada.
 	// El JSON explicito se indica con el prefijo `--json `.
 	let args;
+	const mcpInstanceId = process.env.MCP_INSTANCE_ID;
 	if (jsonFile) {
 		args = JSON.parse(fs.readFileSync(jsonFile, "utf8"));
 	} else if (codeFile) {
@@ -198,6 +199,11 @@ async function main() {
 		args = JSON.parse(arg.slice("--json ".length));
 	} else {
 		args = guessArgs(tool, arg);
+	}
+	// MCP_INSTANCE_ID: pasa el instance_id a la herramienta cuando hay
+	// multiples sesiones de Studio abiertas y la auto-seleccion es ambigua.
+	if (mcpInstanceId && args && typeof args === "object" && !args.instance_id) {
+		args.instance_id = mcpInstanceId;
 	}
 	console.log(await callTool(tool, args));
 }

@@ -106,12 +106,15 @@ function buildRbxlx() {
  * perderia.
  *
  * @param {string} xml
- * @param {string} className
+ * @param {string} className clase o `|`-separadas (p. ej. `"StarterGui|Folder"`)
  * @param {string=} wantedName
  * @returns {string}
  */
 function extractItem(xml, className, wantedName) {
-	const openRe = new RegExp(`<Item class="${className}"(\\s[^>]*)?>`, "g");
+	// `(?:...)` agrupa la alternancia: sin el grupo no capturador, el `|`
+	// se aplicaria SOLO a la ultima comilla y `class="A|B"` buscaria
+	// `class="A` o `B"`, que no existe nunca.
+	const openRe = new RegExp(`<Item class="(?:${className})"(\\s[^>]*)?>`, "g");
 	let match;
 
 	while ((match = openRe.exec(xml)) !== null) {

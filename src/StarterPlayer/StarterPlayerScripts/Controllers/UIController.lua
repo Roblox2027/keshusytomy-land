@@ -58,7 +58,7 @@ local COMPONENTS = {
 	{ key = "Mission", path = { "Root", "LeftPanel", "Mission" } },
 	{ key = "MissionBody", path = { "Root", "LeftPanel", "Mission", "Body" } },
 	{ key = "MissionToggle", path = { "Root", "LeftPanel", "Mission", "Toggle" } },
-	{ key = "AudioToggle", path = { "Root", "LeftPanel", "Mission", "AudioToggle" } },
+	{ key = "AudioToggle", path = { "Root", "TopBar", "Bar", "AudioToggle" } },
 	{ key = "AudioSettings", path = { "Root", "Overlays", "AudioSettings" } },
 	{ key = "Objective", path = { "Root", "RightPanel", "Objective" } },
 	-- Ciclo dia/noche (FASES 8 y 9). Se declara como RUTA completa, no como una
@@ -125,6 +125,8 @@ local WATCHED_ATTRIBUTES = {
 	"Gems",
 	"World",
 	"Bombs",
+	"BombCapacity",
+	"BombRejection",
 	"CoreState",
 	"CoreCharge",
 	"QuestCount",
@@ -788,13 +790,34 @@ local function refresh()
 				clockText.Text = clock
 			end
 		else
-			-- Sin datos de noche todavia (o en el lobby): no se enseña una
+			-- Sin datos de noche todavia (o en el lobby): no se enseÃ±a una
 			-- tarjeta vacia.
 			nightPanel.Visible = false
 		end
 	end
 
 	-- ---------------------------------------------------------------- Timer
+	-- El temporizador SOLO aparece cuando hay una ronda activa. En el lobby
+	-- (Waiting / ReturningToLobby) se oculta: un "RONDA 0 / --:--" fijo
+	-- seria ruido que el jugador aprende a ignorar.
+	local roundState = attr("RoundState")
+	local timerPanel = _panels.Timer
+
+	if timerPanel then
+		-- Estados en los que el temporizador tiene sentido: desde que la
+		-- ronda se anuncia hasta que se entregan las recompensas.
+		local activeStates = {
+			["Countdown"] = true,
+			["RoundStarting"] = true,
+			["Playing"] = true,
+			["SuddenDeath"] = true,
+			["RoundEnding"] = true,
+			["Rewards"] = true,
+		}
+
+		timerPanel.Visible = activeStates[roundState] == true
+	end
+
 	setText("Timer", "Round", ("RONDA %d"):format(attr("RoundNumber") or 0))
 
 	local remaining = attr("RoundTimeRemaining")
@@ -861,23 +884,42 @@ local function refresh()
 	)
 
 	-- ------------------------------------------------------------ BombStats
-	-- Bombas: las que le quedan. El contador lo lleva el SERVIDOR. Sin
-	-- atributo se muestra "*" y no "0": 0 quiere decir "no te quedan" y es un
-	-- dato que todavia no tenemos.
+	-- Bombas: las que TIENES colocadas vs tu capacidad. El servidor publica
+	-- ambos valores; la UI solo los formatea. Sin atributos se muestra "--".
 	--
-	-- MEDIDO con tools/probe-hud.js (shot-04): las filas de este panel son
-	-- Frames con `Symbol`, `Caption` y `Value`, igual que las de `Currency`.
-	-- Antes eran TextLabels con el icono como HIJO en posicion [0,0], o
-	-- sea en el ORIGEN de la propia cifra: icono y valor acababan en el
-	-- mismo pixel y la letra tapaba la cifra entera. Por eso se escribe
-	-- en `Value` y no en la fila.
+	-- Formato "colocadas/capacidad": con capacidad 2 y una bomba viva, el
+	-- jugador ve "1/2" y sabe cuanta presion puede ejercer. SIN capacidad
+	-- (un jugador sin limitaciones de bomba) se muestra "âˆž", que es mas
+	-- honesto que un numero que no significa nada.
 	local bombs = attr("Bombs")
-	setText(
-		"BombStats",
-		"Bombs",
-		(if type(bombs) == "number" then ("%d"):format(bombs) else "*"),
-		"Value"
-	)
+	local capacity = attr("BombCapacity")
+
+	local bombText
+	if type(bombs) == "number" then
+		if type(capacity) == "number" then
+			bombText = ("%d/%d"):format(bombs, capacity)
+		else
+			bombText = ("%d/âˆž"):format(bombs)
+		end
+	else
+		bombText = "--/--"
+	end
+
+	setText("BombStats", "Bombs", bombText, "Value")
+
+	-- Feedback visual inmediato: si el servidor rechazo una colocacion de
+	-- bomba (demasiadas, ronda en curso, etc.), el contador de bombas parpadea
+	-- en rojo un momento. El atributo `BombRejection` se borra automaticamente
+	-- el servidor cuando el jugador vuelve a poder colocar bombas.
+	local rejection = attr("BombRejection")
+	local bombValue = findChild("BombStats", "Value")
+	if bombValue and bombValue:IsA("TextLabel") then
+		if type(rejection) == "string" and #rejection > 0 then
+			bombValue.TextColor3 = THEME.hp
+		else
+			bombValue.TextColor3 = THEME.bomb
+		end
+	end
 
 	-- ------------------------------------------------------------ ActiveBombs
 	--
@@ -897,7 +939,11 @@ local function refresh()
 			local activeValue = active:FindFirstChild("Value")
 
 			if activeValue and activeValue:IsA("TextLabel") then
-				activeValue.Text = ("x%d"):format(bombs)
+				if type(capacity) == "number" then
+					activeValue.Text = ("x%d / %d"):format(bombs, capacity)
+				else
+					activeValue.Text = ("x%d / âˆž"):format(bombs)
+				end
 			end
 		else
 			active.Visible = false
@@ -993,6 +1039,9 @@ local function refresh()
 	local eventLabel = attr("EventLabel")
 	local eventRemaining = attr("EventRemaining")
 	local hordeActive = attr("HordeActive")
+	local objectivePanel = _panels.Objective
+	local showObjective = (hordeActive == true)
+		or (type(eventLabel) == "string" and eventLabel ~= "")
 
 	if hordeActive == true then
 		local remaining = attr("HordeRemaining")
@@ -1011,15 +1060,22 @@ local function refresh()
 	elseif type(eventLabel) == "string" and eventLabel ~= "" then
 		local objective = attr("EventObjective")
 		local objectiveText = if type(objective) == "string" and objective ~= ""
-			then ("  ·  %s"):format(objective)
+			then ("  Â·  %s"):format(objective)
 			else ""
 		local timeText = if type(eventRemaining) == "number"
-			then ("  ·  %ds"):format(eventRemaining)
+			then ("  Â·  %ds"):format(eventRemaining)
 			else ""
 
 		setText("Objective", "Text", ("%s%s%s"):format(eventLabel, objectiveText, timeText))
 	else
 		setText("Objective", "Text", (if worldName then tostring(worldName) else "--"))
+	end
+
+	-- El panel de OBJETIVO solo se muestra cuando pasa algo: una horda o un
+	-- evento. Cuando no hay nada, se OCULTA. Mostrar ahi el nombre del mundo
+	-- es redundante con la barra superior ("MUNDO: X") y estorba.
+	if objectivePanel then
+		objectivePanel.Visible = showObjective
 	end
 
 	-- -------------------------------------------------------------- Mission
@@ -1040,6 +1096,14 @@ local function refresh()
 			)
 			else "Misiones: --"
 	)
+
+	-- El panel de MISIONES solo se muestra cuando hay misiones listas para
+	-- reclamar. Cuando no hay ninguna, se OCULTA: un panel fijo en la esquina
+	-- estorba y el jugador aprende a ignorarlo.
+	local missionPanel = _panels.Mission
+	if missionPanel then
+		missionPanel.Visible = (type(claimable) == "number" and claimable > 0)
+	end
 
 	-- -------------------------------------------------------------- BossBar
 	-- Sin jefe, OCULTA. Un atributo ausente significa "no hay jefe", y una

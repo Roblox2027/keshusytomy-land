@@ -856,8 +856,18 @@ const LAYOUTS = {
 // El jugador corre a `GameConfig.DefaultPlayerSpeed` (16) en los cinco mundos.
 // Lo que cambia aqui es CUANTO sitio hay para correr, esquivar y rodear, que es
 // la unica variable que hace falta tocar para arreglar un mapa encerrado.
-const WORLD_SIZE_X = 460;
-const WORLD_SIZE_Z = 460;
+// Tamano del mundo en studs. Antes 460x460, que se cruzaba andando en ~30 s y
+// no se leia como "un mundo enorme": era una plaza grande. Subido a 1600x1600
+// (x3.5) para que recorrerlo de punta a punta sea un viaje de minutos con
+// puntos de interes lejanos, que es lo que hace que un mundo se SIENTA enorme.
+//
+// TODO escala junto: `normalizeLayout` estira las zonas hasta esta caja con una
+// escala UNICA, y el borde natural, el terreno y la arena se derivan del radio
+// de esas zonas. No hay ningun tamano fijo en el generador que quede
+// desincronizado al crecer. Las pruebas de navegabilidad, spawn y borde se
+// vuelven a ejecutar contra el tamano nuevo (ver package.json: test:worlds).
+const WORLD_SIZE_X = 1600;
+const WORLD_SIZE_Z = 1600;
 
 /**
  * Margen del hueco que una ruta abre en el muro de borde del mundo.
@@ -1126,15 +1136,18 @@ function normalizeLayout(layout) {
 // lo que leen los tests, asi que normalizar aqui y no en el generador es lo que
 // hace que no exista un camino del arbol que lea el layout sin escalar.
 //
-// Forest se excluye porque sus zonas se disenaron ya en espacio de juego
-// sin solapamientos, y reescalarlas aqui vuelve a mezclar los suelos.
+// TODOS los mundos se escalan igual, Forest incluido.
+//
+// BUG CORREGIDO (auditoria): Forest estaba EXCLUIDO de la normalizacion con
+// `{sx:1, sz:1}`, asi que se quedaba con su tamano crudo (~572x539) mientras
+// los otros cuatro se estiraban a WORLD_SIZE (1600x1600): Forest era ~3x mas
+// pequeno que el resto. La exclusion venia de cuando la escala era POR EJE y
+// deformaba las zonas (las volvia panqueacas). Ahora `normalizeLayout` aplica
+// una escala UNICA al eje mayor, que no deforma nada, asi que escalar Forest es
+// correcto y lo deja del mismo tamano que sus hermanos.
 const LAYOUT_SCALES = {};
 for (const id of Object.keys(LAYOUTS)) {
-	if (id === "Forest") {
-		LAYOUT_SCALES[id] = { sx: 1, sz: 1 };
-	} else {
-		LAYOUT_SCALES[id] = normalizeLayout(LAYOUTS[id]);
-	}
+	LAYOUT_SCALES[id] = normalizeLayout(LAYOUTS[id]);
 }
 
 /**
@@ -3090,27 +3103,24 @@ function resolveMonsterSpawns(api, worldNode, intents, defId, P, playerSpawn) {
 				" cae en el punto mas abierto de la zona, sin holgura alrededor.");
 		}
 
-		for (let k = 0; k < 2; k++) {
-			// El SEGUNDO spawn es opcional. Una zona pequeña y llena de cobertura
-			// puede no admitir dos bichos separados, y en ese caso lo correcto es
-			// UN bicho, no dos apilados en el mismo punto: el jugador no podria
-			// verlos ni decidir a cual ataca.
+		for (let k = 0; k < 3; k++) {
+			// El SEGUNDO y TERCER spawn son opcionales. Una zona pequeña y llena
+			// de cobertura puede no admitir dos bichos separados, y en ese caso
+			// lo correcto es UN bicho, no dos apilados en el mismo punto: el
+			// jugador no podria verlos ni decidir a cual ataca.
 			//
 			// El indice del nombre avanza igualmente, de modo que el orden
 			// alfabetico siga siendo el del recorrido (que es lo que leen
 			// `MatchService` y las pruebas).
-			if (k === 1) {
-				const second = resolveSecondSpawn(spot, z, grid, reachable, placed, solids, spacing, clearanceOk);
-				if (!second) {
-					console.log(
-						"  AVISO " + defId + ": la zona " + z.id +
-						" solo admite un spawn de monstruo con separacion suficiente."
-					);
+			if (k > 0) {
+				const last = placed[placed.length - 1];
+				const extra = resolveSecondSpawn(last, z, grid, reachable, placed, solids, spacing, clearanceOk);
+				if (!extra) {
 					break;
 				}
-				placed.push({ x: second.x, z: second.z, zone: z.id });
+				placed.push({ x: extra.x, z: extra.z, zone: z.id });
 				out.push(marker(monsterSpawnName(defId, intent.first + k),
-					[second.x, second.y + 1.6, second.z],
+					[extra.x, extra.y + 1.6, extra.z],
 					{ color: P.hazard, size: [3, 0.2, 3] }));
 				continue;
 			}
@@ -3434,7 +3444,7 @@ function buildWorld(api, def) {
 	const zoneFolders = [];
 	const blocks = [];
 	const centralBlocks = [];
-const terrainParts = [];
+	const terrainParts = [];
 	const zoneFloorParts = [];
 	const decoParts = [];
 	const borderParts = [];
@@ -3442,6 +3452,12 @@ const terrainParts = [];
 	const hazardParts = [];
 	const monsterSpawnParts = [];
 	const powerupParts = [];
+	// FASE 20: marcadores de spawn para brainrots y cofres explorables.
+	// Estos son Parts invisibles (transparency 0.4, canCollide false) que
+	// los servicios de servidor leen en tiempo de ejecución para colocar
+	// el contenido (modelos de brainrots, cofres físicos) sobre ellos.
+	const brainrotParts = [];
+	const chestParts = [];
 	const blockState = { count: 0 };
 	// P0: los spawns de monstruo se COLOCAN al final, contra el mundo montado.
 	// Aqui solo se declara en que zona hacen falta y con que indice de nombre.
@@ -3773,7 +3789,7 @@ const terrainParts = [];
 		// reportado: el jugador entra y los monstruos no estan en su espacio.
 		if (z.role === "encounter" || z.role === "intermediate" || z.role === "arena") {
 			monsterIntents.push({ zone: z, first: monsterIntentIndex });
-			monsterIntentIndex += 2;
+			monsterIntentIndex += 3;
 		}
 
 		// Decoracion propia del mundo, sembrada DENTRO de la zona.
@@ -3793,6 +3809,79 @@ const terrainParts = [];
 		}
 
 		zoneFolders.push(folder(nm, kids));
+	}
+
+	// ----------------------------------------------------- BRAINROT SPAWNS (FASE 20)
+	//
+	// Los brainrots son NPCs pacíficos que erran el mapa de exploración.
+	// Los marcadores se colocan en zonas de exploración (no en arena, boss
+	// o exit) usando el mismo patrón determinista que `resolveMonsterSpawns`:
+	// un hash estable del worldSeed + zona + slot decide la posición.
+	//
+// Cada mundo genera 8-10 grupos, distribuidos en zonas distintas
+// para que el jugador los encuentre repartidos por el mapa.
+// 2-4 marcadores de brainrot por zona (no arena, boss, exit, encounter).
+	for (const z of zones) {
+		// Saltar zonas donde no tiene sentido un brainrot errante: la
+		// arena (combat), el boss (un espacio preparado para el duelo) y
+		// el exit (transición). Las zonas de combate cercano tampoco: el
+		// brainrot sería un obstáculo en la ruta de escape.
+		if (z.role === "arena" || z.role === "boss" || z.role === "exit" || z.role === "encounter") {
+			continue;
+		}
+
+		const slot = hash01(seedBase + z.lx * 7 + z.lz * 13, 0);
+		const r = Math.min(z.rx, z.rz) * 0.55;
+
+		// 2-4 brainrots por zona, decidido por el hash: siempre reproduce el
+		// mismo número para la misma semilla, pero varía entre mundos.
+		const count = slot < 0.33 ? 2 : slot < 0.67 ? 3 : 4;
+
+		for (let i = 0; i < count; i++) {
+			const a = hash01(seedBase + z.lx * 7 + z.lz * 13, i + 1) * Math.PI * 2;
+			const rr = r * (0.4 + hash01(seedBase + z.lx * 7 + z.lz * 13, i + 2) * 0.6);
+			const bx = z.x + Math.cos(a) * rr;
+			const bz = z.z + Math.sin(a) * rr;
+
+			// El nombre incluye el mundo, la zona y el slot para que el orden
+			// alfabético coincida con el orden de generación y no se repita
+			// un mismo brainrot en zonas distintas: los markers deben ser
+			// únicos por specie + zona.
+			brainrotParts.push(marker(
+				"BrainrotSpawn_" + def.id + "_" + z.id + "_" + i,
+				[bx, z.y + 0.5, bz],
+				{ color: P.accent, size: [4, 0.2, 4] }
+			));
+		}
+	}
+
+	// ------------------------------------------------------- CHEST SPAWNS (FASE 20)
+	//
+	// Los cofres se colocan en zonas de exploración accesibles y a buen
+	// camino, usando zonas distintas a las del boss y la arena para que
+	// el jugador los descubra explorando, no como recompensa de pelea.
+	for (const z of zones) {
+		if (z.role === "arena" || z.role === "boss" || z.role === "exit") {
+			continue;
+		}
+
+		// 2-3 cofres por zona, distribuidos en círculo alrededor del centro.
+		const baseHash = hash01(seedBase + z.lx * 11 + z.lz * 17, 0);
+		const r = Math.min(z.rx, z.rz) * 0.65;
+		const chestCount = baseHash < 0.34 ? 2 : 3;
+
+		for (let i = 0; i < chestCount; i++) {
+			const a = (i / chestCount) * Math.PI * 2 + hash01(seedBase + z.lx * 11 + z.lz * 17, i + 1) * 0.5;
+			const rr = r * (0.5 + hash01(seedBase + z.lx * 11 + z.lz * 17, i + 2) * 0.5);
+			const cx = z.x + Math.cos(a) * rr;
+			const cz = z.z + Math.sin(a) * rr;
+
+			chestParts.push(marker(
+				"ChestSpawn_" + def.id + "_" + z.id + "_" + i,
+				[cx, z.y + 0.3, cz],
+				{ color: P.energy, size: [3, 0.2, 3] }
+			));
+		}
 	}
 
 	// ---------------------------------------------------------- POR RUTA
@@ -3902,6 +3991,15 @@ const terrainParts = [];
 	// Lo que queda en `Border/` es el talud y las rocas del anillo. Nada de eso
 	// colisiona, de modo que el borde sigue siendo el FINAL DEL TERRENO.
 	for (const p of edge) borderParts.push(p);
+
+	// ---------------------------------------------------- CAPA DE PAISAJE
+	//
+	// Silueta de fondo del mundo: colinas/montanas/dunas/conos/torres que
+	// cierran el horizonte y dan a cada mundo su identidad propia. Va en
+	// `Decoration` (sin colision) para no tocar el grafo de navegacion: ver
+	// `buildLandscape` por que es seguro y por que es la pieza que faltaba
+	// para que los mundos dejen de leerse como plataformas en el vacio.
+	for (const p of buildLandscape(api, zones, P, seedBase, def.id)) decoParts.push(p);
 
 	// ---------------------------------------------------------- REPARACION DE HUECOS
 	//
@@ -4084,7 +4182,9 @@ const terrainParts = [];
 		folder("Decoration", decoParts),
 		folder("Border", borderParts),
 		folder("Keshusy", keshusyParts),
-		folder("PowerupSpawns", powerupParts)
+		folder("PowerupSpawns", powerupParts),
+		folder("BrainrotSpawns", brainrotParts),
+		folder("ChestSpawns", chestParts)
 	));
 
 	const spawnPos = spawn.node.$properties.Position;
@@ -4112,7 +4212,9 @@ const terrainParts = [];
 		folder("Border", borderParts),
 		folder("Keshusy", keshusyParts),
 		folder("MonsterSpawns", monsterSpawnParts),
-		folder("PowerupSpawns", powerupParts)
+		folder("PowerupSpawns", powerupParts),
+		folder("BrainrotSpawns", brainrotParts),
+		folder("ChestSpawns", chestParts)
 	));
 }
 
@@ -4870,6 +4972,357 @@ function sceneryCyber(api, z, P, seedBase, out) {
 			color: P.energy, transparency: 0.1,
 		}));
 	}
+}
+
+/**
+ * CAPA DE PAISAJE: silueta a gran escala de cada mundo.
+ *
+ * POR QUE EXISTE Y POR QUE ES DECOR (SIN COLISION)
+ * ----------------------------------------------
+ * El problema que resuelve es VISUAL, no de jugabilidad: las zonas son
+ * ensamblajes de losas y el horizonte quedaba vacio, de modo que los cinco
+ * mundos se leian como plataformas flotando en la nada con diferente color.
+ * Lo que falta es la SILUETA del mundo: montanas al fondo, dunas, picos
+ * helados, conos volcanicos, torres. Eso es geometria a gran escala que se
+ * ve desde dentro y desde lejos y que da a cada mundo su identidad propia.
+ *
+ * Se construye con `decor` (CanCollide=false) por una razon medible:
+ * `collectSolids` (la funcion que alimenta la rejilla de navegacion, el
+ * verificador de spawn y el parcheador de huecos) SOLO recoge piezas con
+ * CanCollide=true. Asi que esta capa transforma el horizonte entero SIN
+ * tocar el grafo de navegacion ya verificado por las seis pruebas. No puede
+ * crear muros, tapiar corredores ni atrapar al spawn: simplemente no colisiona.
+ *
+ * Se siembra alrededor de la SILUETA de las zonas (una elipse que circunscribe
+ * la nube jugable) en dos anillos: uno proximo (terreno medio que enlaza el
+ * borde natural con el fondo) y uno lejano (cresta del horizonte). Ninguna pieza
+ * cae dentro del area jugable: el anillo proximo empieza mas alla del borde
+ * natural, y el lejano aun mas lejos.
+ *
+ * Cada mundo tiene su propio vocabulario de formas. Esto es lo que hace que
+ * Forest no sea Desert con otro color: no es la paleta, es la FORMA.
+ *
+ * @param {object} api { part, decor, marker, light }
+ * @param {Array} zones zonas ya desplazadas a coordenadas absolutas
+ * @param {object} P paleta del mundo
+ * @param {number} seedBase
+ * @param {string} worldId
+ * @returns {Array} piezas decor (sin colision)
+ */
+function buildLandscape(api, zones, P, seedBase, worldId) {
+	const { decor } = api;
+	const out = [];
+
+	// Extremos de la nube de zonas: el paisaje se siembra alrededor de lo que
+	// ya es jugable, no de un cuadrado fijo.
+	let minX = Infinity, maxX = -Infinity, minZ = Infinity, maxZ = -Infinity;
+	for (const z of zones) {
+		minX = Math.min(minX, z.x - z.rx); maxX = Math.max(maxX, z.x + z.rx);
+		minZ = Math.min(minZ, z.z - z.rz); maxZ = Math.max(maxZ, z.z + z.rz);
+	}
+	const mcx = (minX + maxX) / 2;
+	const mcz = (minZ + maxZ) / 2;
+	const hx = (maxX - minX) / 2;
+	const hz = (maxZ - minZ) / 2;
+
+	// Puntos alrededor de una elipse que circunscribe la nube, con un margen.
+	// `ring` decide que tanto se separa cada punto del centro (en fraccion de
+	// los semiejes) y `outward` un desplazamiento extra en studs. Devuelve
+	// posicion XZ y el yaw tangente, que es el que usan las formas alargadas.
+	function ringPoint(i, count, ring, outward) {
+		const a = (i / count) * Math.PI * 2 + vary(seedBase, 700, -0.05, 0.05);
+		const rx = hx * ring + outward;
+		const rz = hz * ring + outward;
+		const x = mcx + Math.cos(a) * rx;
+		const zz = mcz + Math.sin(a) * rz;
+		return { x: x, z: zz, a: a, yaw: yawTo(-Math.sin(a), Math.cos(a)) };
+	}
+
+	// ---------------------------------------------------------------- FOREST
+	if (worldId === "Forest") {
+		// Anillo proximo: colinas bajas y redondeadas que enlazan el bosque.
+		const NEAR = 26;
+		for (let i = 0; i < NEAR; i++) {
+			const p = ringPoint(i, NEAR, 1.06, vary(seedBase, 800 + i, 6, 26));
+			const w = vary(seedBase, 810 + i, 44, 74);
+			const h = vary(seedBase, 820 + i, 16, 26);
+			out.push(decor("Hill_" + worldId + "_" + i, {
+				position: [p.x, -h * 0.34, p.z],
+				size: [w, h, w * vary(seedBase, 830 + i, 0.7, 1.1)],
+				shape: "Ball",
+				material: "Grass",
+				color: hash01(seedBase, 840 + i) > 0.5 ? P.ground : P.groundAlt,
+				orientation: [0, Math.round(p.yaw), 0],
+			}));
+		}
+		// Anillo lejano: cresta de montanas azul-verdosa que cierra el horizonte.
+		const FAR = 30;
+		for (let i = 0; i < FAR; i++) {
+			const p = ringPoint(i, FAR, 1.34, vary(seedBase, 850 + i, 20, 70));
+			const w = vary(seedBase, 860 + i, 60, 100);
+			const h = vary(seedBase, 870 + i, 46, 92);
+			out.push(decor("Ridge_" + worldId + "_" + i, {
+				position: [p.x, -h * 0.22, p.z],
+				size: [w, h, w * 0.8],
+				shape: "Ball",
+				material: "Slate",
+				color: hash01(seedBase, 880 + i) > 0.5 ? [70, 96, 78] : [58, 82, 70],
+				orientation: [0, Math.round(p.yaw), 0],
+			}));
+		}
+	// ---------------------------------------------------------------- DESERT
+	} else if (worldId === "Desert") {
+		// Anillo proximo: dunas alargadas y onduladas (esferas achatadas
+		// giradas en tangente) que leen como mar de arena.
+		const NEAR = 30;
+		for (let i = 0; i < NEAR; i++) {
+			const p = ringPoint(i, NEAR, 1.05, vary(seedBase, 900 + i, 4, 30));
+			const w = vary(seedBase, 910 + i, 50, 88);
+			const h = vary(seedBase, 920 + i, 12, 22);
+			out.push(decor("Dune_" + worldId + "_" + i, {
+				position: [p.x, -h * 0.3, p.z],
+				size: [w, h, w * vary(seedBase, 930 + i, 0.4, 0.62)],
+				shape: "Ball",
+				material: "Sand",
+				color: hash01(seedBase, 940 + i) > 0.5 ? [216, 190, 128] : [202, 176, 116],
+				orientation: [0, Math.round(p.yaw), 0],
+			}));
+		}
+		// Anillo lejano: mesetas y mesas de arena (cajas apiladas) del desierto.
+		const FAR = 20;
+		for (let i = 0; i < FAR; i++) {
+			const p = ringPoint(i, FAR, 1.3, vary(seedBase, 950 + i, 20, 64));
+			const w = vary(seedBase, 960 + i, 22, 38);
+			const h = vary(seedBase, 970 + i, 30, 54);
+			out.push(decor("Mesa_" + worldId + "_" + i, {
+				position: [p.x, h * 0.5 - 2, p.z],
+				size: [w, h, w * vary(seedBase, 980 + i, 0.8, 1.1)],
+				material: "Sandstone",
+				color: hash01(seedBase, 990 + i) > 0.5 ? [200, 172, 128] : [186, 158, 100],
+				orientation: [0, Math.round(vary(seedBase, 1000 + i, -20, 20)), 0],
+			}));
+			out.push(decor("MesaCap_" + worldId + "_" + i, {
+				position: [p.x, h - 1, p.z],
+				size: [w * 1.25, 3, w * vary(seedBase, 1010 + i, 0.9, 1.2)],
+				material: "Sandstone",
+				color: [176, 148, 96],
+				orientation: [0, Math.round(vary(seedBase, 1020 + i, -18, 18)), 0],
+			}));
+		}
+	// ------------------------------------------------------------------- ICE
+	} else if (worldId === "Ice") {
+		// Anillo proximo: placas de hielo bajas y redondeadas.
+		const NEAR = 26;
+		for (let i = 0; i < NEAR; i++) {
+			const p = ringPoint(i, NEAR, 1.06, vary(seedBase, 1100 + i, 6, 24));
+			const w = vary(seedBase, 1110 + i, 40, 70);
+			const h = vary(seedBase, 1120 + i, 10, 18);
+			out.push(decor("IceSheet_" + worldId + "_" + i, {
+				position: [p.x, -h * 0.3, p.z],
+				size: [w, h, w * 0.8],
+				shape: "Ball",
+				material: "Ice",
+				color: hash01(seedBase, 1130 + i) > 0.5 ? [210, 232, 244] : [190, 216, 236],
+				orientation: [0, Math.round(p.yaw), 0],
+			}));
+		}
+		// Anillo lejano: picos jagados y tempanos altos que cierran el horizonte.
+		const FAR = 26;
+		for (let i = 0; i < FAR; i++) {
+			const p = ringPoint(i, FAR, 1.32, vary(seedBase, 1140 + i, 18, 60));
+			const w = vary(seedBase, 1150 + i, 16, 30);
+			const h = vary(seedBase, 1160 + i, 50, 104);
+			out.push(decor("Peak_" + worldId + "_" + i, {
+				position: [p.x, h * 0.5 - 3, p.z],
+				size: [w, h, w * vary(seedBase, 1170 + i, 0.85, 1.15)],
+				material: "Granite",
+				color: hash01(seedBase, 1180 + i) > 0.5 ? [222, 234, 244] : [202, 220, 238],
+				orientation: [
+					Math.round(vary(seedBase, 1190 + i, -7, 7)),
+					Math.round(p.yaw),
+					Math.round(vary(seedBase, 1200 + i, -7, 7)),
+				],
+			}));
+		}
+	// --------------------------------------------------------------- VOLCANO
+	} else if (worldId === "Volcano") {
+		// Anillo proximo: colinas de ceniza oscura con vetas de lava.
+		const NEAR = 26;
+		for (let i = 0; i < NEAR; i++) {
+			const p = ringPoint(i, NEAR, 1.06, vary(seedBase, 1300 + i, 6, 24));
+			const w = vary(seedBase, 1310 + i, 44, 72);
+			const h = vary(seedBase, 1320 + i, 16, 28);
+			out.push(decor("AshHill_" + worldId + "_" + i, {
+				position: [p.x, -h * 0.34, p.z],
+				size: [w, h, w * 0.9],
+				shape: "Ball",
+				material: "Slate",
+				color: hash01(seedBase, 1330 + i) > 0.5 ? [48, 40, 44] : [58, 46, 48],
+				orientation: [0, Math.round(p.yaw), 0],
+			}));
+			// Veta de lava en algunos: aro neon en la cima.
+			if (hash01(seedBase, 1340 + i) > 0.55) {
+				out.push(decor("AshVein_" + worldId + "_" + i, {
+					position: [p.x, h * 0.16, p.z],
+					size: [w * 0.5, 0.6, w * 0.5],
+					shape: "Cylinder",
+					material: "Neon",
+					color: P.energy,
+					transparency: 0.35,
+				}));
+			}
+		}
+		// Anillo lejano: conos volcanicos con crater incandescente.
+		const FAR = 22;
+		for (let i = 0; i < FAR; i++) {
+			const p = ringPoint(i, FAR, 1.32, vary(seedBase, 1350 + i, 18, 60));
+			const w = vary(seedBase, 1360 + i, 34, 58);
+			const h = vary(seedBase, 1370 + i, 44, 90);
+			out.push(decor("Cone_" + worldId + "_" + i, {
+				position: [p.x, h * 0.5 - 3, p.z],
+				size: [w, h, w],
+				shape: "Ball",
+				material: "Slate",
+				color: hash01(seedBase, 1380 + i) > 0.5 ? [40, 34, 38] : [50, 40, 42],
+			}));
+			out.push(decor("Crater_" + worldId + "_" + i, {
+				position: [p.x, h - 4, p.z],
+				size: [w * 0.55, 1, w * 0.55],
+				shape: "Cylinder",
+				material: "Neon",
+				color: [255, 120, 40],
+				transparency: 0.25,
+			}));
+		}
+	// ----------------------------------------------------------------- CYBER
+	} else if (worldId === "Cyber") {
+		// Anillo proximo: subestaciones y bloques industriales bajos.
+		const NEAR = 22;
+		for (let i = 0; i < NEAR; i++) {
+			const p = ringPoint(i, NEAR, 1.07, vary(seedBase, 1500 + i, 8, 28));
+			const w = vary(seedBase, 1510 + i, 16, 28);
+			const h = vary(seedBase, 1520 + i, 10, 20);
+			out.push(decor("Substation_" + worldId + "_" + i, {
+				position: [p.x, h * 0.5 - 1, p.z],
+				size: [w, h, w * 0.8],
+				material: "DiamondPlate",
+				color: hash01(seedBase, 1530 + i) > 0.5 ? [46, 54, 66] : [38, 46, 58],
+				orientation: [0, Math.round(p.yaw), 0],
+			}));
+			out.push(decor("SubGlow_" + worldId + "_" + i, {
+				position: [p.x, h - 0.5, p.z],
+				size: [w * 0.7, 0.4, w * 0.7],
+				material: "Neon",
+				color: hash01(seedBase, 1540 + i) > 0.5 ? P.accent : P.energy,
+				transparency: 0.3,
+			}));
+		}
+		// Anillo lejano: torres del complejo con bandas neon.
+		const FAR = 24;
+		for (let i = 0; i < FAR; i++) {
+			const p = ringPoint(i, FAR, 1.32, vary(seedBase, 1550 + i, 18, 58));
+			const w = vary(seedBase, 1560 + i, 12, 22);
+			const h = vary(seedBase, 1570 + i, 46, 96);
+			out.push(decor("Tower_" + worldId + "_" + i, {
+				position: [p.x, h * 0.5 - 2, p.z],
+				size: [w, h, w],
+				material: "Metal",
+				color: hash01(seedBase, 1580 + i) > 0.5 ? [40, 48, 60] : [32, 40, 52],
+				orientation: [0, Math.round(p.yaw), 0],
+			}));
+			// Banda de luz neon a media altura.
+			out.push(decor("TowerBand_" + worldId + "_" + i, {
+				position: [p.x, h * 0.55, p.z],
+				size: [w * 1.08, 0.6, w * 1.08],
+				material: "Neon",
+				color: i % 2 === 0 ? P.accent : P.energy,
+				transparency: 0.25,
+			}));
+		}
+	}
+
+	// ------------------------------------------------- HITOS SIGNATURE
+	//
+	// Cada mundo tiene UNA pieza heroica que la mision pide explicitamente y
+	// que se ve desde lejos: el rio del bosque, el oasis del desierto, el lago
+	// helado, el rio de lava y la sala de energia. Son decor sin colision
+	// colocadas sobre la silueta, asi que no pueden tapar ninguna ruta.
+	const heroY = -2.2;
+	// Rio serpenteante de Forest: cinta de agua neon que cruza el bosque.
+	if (worldId === "Forest") {
+		for (let i = 0; i < 14; i++) {
+			const t = i / 13;
+			const x = mcx + Math.cos(t * Math.PI * 1.3) * hx * 0.72;
+			const zz = mcz + Math.sin(t * Math.PI * 2.1) * hz * 0.6;
+			out.push(decor("River_Forest_" + i, {
+				position: [x, heroY, zz],
+				size: [22, 0.6, 30],
+				shape: "Cylinder",
+				material: "Glass",
+				color: [86, 150, 214],
+				transparency: 0.35,
+				orientation: [0, Math.round(vary(seedBase, 1600 + i, 0, 180)), 0],
+			}));
+		}
+	}
+	// Oasis de Desert: disco de agua con anillo de vegetacion.
+	if (worldId === "Desert") {
+		out.push(decor("Oasis_Water_Desert", {
+			position: [mcx + hx * 0.3, heroY, mcz - hz * 0.25],
+			size: [40, 0.6, 40], shape: "Cylinder", material: "Glass",
+			color: [70, 170, 190], transparency: 0.35,
+		}));
+		for (let i = 0; i < 8; i++) {
+			const a = (i / 8) * Math.PI * 2;
+			out.push(decor("Oasis_Palm_Desert_" + i, {
+				position: [mcx + hx * 0.3 + Math.cos(a) * 22, 5, mcz - hz * 0.25 + Math.sin(a) * 22],
+				size: [1.4, 12, 1.4], shape: "Cylinder", material: "Grass",
+				color: [90, 130, 70],
+			}));
+		}
+	}
+	// Lagos helados de Ice: placas de agua congelada bajas y lisas.
+	if (worldId === "Ice") {
+		for (let i = 0; i < 5; i++) {
+			out.push(decor("FrozenLake_Ice_" + i, {
+				position: [mcx + vary(seedBase, 1610 + i, -120, 120), heroY, mcz + vary(seedBase, 1620 + i, -120, 120)],
+				size: [vary(seedBase, 1630 + i, 30, 54), 0.5, vary(seedBase, 1640 + i, 26, 46)],
+				shape: "Cylinder", material: "Ice", color: [188, 226, 244], transparency: 0.25,
+			}));
+		}
+	}
+	// Rios de lava de Volcano: cintas incandescentes sobre la ceniza.
+	if (worldId === "Volcano") {
+		for (let i = 0; i < 12; i++) {
+			const t = i / 11;
+			const x = mcx + Math.cos(t * Math.PI * 1.6) * hx * 0.7;
+			const zz = mcz + Math.sin(t * Math.PI * 2.4) * hz * 0.62;
+			out.push(decor("LavaRiver_Volcano_" + i, {
+				position: [x, heroY, zz],
+				size: [20, 0.7, 26], shape: "Cylinder", material: "Neon",
+				color: [255, 96, 24], transparency: 0.2,
+				orientation: [0, Math.round(vary(seedBase, 1650 + i, 0, 180)), 0],
+			}));
+		}
+	}
+	// Nucleos de energia de Cyber: esferas neon sobre pedestales, a lo largo
+	// de una linea de pasarela que las enlaza.
+	if (worldId === "Cyber") {
+		for (let i = 0; i < 7; i++) {
+			const t = i / 6;
+			const x = mcx + (t - 0.5) * hx * 1.3;
+			const zz = mcz + Math.sin(t * Math.PI * 2) * hz * 0.4;
+			out.push(decor("EnergyCore_Cyber_" + i, {
+				position: [x, 6, zz], size: [5, 5, 5], shape: "Ball",
+				material: "Neon", color: i % 2 === 0 ? P.accent : P.energy, transparency: 0.1,
+			}));
+			out.push(decor("EnergyPedestal_Cyber_" + i, {
+				position: [x, 1.5, zz], size: [7, 7, 7], material: "Metal", color: [40, 48, 60],
+			}));
+		}
+	}
+
+	return out;
 }
 
 /**

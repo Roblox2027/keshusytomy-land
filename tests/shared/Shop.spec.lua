@@ -258,4 +258,113 @@ return function()
 			expect.toBe(EconomyRules.GetBalance(profile.economy, "Coins"), 500)
 		end)
 	end)
+
+	-- -------------------------------------------------------------------
+	-- Nuevas categorias del mercado (FASE 31): alas, armas, objetos,
+	-- vehiculos. La cadena de compra es la MISMA: valida, cobra, entrega.
+	-- Lo que cambia es solo la definicion del item.
+	-- -------------------------------------------------------------------
+	Harness.describe("Shop: alas, armas, objetos y vehiculos", function()
+		Harness.it("compra alas cosméticas y las entrega en inventario", function()
+			local shop = makeShop()
+			local profile = profileWith(500)
+
+			local outcome, _, receipt = shop:Purchase("Wings_Angel", profile, "w1", "shop")
+
+			expect.toBe(outcome, Outcome.Purchased)
+			expect.toBe(profile.inventory.Items.Wings_Angel.Quantity, 1)
+			expect.toBe(receipt.granted[1], "Wings_Angel")
+		end)
+
+		Harness.it("compra armas con stats y efectúa el cobro correcto", function()
+			local shop = makeShop()
+			local profile = profileWith(1500)
+
+			local outcome, _, receipt = shop:Purchase("Weapon_Sword_Flame", profile, "wp1", "shop")
+
+			expect.toBe(outcome, Outcome.Purchased)
+			expect.toBe(EconomyRules.GetBalance(profile.economy, "Coins"), 100)
+			expect.toBe(receipt.price, 1400)
+			expect.toBe(receipt.currency, "Coins")
+		end)
+
+		Harness.it("compra alas de stats con monedas, no con gemas", function()
+			-- Regla anti-P2W: cualquier item con Stats debe venderse en Coins.
+			local shop = makeShop()
+			local profile = profileWith(2000)
+
+			local outcome, _, receipt = shop:Purchase("Wings_Spring", profile, "ws1", "shop")
+
+			expect.toBe(outcome, Outcome.Purchased)
+			expect.toBe(receipt.currency, "Coins")
+		end)
+
+		Harness.it("compra objetos consumibles apilables", function()
+			local shop = makeShop()
+			local profile = profileWith(1000)
+
+			shop:Purchase("Potion_Invisibility", profile, "p1", "shop")
+			shop:Purchase("Potion_Invisibility", profile, "p2", "shop")
+
+			expect.toBe(profile.inventory.Items.Potion_Invisibility.Quantity, 2)
+			expect.toBe(EconomyRules.GetBalance(profile.economy, "Coins"), 400)
+		end)
+
+		Harness.it("compra vehiculos con gemas", function()
+			local shop = makeShop()
+			local profile = profileWith(10, 100)
+
+			local outcome, _, receipt = shop:Purchase("Vehicle_Warplane", profile, "v1", "shop")
+
+			expect.toBe(outcome, Outcome.Purchased)
+			expect.toBe(EconomyRules.GetBalance(profile.economy, "Gems"), 40)
+			expect.toBe(receipt.currency, "Gems")
+		end)
+
+		Harness.it("una arma cosmética cuesta gemas y no entrega stats", function()
+			local shop = makeShop()
+			local profile = profileWith(10, 50)
+
+			local outcome, _, receipt = shop:Purchase("Weapon_Crossbow", profile, "wc1", "shop")
+
+			expect.toBe(outcome, Outcome.Purchased)
+			local def = ItemCatalog.Get("Weapon_Crossbow")
+			expect.toBe(def.Cosmetic, true)
+			expect.toBe(type(def.Stats) == "table", false)
+		end)
+
+		Harness.it("el catalogo de venta incluye las nuevas categorias", function()
+			local shop = makeShop()
+			local catalog = shop:GetCatalogForSale()
+
+			local hasWings = false
+			local hasWeapon = false
+			local hasVehicle = false
+
+			for _, def in ipairs(catalog) do
+				if def.Category == ItemCatalog.Category.Wings then
+					hasWings = true
+				elseif def.Category == ItemCatalog.Category.Weapon then
+					hasWeapon = true
+				elseif def.Category == ItemCatalog.Category.Vehicle then
+					hasVehicle = true
+				end
+			end
+
+			expect.toBe(hasWings, true)
+			expect.toBe(hasWeapon, true)
+			expect.toBe(hasVehicle, true)
+		end)
+
+		Harness.it("no se puede comprar dos veces la misma arma unica", function()
+			local shop = makeShop()
+			local profile = profileWith(10000)
+
+			shop:Purchase("Weapon_Sword_Flame", profile, "r1", "shop")
+			local outcome, rejection = shop:Purchase("Weapon_Sword_Flame", profile, "r2", "shop")
+
+			expect.toBe(outcome, Outcome.AlreadyOwned)
+			expect.toBe(rejection, Rejection.AlreadyOwned)
+		end)
+	end)
 end

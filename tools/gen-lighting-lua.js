@@ -117,6 +117,8 @@ local created = {}
 local CLASS_OF = {
 	Atmosphere = "Atmosphere",
 	ForestBloom = "BloomEffect",
+	KeshusySky = "Sky",
+	KeshusyGrade = "ColorCorrectionEffect",
 }
 
 local function ensure(name, values)
@@ -149,6 +151,27 @@ ${lighting.Atmosphere ? `ensure("Atmosphere", {
 	Glare = ${lighting.Atmosphere.$properties.Glare},
 	Offset = ${lighting.Atmosphere.$properties.Offset},
 })` : "-- El proyecto no declara Atmosphere."}
+
+${lighting.KeshusySky ? `ensure("KeshusySky", {
+	CelestialBodiesShown = ${lighting.KeshusySky.$properties.CelestialBodiesShown},
+	MoonAngularSize = ${lighting.KeshusySky.$properties.MoonAngularSize},
+	SunAngularSize = ${lighting.KeshusySky.$properties.SunAngularSize},
+	SkyboxBk = "${lighting.KeshusySky.$properties.SkyboxBk}",
+	SkyboxDn = "${lighting.KeshusySky.$properties.SkyboxDn}",
+	SkyboxFt = "${lighting.KeshusySky.$properties.SkyboxFt}",
+	SkyboxLf = "${lighting.KeshusySky.$properties.SkyboxLf}",
+	SkyboxRt = "${lighting.KeshusySky.$properties.SkyboxRt}",
+	SkyboxUp = "${lighting.KeshusySky.$properties.SkyboxUp}",
+	SunTextureId = "${lighting.KeshusySky.$properties.SunTextureId}",
+	MoonTextureId = "${lighting.KeshusySky.$properties.MoonTextureId}",
+})` : "-- El proyecto no declara KeshusySky."}
+
+${lighting.KeshusyGrade ? `ensure("KeshusyGrade", {
+	Brightness = ${lighting.KeshusyGrade.$properties.Brightness},
+	Contrast = ${lighting.KeshusyGrade.$properties.Contrast},
+	Saturation = ${lighting.KeshusyGrade.$properties.Saturation},
+	TintColor = ${colorLuau(lighting.KeshusyGrade.$properties.TintColor)},
+})` : "-- El proyecto no declara KeshusyGrade."}
 
 ${lighting.ForestBloom ? `ensure("ForestBloom", {
 	Intensity = ${lighting.ForestBloom.$properties.Intensity},

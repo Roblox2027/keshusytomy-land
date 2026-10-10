@@ -93,6 +93,67 @@ local function describeEquipmentRules()
 			expect.toBe(stats.WalkSpeedMult, 1)
 		end)
 	end)
+
+	Harness.describe("Stats nuevos (alas y armas)", function()
+		Harness.it("sin equipo, JumpPowerBonus y MeleeDamageMult son neutros", function()
+			local stats = Equipment.ComputeStats({}, Catalog)
+
+			expect.toBe(stats.JumpPowerBonus, 0)
+			expect.toBe(stats.MeleeDamageMult, 1)
+		end)
+
+		Harness.it("las alas de resorte suben el salto", function()
+			local stats = Equipment.ComputeStats({ Wings = "Wings_Spring" }, Catalog)
+
+			expect.toBe(stats.JumpPowerBonus, 30)
+		end)
+
+		Harness.it("el arma de llama sube el daño melee", function()
+			local stats = Equipment.ComputeStats({ Weapon = "Weapon_Sword_Flame" }, Catalog)
+
+			expect.toBe(stats.MeleeDamageMult > 1, true)
+			expect.toBe(stats.MeleeDamageMult, 1 + 0.30)
+		end)
+
+		Harness.it("el báculo del vacío combina daño y cooldown", function()
+			local stats = Equipment.ComputeStats({ Weapon = "Weapon_Staff_Void" }, Catalog)
+
+			expect.toBe(stats.MeleeDamageMult, 1 + 0.25)
+			expect.toBe(stats.AbilityCooldownMult, 1 + (-0.05))
+		end)
+
+		Harness.it("las alas cosméticas no aportan stats", function()
+			local stats = Equipment.ComputeStats({ Wings = "Wings_Angel" }, Catalog)
+
+			expect.toBe(stats.JumpPowerBonus, 0)
+			expect.toBe(stats.MeleeDamageMult, 1)
+		end)
+
+		Harness.it("el tope de MeleeDamageMult impone un +40 % maximo", function()
+			local fake = {
+				Get = function(_self, _id)
+					return { Stats = { MeleeDamageMult = 0.5 } }
+				end,
+			}
+
+			local stats = Equipment.ComputeStats({ A = "x", B = "x", C = "x" }, fake)
+
+			expect.toBe(stats.MeleeDamageMult <= Equipment.Caps.MeleeDamageMult.Max, true)
+			expect.toBe(stats.MeleeDamageMult, 1.4)
+		end)
+
+		Harness.it("el tope de JumpPowerBonus impone 100 como maximo", function()
+			local fake = {
+				Get = function(_self, _id)
+					return { Stats = { JumpPowerBonus = 50 } }
+				end,
+			}
+
+			local stats = Equipment.ComputeStats({ A = "x", B = "x" }, fake)
+
+			expect.toBe(stats.JumpPowerBonus, Equipment.Caps.JumpPowerBonus.Max)
+		end)
+	end)
 end
 
 return describeEquipmentRules

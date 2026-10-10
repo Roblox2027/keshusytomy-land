@@ -40,6 +40,7 @@ local SHARED = ReplicatedStorage:WaitForChild("Shared")
 local CONFIG = SHARED:WaitForChild("Config")
 
 local GameConfig = require(CONFIG:WaitForChild("GameConfig"))
+local ItemCatalog = require(CONFIG:WaitForChild("ItemCatalog"))
 local MonsterScaleRules = require(SHARED:WaitForChild("Libraries"):WaitForChild("MonsterScaleRules"))
 
 local VisualKit = {}
@@ -163,26 +164,52 @@ VisualKit.MakePart = makePart
 
 --- Construye la BOMBA VISIBLE completa.
 ---
---- Devuelve un `Model` con `Root` (invisible, `PrimaryPart`), `BombBody`,
---- `BombBand`, `BombTop`, `Fuse`, `FuseGlow`, `RadiusIndicator`,
---- `Attachment` (`ExplosionOrigin`), `Particles` y `Timer` (BillboardGui).
----
---- El `RadiusIndicator` es un disco tumbado del RADIO REAL de dano: es lo
---- que ensena "dentro de esta zona me puede dano" sin una linea de tutorial.
+--- El `flavor` ajusta el aspecto según las habilidades de bomba del jugador:
+---   - "default": apariencia clásica.
+---   - "capacity": banda extra y brillo envolvente.
+---   - "damage": fusible más caliente (rojo naranja).
+---   - "radius": aro de radio más brillante y grande.
+---   - "power": combina capacity + damage + radius.
 --- @param worldId string?
 --- @param position Vector3
 --- @param radius number
+--- @param flavor string? "default"|"capacity"|"damage"|"radius"|"power"
 --- @return Model?
-function VisualKit.BuildBomb(worldId: string?, position: Vector3, radius: number): Model?
+function VisualKit.BuildBomb(
+	worldId: string?,
+	position: Vector3,
+	radius: number,
+	flavor: string?
+): Model?
 	local skin = VisualKit.BombSkin(worldId)
 	local dims = VisualKit.BOMB
+	local flavorStr = flavor or "default"
+
+	-- Tabla de sabores visuales para la bomba.
+	local FLAVOR_MODS = {
+		default = { extraBand = false, hotFuse = false, brightRing = false, hotGlow = false },
+		capacity = { extraBand = true, hotFuse = false, brightRing = false, hotGlow = false },
+		damage = { extraBand = false, hotFuse = true, brightRing = false, hotGlow = true },
+		radius = { extraBand = false, hotFuse = false, brightRing = true, hotGlow = false },
+		power = { extraBand = true, hotFuse = true, brightRing = true, hotGlow = true },
+	}
+
+	local mod = FLAVOR_MODS[flavorStr] or FLAVOR_MODS.default
 
 	-- Radio de explosion con suelo de 8 studs: por debajo el aro no se
-	-- distingue de una mancha y el jugador aprende mal la zona de peligro.
+	-- distingue de una mancha y el jugador aprende mal la zona de pelig.
 	local safeRadius = if radius and radius >= 8 then radius else GameConfig.DefaultBombRadius
+
+	-- El color del fusible varía según el sabor: "hot" = más rojo/ naranja.
+	local fuseGlowColor = if mod.hotFuse or mod.hotGlow then
+		Color3.fromRGB(255, 120, 60)
+	else skin.glow
 
 	local model = Instance.new("Model")
 	model.Name = "Bomb"
+
+	-- Atributo de sabor para que servicios clientes lean el tipo visual.
+	model:SetAttribute("Flavor", flavorStr)
 
 	-- Raiz invisible: es la que se mueve y de la que cuelga el cartel. Sin
 	-- `PrimaryPart` el modelo no se coloca de forma fiable.
@@ -211,6 +238,19 @@ function VisualKit.BuildBomb(worldId: string?, position: Vector3, radius: number
 	)
 	band.Parent = model
 
+	-- Banda extra para sabores de capacidad: visibilidad inmediata de
+	-- "una bomba mejor". Gira a un ángulo distinto para no tapar la primera.
+	if mod.extraBand then
+		local extraBand = makePart(
+			"BombBand2",
+			Vector3.new(dims.BodySize * 1.05, 0.4, dims.BodySize * 1.05),
+			CFrame.new(position) * CFrame.Angles(0, math.rad(35), 0),
+			skin.body,
+			{ material = Enum.Material.Neon, transparency = 0.3 }
+		)
+		extraBand.Parent = model
+	end
+
 	-- Tapa: sin ella la bomba es "una bola". Con ella se lee como bomba.
 	local top = makePart(
 		"BombTop",
@@ -233,7 +273,10 @@ function VisualKit.BuildBomb(worldId: string?, position: Vector3, radius: number
 	fuse.Parent = model
 
 	local tipCFrame = CFrame.new(position + Vector3.new(1.05, dims.BodySize / 2 + dims.TopSize.Y + 1.15, 0))
-	local tip = makePart("FuseGlow", dims.TipSize, tipCFrame, skin.glow, {
+	local tipColor = if mod.hotGlow then fuseGlowColor else skin.glow
+	local tipBrightness = if mod.hotGlow then 4 else 2
+
+	local tip = makePart("FuseGlow", dims.TipSize, tipCFrame, tipColor, {
 		shape = Enum.PartType.Ball,
 		material = Enum.Material.Neon,
 	})
@@ -242,17 +285,18 @@ function VisualKit.BuildBomb(worldId: string?, position: Vector3, radius: number
 	-- Luz del fusible: sin ella la punta es un punto en una arena a oscuras.
 	local light = Instance.new("PointLight")
 	light.Name = "FuseLight"
-	light.Color = skin.glow
-	light.Brightness = 2
-	light.Range = 18
+	light.Color = tipColor
+	light.Brightness = tipBrightness
+	light.Range = if mod.hotGlow then 24 else 18
 	light.Shadows = false
 	light.Parent = tip
 
 	-- Chispas del fusible. `Rate = 0` y emision manual desde el servicio: el
 	-- servidor decide CUANDO hay chispas, no el motor por su cuenta.
+	local sparkColor = if mod.hotFuse then fuseGlowColor else skin.glow
 	local sparks = Instance.new("ParticleEmitter")
 	sparks.Name = "Particles"
-	sparks.Color = ColorSequence.new(skin.glow, Color3.fromRGB(90, 60, 40))
+	sparks.Color = ColorSequence.new(sparkColor, Color3.fromRGB(90, 60, 40))
 	sparks.Lifetime = NumberRange.new(0.2, 0.45)
 	sparks.Speed = NumberRange.new(3, 8)
 	sparks.SpreadAngle = Vector2.new(30, 30)
@@ -271,7 +315,7 @@ function VisualKit.BuildBomb(worldId: string?, position: Vector3, radius: number
 		Vector3.new(safeRadius * 2, 0.2, safeRadius * 2),
 		CFrame.new(position - Vector3.new(0, dims.BodySize / 2 - 0.4, 0)),
 		skin.ring,
-		{ material = Enum.Material.Neon, transparency = 0.55 }
+		{ material = Enum.Material.Neon, transparency = if mod.brightRing then 0.3 else 0.55 }
 	)
 	ring.Shape = Enum.PartType.Cylinder
 	ring.Orientation = Vector3.new(0, 0, 90)
@@ -391,6 +435,148 @@ local function monsterShape(def: any): { shape: Enum.PartType, size: Vector3, ac
 			size = Vector3.new(3.2, 3.8, 3.2),
 			accent = Color3.fromRGB(90, 255, 255),
 			style = "Drone",
+		}
+	-- Brainrots (FASE 20)
+	elseif id == "Locotto" then
+		return {
+			shape = Enum.PartType.Block,
+			size = Vector3.new(3.6, 2.8, 3.2),
+			accent = Color3.fromRGB(80, 160, 70),
+			style = "Stump",
+		}
+	elseif id == "Bambino" then
+		return {
+			shape = Enum.PartType.Block,
+			size = Vector3.new(2.8, 1.8, 2.2),
+			accent = Color3.fromRGB(230, 240, 250),
+			style = "Flyer",
+		}
+	elseif id == "Bombino" then
+		return {
+			shape = Enum.PartType.Ball,
+			size = Vector3.new(2.8, 2.6, 2.8),
+			accent = Color3.fromRGB(255, 210, 100),
+			style = "Mushroom",
+		}
+	elseif id == "Explodini" then
+		return {
+			shape = Enum.PartType.Block,
+			size = Vector3.new(3.8, 2.8, 3.0),
+			accent = Color3.fromRGB(255, 140, 50),
+			style = "Charger",
+		}
+	elseif id == "Bailarino" then
+		return {
+			shape = Enum.PartType.Block,
+			size = Vector3.new(3.0, 3.2, 2.8),
+			accent = Color3.fromRGB(230, 210, 100),
+			style = "Cactus",
+		}
+	elseif id == "Sandwichini" then
+		return {
+			shape = Enum.PartType.Block,
+			size = Vector3.new(2.6, 2.0, 1.8),
+			accent = Color3.fromRGB(255, 220, 130),
+			style = "Ambusher",
+		}
+	elseif id == "Glaciacino" then
+		return {
+			shape = Enum.PartType.Block,
+			size = Vector3.new(2.6, 2.2, 2.4),
+			accent = Color3.fromRGB(190, 230, 250),
+			style = "Penguin",
+		}
+	elseif id == "Macarronni" then
+		return {
+			shape = Enum.PartType.Block,
+			size = Vector3.new(3.4, 3.2, 3.0),
+			accent = Color3.fromRGB(230, 230, 250),
+			style = "Yeti",
+		}
+	elseif id == "Fantasmitti" then
+		return {
+			shape = Enum.PartType.Ball,
+			size = Vector3.new(2.4, 2.4, 2.4),
+			accent = Color3.fromRGB(230, 240, 250),
+			style = "Ghost",
+		}
+	elseif id == "Lavaccino" then
+		return {
+			shape = Enum.PartType.Ball,
+			size = Vector3.new(2.6, 2.8, 2.6),
+			accent = Color3.fromRGB(255, 130, 40),
+			style = "Lava",
+		}
+	elseif id == "Peperoni" then
+		return {
+			shape = Enum.PartType.Block,
+			size = Vector3.new(3.6, 2.4, 3.2),
+			accent = Color3.fromRGB(255, 110, 40),
+			style = "Dragon",
+		}
+	elseif id == "Magmatico" then
+		return {
+			shape = Enum.PartType.Block,
+			size = Vector3.new(4.0, 3.0, 3.2),
+			accent = Color3.fromRGB(255, 110, 40),
+			style = "Ballista",
+		}
+	elseif id == "Glitchino" then
+		return {
+			shape = Enum.PartType.Block,
+			size = Vector3.new(2.4, 2.4, 2.4),
+			accent = Color3.fromRGB(100, 240, 250),
+			style = "Robot",
+		}
+	elseif id == "Pixeloni" then
+		return {
+			shape = Enum.PartType.Block,
+			size = Vector3.new(2.8, 2.2, 2.6),
+			accent = Color3.fromRGB(210, 255, 230),
+			style = "Hunter",
+		}
+	elseif id == "Virusini" then
+		return {
+			shape = Enum.PartType.Ball,
+			size = Vector3.new(2.2, 2.2, 2.2),
+			accent = Color3.fromRGB(230, 130, 240),
+			style = "Virus",
+		}
+	-- Halloween Zombie Brainrots (FASE 20)
+	elseif id == "Zombini" then
+		return {
+			shape = Enum.PartType.Block,
+			size = Vector3.new(3.4, 2.8, 3.0),
+			accent = Color3.fromRGB(100, 170, 70),
+			style = "Zombie",
+		}
+	elseif id == "Mumifico" then
+		return {
+			shape = Enum.PartType.Block,
+			size = Vector3.new(3.6, 2.8, 3.2),
+			accent = Color3.fromRGB(200, 170, 110),
+			style = "Mummy",
+		}
+	elseif id == "Congelado" then
+		return {
+			shape = Enum.PartType.Block,
+			size = Vector3.new(3.2, 3.0, 2.8),
+			accent = Color3.fromRGB(180, 230, 250),
+			style = "FrozenZombie",
+		}
+	elseif id == "Carbonizado" then
+		return {
+			shape = Enum.PartType.Block,
+			size = Vector3.new(3.6, 3.0, 3.2),
+			accent = Color3.fromRGB(255, 120, 40),
+			style = "CharredZombie",
+		}
+	elseif id == "Necrobyte" then
+		return {
+			shape = Enum.PartType.Block,
+			size = Vector3.new(3.2, 2.8, 3.0),
+			accent = Color3.fromRGB(200, 180, 255),
+			style = "Necrobyte",
 		}
 	end
 
@@ -581,6 +767,433 @@ function VisualKit.BuildMonster(def: any): Model?
 		aura.Range = 14
 		aura.Shadows = false
 		aura.Parent = root
+	-- Brainrot visual details (FASE 20)
+	elseif shape.style == "Stump" then
+		-- Banda de crecimiento y una grieta: lee como "tronco caído".
+		local band = makePart(
+			"GrowthBand",
+			Vector3.new(size.X * 1.05, size.Y * 0.12, size.Z * 1.05),
+			CFrame.new(0, 0, 0),
+			Color3.fromRGB(100, 180, 90),
+			{ material = Enum.Material.SmoothPlastic }
+		)
+		band.Parent = root
+
+		local crack = makePart(
+			"Crack",
+			Vector3.new(size.X * 0.08, size.Y * 0.7, 0.05),
+			CFrame.new(0, 0, size.Z / 2 + 0.01),
+			Color3.fromRGB(40, 60, 30),
+			{ material = Enum.Material.SmoothPlastic, transparency = 0.5 }
+		)
+		crack.Parent = root
+	elseif shape.style == "Flyer" then
+		-- Alas de membrana: dos triángulos translúcidos.
+		for _, side in ipairs({ -1, 1 }) do
+			local wing = makePart(
+				"Wing_" .. tostring(side),
+				Vector3.new(size.X * 0.5, size.Y * 0.08, size.Z * 0.9),
+				CFrame.new(0, 0, 0) * CFrame.Angles(0, math.rad(side * 15), math.rad(side * 25)),
+				shape.accent,
+				{ material = Enum.Material.ForceField, transparency = 0.4 }
+			)
+			wing.Parent = root
+		end
+	elseif shape.style == "Mushroom" then
+		-- Láminas (gills) bajo el sombrero.
+		for _, offset in ipairs({ -0.3, 0, 0.3 }) do
+			local gill = makePart(
+				"Gills_" .. tostring(offset),
+				Vector3.new(size.X * 0.12, size.Y * 0.5, 0.05),
+				CFrame.new(offset * size.X * 0.4, 0, size.Z / 2 + 0.02),
+				Color3.fromRGB(255, 190, 80),
+				{ material = Enum.Material.Neon }
+			)
+			gill.Parent = root
+		end
+	elseif shape.style == "Charger" then
+		-- Grupa de carga: una protuberancia dorsal.
+		local hump = makePart(
+			"Hump",
+			Vector3.new(size.X * 0.4, size.Y * 0.6, size.Z * 0.4),
+			CFrame.new(0, size.Y * 0.2, 0),
+			Color3.fromRGB(180, 90, 40),
+			{ material = Enum.Material.SmoothPlastic }
+		)
+		hump.Parent = root
+	elseif shape.style == "Cactus" then
+		-- Espinas verticales.
+		for index = 1, 5 do
+			local angle = (index / 5) * math.pi * 2
+			local spine = makePart(
+				"Spine_" .. index,
+				Vector3.new(size.X * 0.08, size.Y * 0.4, 0.08),
+				CFrame.new(
+					math.cos(angle) * (size.X * 0.38),
+					size.Y * 0.1,
+					math.sin(angle) * (size.Z * 0.38)
+				),
+				Color3.fromRGB(180, 190, 80),
+				{ material = Enum.Material.Neon }
+			)
+			spine.Parent = root
+		end
+	elseif shape.style == "Ambusher" then
+		-- Capas de sándwich: discos apilados.
+		for index = 1, 3 do
+			local layer = makePart(
+				"Layer_" .. index,
+				Vector3.new(size.X * 0.95, size.Y * 0.18, size.Z * 0.95),
+				CFrame.new(0, -size.Y * 0.12 + index * size.Y * 0.1, 0),
+				Color3.fromRGB(255, 215, 110),
+				{ material = Enum.Material.SmoothPlastic }
+			)
+			layer.Parent = root
+		end
+	elseif shape.style == "Penguin" then
+		-- Pico y aletas.
+		local beak = makePart(
+			"Beak",
+			Vector3.new(size.X * 0.25, size.Y * 0.15, 0.2),
+			CFrame.new(0, 0, -size.Z / 2 - 0.05),
+			Color3.fromRGB(240, 200, 90),
+			{ material = Enum.Material.SmoothPlastic }
+		)
+		beak.Parent = root
+
+		for _, side in ipairs({ -1, 1 }) do
+			local flipper = makePart(
+				"Flipper_" .. tostring(side),
+				Vector3.new(size.X * 0.15, size.Y * 0.45, 0.1),
+				CFrame.new(side * size.X * 0.35, 0, 0),
+				Color3.fromRGB(140, 190, 220),
+				{ material = Enum.Material.SmoothPlastic }
+			)
+			flipper.Parent = root
+		end
+	elseif shape.style == "Yeti" then
+		-- Bigote + garras: detalles de pelaje.
+		local mustache = makePart(
+			"Mustache",
+			Vector3.new(size.X * 0.6, 0.08, 0.08),
+			CFrame.new(0, -size.Y * 0.1, -size.Z / 2 - 0.02),
+			Color3.fromRGB(200, 200, 220),
+			{ material = Enum.Material.Neon, transparency = 0.3 }
+		)
+		mustache.Parent = root
+
+		for _, side in ipairs({ -1, 1 }) do
+			local claw = makePart(
+				"Claw_" .. tostring(side),
+				Vector3.new(size.X * 0.06, size.Y * 0.1, 0.12),
+				CFrame.new(side * size.X * 0.32, 0, size.Z * 0.2),
+				Color3.fromRGB(255, 240, 240),
+				{ material = Enum.Material.SmoothPlastic }
+			)
+			claw.Parent = root
+		end
+	elseif shape.style == "Ghost" then
+		-- Fantasma: translúcido con un núcleo tenue.
+		body.Transparency = 0.5
+		body.Material = Enum.Material.ForceField
+
+		local coreGlow = Instance.new("PointLight")
+		coreGlow.Name = "Glow"
+		coreGlow.Color = shape.accent
+		coreGlow.Brightness = 0.8
+		coreGlow.Range = 8
+		coreGlow.Shadows = false
+		coreGlow.Parent = root
+	elseif shape.style == "Lava" then
+		-- Núcleo fundido + goteo.
+		local core = makePart(
+			"LavaCore",
+			Vector3.new(size.X * 0.4, size.Y * 0.4, size.Z * 0.4),
+			CFrame.new(0, 0, 0),
+			Color3.fromRGB(255, 80, 20),
+			{ shape = Enum.PartType.Ball, material = Enum.Material.Neon }
+		)
+		core.Transparency = 0.2
+		core.Parent = root
+
+		local lavaLight = Instance.new("PointLight")
+		lavaLight.Name = "LavaLight"
+		lavaLight.Color = Color3.fromRGB(255, 100, 30)
+		lavaLight.Brightness = 1.5
+		lavaLight.Range = 16
+		lavaLight.Shadows = false
+		lavaLight.Parent = root
+
+		-- Goteo: partículas de lava.
+		local drip = Instance.new("ParticleEmitter")
+		drip.Name = "Drip"
+		drip.Color = ColorSequence.new(Color3.fromRGB(255, 90, 20), Color3.fromRGB(255, 50, 10))
+		drip.Lifetime = NumberRange.new(0.3, 0.6)
+		drip.Speed = NumberRange.new(3, 6)
+		drip.Rate = 4
+		drip.LightEmission = 0.8
+		drip.Size = NumberSequence.new(0.3)
+		drip.Parent = root
+	elseif shape.style == "Dragon" then
+		-- Cuernos + cola.
+		for _, side in ipairs({ -1, 1 }) do
+			local horn = makePart(
+				"Horn_" .. tostring(side),
+				Vector3.new(size.X * 0.1, size.Y * 0.35, 0.1),
+				CFrame.new(side * size.X * 0.25, size.Y * 0.45, 0)
+					* CFrame.Angles(0, 0, math.rad(side * 25)),
+				Color3.fromRGB(255, 90, 40),
+				{ material = Enum.Material.Neon }
+			)
+			horn.Parent = root
+		end
+
+		local tail = makePart(
+			"Tail",
+			Vector3.new(size.X * 0.1, size.Y * 0.6, 0.1),
+			CFrame.new(0, 0, size.Z * 0.5) * CFrame.Angles(0, math.rad(25), 0),
+			Color3.fromRGB(255, 110, 40),
+			{ material = Enum.Material.SmoothPlastic }
+		)
+		tail.Parent = root
+	elseif shape.style == "Ballista" then
+		-- Cañón que mira hacia adelante.
+		local cannon = makePart(
+			"Cannon",
+			Vector3.new(size.X * 0.3, size.Y * 0.15, size.Z * 0.7),
+			CFrame.new(0, size.Y * 0.15, 0),
+			Color3.fromRGB(160, 80, 60),
+			{ material = Enum.Material.Metal }
+		)
+		cannon.Parent = root
+
+		local muzzle = makePart(
+			"Muzzle",
+			Vector3.new(size.X * 0.15, size.Y * 0.15, 0.1),
+			CFrame.new(0, 0, -size.Z * 0.35),
+			Color3.fromRGB(255, 130, 40),
+			{ material = Enum.Material.Neon }
+		)
+		muzzle.Parent = root
+	elseif shape.style == "Robot" then
+		-- Display ocular + paneles.
+		local eye = makePart(
+			"EyeDisplay",
+			Vector3.new(size.X * 0.2, size.Y * 0.2, 0.1),
+			CFrame.new(0, 0, size.Z / 2 + 0.05),
+			Color3.fromRGB(120, 255, 140),
+			{ material = Enum.Material.Neon }
+		)
+		eye.Parent = root
+
+		for panelIndex = 1, 3 do
+			local panel = makePart(
+				"Panel_" .. panelIndex,
+				Vector3.new(size.X * 0.7, 0.08, 0.1),
+				CFrame.new(0, -size.Y * 0.15 - panelIndex * size.Y * 0.15, size.Z / 2 + 0.02),
+				Color3.fromRGB(60, 100, 140),
+				{ material = Enum.Material.Metal }
+			)
+			panel.Parent = root
+		end
+	elseif shape.style == "Hunter" then
+		-- Visor + hombreras.
+		local visor = makePart(
+			"Visor",
+			Vector3.new(size.X * 0.6, 0.12, 0.1),
+			CFrame.new(0, eyeHeight + 0.3, eyeDepth - 0.02),
+			Color3.fromRGB(100, 255, 200),
+			{ material = Enum.Material.Neon }
+		)
+		visor.Parent = root
+
+		for _, side in ipairs({ -1, 1 }) do
+			local pauldron = makePart(
+				"Pauldron_" .. tostring(side),
+				Vector3.new(size.X * 0.12, size.Y * 0.25, 0.12),
+				CFrame.new(side * size.X * 0.38, size.Y * 0.25, 0),
+				Color3.fromRGB(160, 220, 200),
+				{ material = Enum.Material.Metal }
+			)
+			pauldron.Parent = root
+		end
+	elseif shape.style == "Virus" then
+		-- Puntas de protrusión + brillo pulsátil.
+		for index = 1, 4 do
+			local angle = (index / 4) * math.pi * 2
+			local spike = makePart(
+				"Spike_" .. index,
+				Vector3.new(size.X * 0.12, size.Y * 0.3, 0.12),
+				CFrame.new(
+					math.cos(angle) * (size.X * 0.45),
+					size.Y * 0.1,
+					math.sin(angle) * (size.Z * 0.45)
+				) * CFrame.Angles(math.rad(30), 0, 0),
+				Color3.fromRGB(200, 80, 220),
+				{ material = Enum.Material.Neon }
+			)
+			spike.Parent = root
+		end
+
+		local pulse = Instance.new("PointLight")
+		pulse.Name = "Pulse"
+		pulse.Color = shape.accent
+		pulse.Brightness = 1.2
+		pulse.Range = 12
+		pulse.Shadows = false
+		pulse.Parent = root
+	elseif shape.style == "Zombie" then
+		-- Detalles de descomposición: raíces, grietas y un toque verde.
+		for index = 1, 4 do
+			local angle = (index / 4) * math.pi * 2
+			local twig = makePart(
+				"Root_" .. index,
+				Vector3.new(size.X * 0.08, size.Y * 0.35, 0.08),
+				CFrame.new(
+					math.cos(angle) * (size.X * 0.38),
+					-size.Y * 0.2,
+					math.sin(angle) * (size.Z * 0.38)
+				) * CFrame.Angles(0, 0, math.rad(25)),
+				Color3.fromRGB(60, 110, 50),
+				{ material = Enum.Material.SmoothPlastic }
+			)
+			twig.Parent = root
+		end
+
+		for index = 1, 3 do
+			local crack = makePart(
+				"Crack_" .. index,
+				Vector3.new(size.X * 0.06, size.Y * 0.5, 0.04),
+				CFrame.new(
+					math.cos(index * 2.1) * size.X * 0.2,
+					0,
+					math.sin(index * 2.1) * size.Z * 0.2
+				),
+				Color3.fromRGB(40, 60, 30),
+				{ material = Enum.Material.SmoothPlastic, transparency = 0.4 }
+			)
+			crack.Parent = root
+		end
+
+		local decayLight = Instance.new("PointLight")
+		decayLight.Name = "Decay"
+		decayLight.Color = Color3.fromRGB(100, 170, 70)
+		decayLight.Brightness = 1.0
+		decayLight.Range = 10
+		decayLight.Shadows = false
+		decayLight.Parent = root
+	elseif shape.style == "Mummy" then
+		-- Vendas enrolladas alrededor del cuerpo.
+		for index = 1, 6 do
+			local angle = (index / 6) * math.pi * 2
+			local bandage = makePart(
+				"Bandage_" .. index,
+				Vector3.new(size.X * 0.12, size.Y * 1.1, 0.1),
+				CFrame.new(
+					math.cos(angle) * (size.X * 0.42),
+					0,
+					math.sin(angle) * (size.Z * 0.42)
+				) * CFrame.Angles(0, 0, math.rad(15)),
+				shape.accent,
+				{ material = Enum.Material.SmoothPlastic }
+			)
+			bandage.Parent = root
+		end
+
+		-- Ojo brillante entre las vendas.
+		local eyeGlow = Instance.new("PointLight")
+		eyeGlow.Name = "EyeGlow"
+		eyeGlow.Color = Color3.fromRGB(255, 220, 100)
+		eyeGlow.Brightness = 1.8
+		eyeGlow.Range = 12
+		eyeGlow.Shadows = false
+		eyeGlow.Parent = root
+	elseif shape.style == "FrozenZombie" then
+		-- Cristales de hielo sobresaliendo del cuerpo.
+		for index = 1, 5 do
+			local angle = (index / 5) * math.pi * 2
+			local crystal = makePart(
+				"IceCrystal_" .. index,
+				Vector3.new(size.X * 0.08, size.Y * 0.5, 0.08),
+				CFrame.new(
+					math.cos(angle) * (size.X * 0.38),
+					size.Y * 0.2,
+					math.sin(angle) * (size.Z * 0.38)
+				) * CFrame.Angles(math.rad(20), 0, 0),
+				Color3.fromRGB(180, 235, 255),
+				{ material = Enum.Material.ForceField, transparency = 0.2 }
+			)
+			crystal.Parent = root
+		end
+
+		-- Aura de frío.
+		local coldAura = Instance.new("PointLight")
+		coldAura.Name = "ColdAura"
+		coldAura.Color = Color3.fromRGB(150, 220, 255)
+		coldAura.Brightness = 1.4
+		coldAura.Range = 14
+		coldAura.Shadows = false
+		coldAura.Parent = root
+	elseif shape.style == "CharredZombie" then
+		-- Brasas visibles en el cuerpo carbonizado.
+		local ember = makePart(
+			"Ember",
+			Vector3.new(size.X * 0.2, size.Y * 0.2, 0.2),
+			CFrame.new(0, 0, size.Z / 2 + 0.05),
+			Color3.fromRGB(255, 100, 30),
+			{ shape = Enum.PartType.Ball, material = Enum.Material.Neon }
+		)
+		ember.Parent = root
+
+		local emberLight = Instance.new("PointLight")
+		emberLight.Name = "EmberLight"
+		emberLight.Color = Color3.fromRGB(255, 120, 40)
+		emberLight.Brightness = 1.6
+		emberLight.Range = 14
+		emberLight.Shadows = false
+		emberLight.Parent = root
+
+		-- Partículas de brasa.
+		local spark = Instance.new("ParticleEmitter")
+		spark.Name = "Sparks"
+		spark.Color = ColorSequence.new(Color3.fromRGB(255, 110, 30), Color3.fromRGB(100, 50, 30))
+		spark.Lifetime = NumberRange.new(0.2, 0.5)
+		spark.Speed = NumberRange.new(2, 5)
+		spark.SpreadAngle = Vector2.new(30, 30)
+		spark.Rate = 3
+		spark.LightEmission = 0.7
+		spark.Size = NumberSequence.new(0.2)
+		spark.Parent = root
+	elseif shape.style == "Necrobyte" then
+		-- Paneles cibernéticos y arco eléctrico.
+		for index = 1, 3 do
+			local panel = makePart(
+				"Panel_" .. index,
+				Vector3.new(size.X * 0.6, 0.1, 0.1),
+				CFrame.new(0, -size.Y * 0.1 - index * size.Y * 0.12, size.Z / 2 + 0.03),
+				Color3.fromRGB(100, 120, 160),
+				{ material = Enum.Material.Metal }
+			)
+			panel.Parent = root
+		end
+
+		-- Display ocular rojo parpadeante.
+		local cyberEye = makePart(
+			"CyberEye",
+			Vector3.new(size.X * 0.25, size.Y * 0.18, 0.1),
+			CFrame.new(0, 0, size.Z / 2 + 0.05),
+			Color3.fromRGB(255, 80, 80),
+			{ material = Enum.Material.Neon }
+		)
+		cyberEye.Parent = root
+
+		local zapLight = Instance.new("PointLight")
+		zapLight.Name = "ZapLight"
+		zapLight.Color = Color3.fromRGB(180, 180, 255)
+		zapLight.Brightness = 1.7
+		zapLight.Range = 12
+		zapLight.Shadows = false
+		zapLight.Parent = root
 	end
 
 	-- ARO DE TELEGRAPH: se enciende cuando el monstruo AVISA de una carga.
@@ -737,12 +1350,14 @@ end
 --- @param radius number
 --- @param worldId string?
 --- @param vfxFolder Folder
+--- @param flavor string? "default"|"capacity"|"damage"|"radius"|"power"
 --- @return Model?
 function VisualKit.BuildExplosion(
 	position: Vector3,
 	radius: number,
 	worldId: string?,
-	vfxFolder: Folder
+	vfxFolder: Folder,
+	flavor: string?
 ): Model?
 	if not vfxFolder or not vfxFolder.Parent then
 		return nil
@@ -750,11 +1365,25 @@ function VisualKit.BuildExplosion(
 
 	local safeRadius = if radius and radius > 0 then radius else GameConfig.DefaultBombRadius
 	local skin = VisualKit.BombSkin(worldId)
+	local flavorStr = flavor or "default"
+
+	-- Tabla de sabores visuales para la explosión.
+	-- Cada sabor cambia color, tamaño o intensidad para que el jugador
+	-- identifique el tipo de bomba de un vistazo.
+	local FLAVOR_MODS = {
+		default = { coreColor = skin.glow, waveColor = skin.ring, lightBright = 6, lightRange = 40, flashColor1 = Color3.fromRGB(255, 250, 220), smokeSpeed = 22, extraFlash = 0 },
+		damage = { coreColor = Color3.fromRGB(255, 100, 40), waveColor = Color3.fromRGB(255, 120, 50), lightBright = 10, lightRange = 45, flashColor1 = Color3.fromRGB(255, 120, 40), smokeSpeed = 30, extraFlash = 1 },
+		radius = { coreColor = skin.glow, waveColor = skin.ring, lightBright = 7, lightRange = 55, flashColor1 = Color3.fromRGB(255, 250, 220), smokeSpeed = 26, extraFlash = 0, ringExtra = true },
+		capacity = { coreColor = skin.glow, waveColor = skin.ring, lightBright = 8, lightRange = 42, flashColor1 = Color3.fromRGB(255, 210, 100), smokeSpeed = 28, extraFlash = 2 },
+		power = { coreColor = Color3.fromRGB(255, 80, 30), waveColor = Color3.fromRGB(255, 180, 80), lightBright = 14, lightRange = 60, flashColor1 = Color3.fromRGB(255, 100, 30), smokeSpeed = 36, extraFlash = 3, ringExtra = true },
+	}
+
+	local mod = FLAVOR_MODS[flavorStr] or FLAVOR_MODS.default
 
 	local model = Instance.new("Model")
 	model.Name = "Explosion"
 
-	local anchor = makePart("Core", Vector3.new(1, 1, 1), CFrame.new(position), skin.glow, {
+	local anchor = makePart("Core", Vector3.new(1, 1, 1), CFrame.new(position), mod.coreColor, {
 		shape = Enum.PartType.Ball,
 		material = Enum.Material.Neon,
 		transparency = 0.1,
@@ -764,45 +1393,75 @@ function VisualKit.BuildExplosion(
 	model.Parent = vfxFolder
 
 	-- Onda: cilindro tumbado que crece hasta el RADIO y se desvanece.
+	-- El sabor "radius" o "power" duplica el aro secundario.
 	local wave = makePart(
 		"Shockwave",
 		Vector3.new(1, 0.6, 1),
 		CFrame.new(position),
-		skin.ring,
-		{ shape = Enum.PartType.Cylinder, material = Enum.Material.Neon, transparency = 0.3 }
+		mod.waveColor,
+		{ shape = Enum.PartType.Cylinder, material = Enum.Material.Neon, transparency = 0.25 }
 	)
 	wave.Orientation = Vector3.new(0, 0, 90)
 	wave.Parent = model
 
+	-- Aro secundario para sabores de radio grande: refuerza la lectura visual
+	-- del área de daño.
+	if mod.ringExtra then
+		local ring2 = makePart(
+			"Shockwave2",
+			Vector3.new(1, 0.5, 1),
+			CFrame.new(position),
+			mod.waveColor,
+			{ shape = Enum.PartType.Cylinder, material = Enum.Material.Neon, transparency = 0.55 }
+		)
+		ring2.Orientation = Vector3.new(0, 0, 90)
+		ring2.Parent = model
+	end
+
 	local light = Instance.new("PointLight")
 	light.Name = "Light"
-	light.Color = skin.glow
-	light.Brightness = 6
-	light.Range = math.max(40, safeRadius * 2)
+	light.Color = mod.coreColor
+	light.Brightness = mod.lightBright
+	light.Range = math.max(mod.lightRange, safeRadius * 2)
 	light.Shadows = false
 	light.Parent = anchor
 
 	local flash = Instance.new("ParticleEmitter")
 	flash.Name = "Flash"
-	flash.Color = ColorSequence.new(Color3.fromRGB(255, 250, 220), skin.glow)
+	flash.Color = ColorSequence.new(mod.flashColor1, mod.coreColor)
 	flash.Lifetime = NumberRange.new(0.15, 0.35)
-	flash.Speed = NumberRange.new(20, 45)
+	flash.Speed = NumberRange.new(20, 45 + mod.smokeSpeed)
 	flash.SpreadAngle = Vector2.new(180, 180)
 	flash.Rate = 0
 	flash.LightEmission = 1
 	flash.Parent = anchor
 
+	-- Chispas extra para sabores de daño: refuerzo visual del "calor".
+	if mod.extraFlash > 0 then
+		local extra = Instance.new("ParticleEmitter")
+		extra.Name = "FlashExtra"
+		extra.Color = ColorSequence.new(mod.flashColor1, Color3.fromRGB(255, 200, 80))
+		extra.Lifetime = NumberRange.new(0.1, 0.25)
+		extra.Speed = NumberRange.new(30, 60)
+		extra.SpreadAngle = Vector2.new(180, 180)
+		extra.Rate = 0
+		extra.LightEmission = 0.9
+		extra.Size = NumberSequence.new(0.6)
+		extra.Parent = anchor
+	end
+
 	local smoke = Instance.new("ParticleEmitter")
 	smoke.Name = "Smoke"
-	smoke.Color = ColorSequence.new(skin.glow, Color3.fromRGB(70, 60, 55))
+	smoke.Color = ColorSequence.new(mod.coreColor, Color3.fromRGB(70, 60, 55))
 	smoke.Lifetime = NumberRange.new(0.4, 0.8)
-	smoke.Speed = NumberRange.new(8, 22)
+	smoke.Speed = NumberRange.new(8, mod.smokeSpeed)
 	smoke.SpreadAngle = Vector2.new(180, 180)
 	smoke.Rate = 0
 	smoke.LightEmission = 0.5
 	smoke.Parent = anchor
 
 	model:SetAttribute("VisualRadius", safeRadius)
+	model:SetAttribute("Flavor", flavorStr)
 	return model
 end
 
@@ -907,6 +1566,162 @@ function VisualKit.BuildPowerup(kind: string, position: Vector3): Model?
 	label.Parent = tag
 
 	model:SetAttribute("PowerupKind", kind)
+	return model
+end
+
+-- =========================================================================
+-- ITEM DROPS (FASE 32): pickups brillantes en el mundo que cuestionan
+-- Robux al recogerse. Solo items cosméticos con DeveloperProductId.
+-- =========================================================================
+
+--- Color del brillo según rareza para los pickups del mundo.
+VisualKit.RARITY_GLOW = {
+	[ItemCatalog.Rarity.Common]    = Color3.fromRGB(255, 226, 150),
+	[ItemCatalog.Rarity.Rare]      = Color3.fromRGB(120, 200, 255),
+	[ItemCatalog.Rarity.Epic]      = Color3.fromRGB(180, 120, 255),
+	[ItemCatalog.Rarity.Legendary] = Color3.fromRGB(255, 120, 200),
+}
+
+-- Shape del pickup según categoría: alas = diamante, armas = hoja, etc.
+VisualKit.CATEGORY_SHAPE = {
+	[ItemCatalog.Category.Wings]   = { shape = Enum.PartType.Ball,  size = Vector3.new(2, 2, 2) },
+	[ItemCatalog.Category.Weapon]  = { shape = Enum.PartType.Block, size = Vector3.new(0.5, 2.2, 0.5) },
+	[ItemCatalog.Category.Vehicle] = { shape = Enum.PartType.Ball,  size = Vector3.new(2.4, 2.4, 2.4) },
+}
+
+--- Construye un pickup brillante para el mundo.
+---
+--- El modelo incluye un `Core` (BasePart con colision), un `PointLight`
+--- de brillo pulsátil, un `ParticleEmitter` de chispas y un `BillboardGui`
+--- con el nombre del item y el precio en Robux. El `ProximityPrompt` se
+--- añade desde el servicio para mantener VisualKit sin dependencias.
+--- @param definition any ItemCatalog.Get(id) — debe tener `WorldDrop = true`
+--- @param position Vector3
+--- @return Model?
+function VisualKit.BuildItemDrop(definition: any, position: Vector3): Model?
+	if type(definition) ~= "table" or not definition.Id then
+		return nil
+	end
+
+	local model = Instance.new("Model")
+	model.Name = ("ItemDrop_%s"):format(definition.Id)
+
+	local rarityGlow = VisualKit.RARITY_GLOW[definition.Rarity or ItemCatalog.Rarity.Common]
+		or Color3.fromRGB(255, 226, 150)
+
+	local shapeInfo = VisualKit.CATEGORY_SHAPE[definition.Category]
+		or { shape = Enum.PartType.Ball, size = Vector3.new(1.8, 1.8, 1.8) }
+
+	-- Root invisible: PrimaryPart del modelo, con la posicion exacta.
+	local root = makePart("Root", Vector3.new(4, 4, 4), CFrame.new(position), Color3.new(1, 1, 1), {
+		transparency = 1,
+		collide = false,
+	})
+	model.PrimaryPart = root
+	root.Parent = model
+
+	-- Núcleo del pickup: brilla con el color de rareza.
+	local core = makePart(
+		"Core",
+		shapeInfo.size,
+		CFrame.new(),
+		rarityGlow,
+		{ shape = shapeInfo.shape, material = Enum.Material.Neon, collide = true }
+	)
+	core.CanTouch = true
+	core:SetAttribute("ItemId", definition.Id)
+	core.Parent = model
+
+	-- Luz de brillo: visible de lejos, sin sombras.
+	local light = Instance.new("PointLight")
+	light.Name = "Glow"
+	light.Color = rarityGlow
+	light.Brightness = 3
+	light.Range = 20
+	light.Shadows = false
+	light.Parent = core
+
+	-- Chispas que giran: comunican "esto es interactivo".
+	local spark = Instance.new("ParticleEmitter")
+	spark.Name = "Sparkle"
+	spark.Color = ColorSequence.new(
+		Color3.fromRGB(255, 255, 220),
+		rarityGlow,
+		Color3.fromRGB(255, 255, 255)
+	)
+	spark.Lifetime = NumberRange.new(0.4, 0.8)
+	spark.Speed = NumberRange.new(1, 3)
+	spark.SpreadAngle = Vector2.new(360, 360)
+	spark.Rate = 12
+	spark.LightEmission = 0.9
+	spark.Size = NumberSequence.new({
+		NumberSequenceKeypoint.new(0, 0.4),
+		NumberSequenceKeypoint.new(1, 0),
+	})
+	spark.Parent = core
+
+	-- BillboardGui: nombre + Robux.
+	local tag = Instance.new("BillboardGui")
+	tag.Name = "Label"
+	tag.Adornee = root
+	tag.Size = UDim2.fromOffset(160, 50)
+	tag.StudsOffset = Vector3.new(0, 3.5, 0)
+	tag.AlwaysOnTop = true
+	tag.MaxDistance = 160
+	tag.Parent = root
+
+	local tagFrame = Instance.new("Frame")
+	tagFrame.Name = "Holder"
+	tagFrame.Size = UDim2.fromScale(1, 1)
+	tagFrame.BackgroundColor3 = Color3.fromRGB(10, 12, 20)
+	tagFrame.BackgroundTransparency = 0.25
+	tagFrame.BorderSizePixel = 0
+	tagFrame.Parent = tag
+
+	local tagCorner = Instance.new("UICorner")
+	tagCorner.CornerRadius = UDim.new(0, 8)
+	tagCorner.Parent = tagFrame
+
+	local tagStroke = Instance.new("UIStroke")
+	tagStroke.Color = rarityGlow
+	tagStroke.Thickness = 1
+	tagStroke.Transparency = 0.4
+	tagStroke.Parent = tagFrame
+
+	local nameLabel = Instance.new("TextLabel")
+	nameLabel.Name = "Name"
+	nameLabel.Size = UDim2.new(1, 0, 0, 20)
+	nameLabel.Position = UDim2.fromOffset(0, 4)
+	nameLabel.BackgroundTransparency = 1
+	nameLabel.BorderSizePixel = 0
+	nameLabel.Font = Enum.Font.GothamBold
+	nameLabel.Text = definition.DisplayName or definition.Id
+	nameLabel.TextColor3 = Color3.fromRGB(1, 1, 1)
+	nameLabel.TextSize = 14
+	nameLabel.TextXAlignment = Enum.TextXAlignment.Center
+	nameLabel.TextYAlignment = Enum.TextYAlignment.Center
+	nameLabel.Parent = tagFrame
+
+	local priceLabel = Instance.new("TextLabel")
+	priceLabel.Name = "Price"
+	priceLabel.Size = UDim2.new(1, 0, 0, 20)
+	priceLabel.Position = UDim2.fromOffset(0, 26)
+	priceLabel.BackgroundTransparency = 1
+	priceLabel.BorderSizePixel = 0
+	priceLabel.Font = Enum.Font.GothamBold
+	priceLabel.Text = ("Robux %d"):format(definition.DeveloperProductId or 0)
+	priceLabel.TextColor3 = Color3.fromRGB(255, 215, 0)
+	priceLabel.TextSize = 14
+	priceLabel.TextXAlignment = Enum.TextXAlignment.Center
+	priceLabel.TextYAlignment = Enum.TextYAlignment.Center
+	priceLabel.Parent = tagFrame
+
+	model:SetAttribute("ItemId", definition.Id)
+	model:SetAttribute("DeveloperProductId", definition.DeveloperProductId)
+	model:SetAttribute("Rarity", definition.Rarity or ItemCatalog.Rarity.Common)
+	-- La luz pulsa: el atributo es la frecuencia, leído por un thread del servicio.
+	model:SetAttribute("GlowPulse", true)
+
 	return model
 end
 

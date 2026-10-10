@@ -96,6 +96,27 @@ logs/
 # se versiona - un modulo vacion homonimo en Shared es trampa para el ojo.
 /src/ReplicatedStorage/Shared/MosterDefinitions.lua
 
+# Basura local del entorno de trabajo (NO versionar):
+# - `/Continue`: archivo vacio accidental (0 bytes).
+# - `/fotos/`: capturas de pantalla del usuario.
+# - `/tols/`: typo accidental de `tools/` (contiene un inspect-publish.js suelto).
+# - `/Nueva carpeta/`: carpeta vacia del explorador de Windows.
+# - Evidencia visual/scripts de debug de la sesion de rebuild de mundos
+#   (equivalente a `.ai/runtime/`: artefactos, no fuente).
+/Continue
+/fotos/
+/tols/
+/Nueva carpeta/
+.ai/screenshot*.png
+.ai/screenshot_*.png
+.ai/capture-all.js
+.ai/save-screenshot.js
+.ai/client-visual.lua
+.ai/portal-check.lua
+.ai/visual-check.lua
+.ai/world-entries.lua
+.ai/sync-verify.lua
+
 # El estado persistente de Cline se versiona COMPLETO (Master Script 30),
 # tambien el HISTORY.log, aunque `*.log` ignora los logs genericos.
 !.cline/HISTORY.log

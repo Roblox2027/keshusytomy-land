@@ -25,6 +25,7 @@ local UTILS = SHARED:WaitForChild("Utils")
 local GameConfig = require(CONFIG:WaitForChild("GameConfig"))
 local GameConstants = require(CONSTANTS:WaitForChild("GameConstants"))
 local MonsterScaleRules = require(SHARED:WaitForChild("Libraries"):WaitForChild("MonsterScaleRules"))
+local RoundScalingRules = require(SHARED:WaitForChild("Libraries"):WaitForChild("RoundScalingRules"))
 local Logger = require(UTILS:WaitForChild("Logger"))
 
 local RoundState = GameConstants.RoundState
@@ -58,6 +59,12 @@ function Service.SetPowerupService(powerupService: any?)
 end
 
 Service._bossWatchRunning = false
+
+-- Bandera del vigilante de reabastecimiento de powerups. Igual que
+-- `_bossWatchRunning`, corta el bucle al terminar la ronda: sin ella, el
+-- vigilante seguiria rellenando la arena mientras los jugadores ya estan en el
+-- lobby.
+Service._powerupRespawnRunning = false
 
 -- Destinos por nombre: "Lobby" y "Arena_<WorldId>".
 --
@@ -536,8 +543,19 @@ end
 ---
 --- Si un mundo no declara reglas, no se inventa poblacion: es mejor un mundo
 --- sin monstruos que un mundo con slimes de otro bioma.
+---
+--- DIFICULTAD PROGRESIVA: `round` (numero de ronda) hace que cada partida
+--- traiga mas enemigos que la anterior. El objetivo lo decide
+--- `RoundScalingRules.SpawnTarget`, ya acotado. Los IDs se CICLAN sobre las
+--- reglas del mundo (nunca se inventa un bicho de otro bioma): si el objetivo
+--- pide mas que `#rules`, se repiten empezando por el principio. Los topes
+--- duros de `MonsterService.Spawn` (`MaxMonsters`, `MaxAlive` por tipo) siguen
+--- siendo la ultima palabra, asi que el servidor no se satura pase lo que pase.
+--- @param worldId string?
+--- @param round number? numero de ronda (1 = primera). Por defecto 1: sin
+---   escalado, poblacion base.
 --- @return { { Id: string, Position: Vector3 } }
-function Service.BuildMonsterSpawns(worldId: string?): { { Id: string, Position: Vector3 } }
+function Service.BuildMonsterSpawns(worldId: string?, round: number?): { { Id: string, Position: Vector3 } }
 	local spawns: { { Id: string, Position: Vector3 } } = {}
 
 	local world = worldId
@@ -579,24 +597,40 @@ function Service.BuildMonsterSpawns(worldId: string?): { { Id: string, Position:
 	local halfWidth = (arena.Size.X / 2) * 0.6
 	local halfDepth = (arena.Size.Z / 2) * 0.6
 
-	for index, id in ipairs(rules) do
+	-- DIFICULTAD PROGRESIVA: cuantos monstruos tocan esta ronda. En la primera
+	-- es exactamente `#rules` (poblacion base); a partir de ahi crece por ronda
+	-- hasta el tope acotado de `RoundScalingRules`.
+	local baseCount = #rules
+	local target = RoundScalingRules.SpawnTarget(baseCount, round)
+
+	for index = 1, target do
+		-- El ID se cicla sobre las reglas del mundo: nunca sale un monstruo que
+		-- el mundo no haya declarado. En ronda 1 esto es identico a recorrer
+		-- `rules` una vez.
+		local id = rules[((index - 1) % baseCount) + 1]
 		local position
 
 		if declared[index] then
 			position = declared[index].Position + Vector3.new(0, 2, 0)
 		else
-			local angle = (index / #rules) * math.pi * 2
+			-- Sin punto declarado para este indice (los extras de rondas altas),
+			-- se recicla el anillo: el angulo se reparte sobre el objetivo total,
+			-- no sobre `#rules`, para que los extras no se apielen encima de los
+			-- base. Se suma un jitter pequeno por indice para que dos monstruos
+			-- del mismo tipo no ocupen la misma celda exacta.
+			local angle = (index / target) * math.pi * 2
+			local radiusJitter = 1 + ((index * 7) % 5) * 0.08
 			position = origin + Vector3.new(
-				math.cos(angle) * halfWidth,
+				math.cos(angle) * halfWidth * radiusJitter,
 				3,
-				math.sin(angle) * halfDepth
+				math.sin(angle) * halfDepth * radiusJitter
 			)
 		end
 
 		table.insert(spawns, { Id = id, Position = position })
 	end
 
-	Logger.Debug(("poblacion de monstruos para el mundo %s: %d"):format(world, #spawns))
+	Logger.Debug(("poblacion de monstruos para el mundo %s: %d (ronda %s)"):format(world, #spawns, tostring(round)))
 
 	return spawns
 end
@@ -813,9 +847,18 @@ function Service.SpawnMonstersForRound(worldId: string?): number
 		return 0
 	end
 
+	-- DIFICULTAD PROGRESIVA: el numero de ronda escala la poblacion. Se lee del
+	-- `RoundService` si esta conectado; si no, se trata como ronda 1 (poblacion
+	-- base), que es el comportamiento de siempre.
+	local round = 1
+
+	if Service._roundService and Service._roundService.GetRoundNumber then
+		round = Service._roundService.GetRoundNumber() or 1
+	end
+
 	local spawned = 0
 
-	for _, entry in ipairs(Service.BuildMonsterSpawns(worldId)) do
+	for _, entry in ipairs(Service.BuildMonsterSpawns(worldId, round)) do
 		-- El `worldId` se pasa al spawn para que el bicho salga con la escala
 		-- de SU mundo. Sin esto, entrar por el portal del Cyber poblaba la
 		-- arena con enemigos del tamano del Forest y la dificultad por
@@ -874,6 +917,44 @@ function Service._watchBossSpawns()
 	end)
 end
 
+--- Vigilante de reabastecimiento: rellena los puntos de powerup vacios cada
+--- `PowerupRespawnInterval` mientras la ronda corre.
+---
+--- POR QUE EXISTE: el llenado inicial (`SpawnPowerupsForRound`) ocurre una sola
+--- vez, en `RoundStarting`. Los powerups se recogen y se destruyen, asi que una
+--- arena que el jugador despeja pronto queda vacia el resto de la partida y la
+--- sensacion es "aqui ya no hay nada". Este vigilante mantiene siempre objetos
+--- que decidir si entrar o no a por ellos.
+---
+--- El relleno es SELECTIVO (`RespawnEmptyPoints`): solo toca los marcadores sin
+--- powerup vivo cerca, asi que no apila instancias ni se acerca al techo de
+--- `PerformanceConfig`. Va con `pcall`, igual que el vigilante de boss: un
+--- fallo puntual no puede tumbar el reabastecimiento de toda la ronda en
+--- silencio.
+function Service._watchPowerupRespawn()
+	task.spawn(function()
+		local interval = Service._powerupService
+			and Service._powerupService.PowerupRespawnInterval
+			or 8
+
+		while Service._powerupRespawnRunning do
+			local ok, err = pcall(function()
+				if Service._powerupService and Service._powerupService.RespawnEmptyPoints then
+					Service._powerupService.RespawnEmptyPoints()
+				end
+			end)
+
+			if not ok then
+				Logger.Error(("MatchService: el reabastecimiento de powerups fallo: %s"):format(tostring(err)))
+				Service._powerupRespawnRunning = false
+				break
+			end
+
+			task.wait(interval)
+		end
+	end)
+end
+
 --- Reacciona a los cambios de ronda.
 --- @param from string
 --- @param to string
@@ -904,6 +985,11 @@ function Service.OnRoundStateChanged(from: string, to: string)
 		-- sentido. Ver la nota larga en `SpawnBossForWorld`.
 		Service._bossWatchRunning = true
 		Service._watchBossSpawns()
+
+		-- Reabastecimiento continuo de powerups: la arena nunca queda vacia
+		-- durante la partida. Ver `_watchPowerupRespawn`.
+		Service._powerupRespawnRunning = true
+		Service._watchPowerupRespawn()
 
 	elseif to == RoundState.RoundEnding then
 		-- Las bombas que quedaran explotando danarian a los jugadores
@@ -936,6 +1022,12 @@ function Service.OnRoundStateChanged(from: string, to: string)
 		-- que el jugador, al volver al lobby, regenerara el boss que acaba de
 		-- ser limpiado.
 		Service._bossWatchRunning = false
+
+		-- Se corta el reabastecimiento antes de limpiar: si quedara corriendo,
+		-- el vigilante repondria powerups en la arena justo despues de que
+		-- `ClearAll` los borre, y el jugador volveria al lobby con objetos
+		-- flotando en un sitio donde no puede recogerlos.
+		Service._powerupRespawnRunning = false
 
 	elseif to == RoundState.Rewards then
 		Service.GrantRoundRewards()

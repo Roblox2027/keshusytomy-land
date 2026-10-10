@@ -14,13 +14,13 @@ local Lighting = game:GetService("Lighting")
 
 -- 1. Ajustes del servicio.
 	Lighting.ClockTime = 15.2
-	Lighting.Brightness = 2.4
-	Lighting.EnvironmentDiffuseScale = 0.6
-	Lighting.EnvironmentSpecularScale = 0.4
-	Lighting.ShadowSoftness = 0.25
+	Lighting.Brightness = 1.05
+	Lighting.EnvironmentDiffuseScale = 0.4
+	Lighting.EnvironmentSpecularScale = 0.22
+	Lighting.ShadowSoftness = 0.2
 	Lighting.GlobalShadows = true
-	Lighting.Ambient = Color3.fromRGB(92, 104, 118)
-	Lighting.OutdoorAmbient = Color3.fromRGB(126, 148, 138)
+	Lighting.Ambient = Color3.fromRGB(52, 62, 78)
+	Lighting.OutdoorAmbient = Color3.fromRGB(74, 96, 92)
 
 -- 2. Los objetos POR DEFECTO de Studio, que este proyecto no declara.
 --
@@ -54,6 +54,8 @@ local created = {}
 local CLASS_OF = {
 	Atmosphere = "Atmosphere",
 	ForestBloom = "BloomEffect",
+	KeshusySky = "Sky",
+	KeshusyGrade = "ColorCorrectionEffect",
 }
 
 local function ensure(name, values)
@@ -79,18 +81,39 @@ local function ensure(name, values)
 end
 
 ensure("Atmosphere", {
-	Color = Color3.fromRGB(178, 206, 196),
-	Decay = Color3.fromRGB(126, 152, 140),
-	Density = 0.22,
-	Haze = 1.6,
-	Glare = 0.25,
-	Offset = 0.1,
+	Color = Color3.fromRGB(150, 186, 180),
+	Decay = Color3.fromRGB(96, 124, 116),
+	Density = 0.18,
+	Haze = 0.7,
+	Glare = 0.02,
+	Offset = 0.15,
+})
+
+ensure("KeshusySky", {
+	CelestialBodiesShown = true,
+	MoonAngularSize = 11,
+	SunAngularSize = 21,
+	SkyboxBk = "rbxassetid://6444885077",
+	SkyboxDn = "rbxassetid://6444885459",
+	SkyboxFt = "rbxassetid://6444884785",
+	SkyboxLf = "rbxassetid://6444885077",
+	SkyboxRt = "rbxassetid://6444884785",
+	SkyboxUp = "rbxassetid://6444884335",
+	SunTextureId = "rbxassetid://6196665106",
+	MoonTextureId = "rbxassetid://6444320595",
+})
+
+ensure("KeshusyGrade", {
+	Brightness = 0.01,
+	Contrast = 0.16,
+	Saturation = 0.12,
+	TintColor = Color3.fromRGB(255, 248, 238),
 })
 
 ensure("ForestBloom", {
-	Intensity = 0.45,
-	Size = 28,
-	Threshold = 0.85,
+	Intensity = 0.3,
+	Size = 24,
+	Threshold = 1.05,
 })
 
 return string.format(

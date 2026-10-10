@@ -17,8 +17,9 @@ local GameConstants = require("../../src/ReplicatedStorage/Shared/Constants/Game
 -- El esquema se construye inyectando el mapa de canales.
 local RemoteSchema = RemoteSchemaLib.new(GameConstants.RemoteAction)
 local PayloadType = RemoteSchemaLib.PayloadType
-local BombChannel = GameConstants.RemoteAction.Bomb
-local PartyChannel = GameConstants.RemoteAction.Party
+	local BombChannel = GameConstants.RemoteAction.Bomb
+	local PartyChannel = GameConstants.RemoteAction.Party
+	local ItemDropChannel = GameConstants.RemoteAction.ItemDrop
 
 local function describeRemoteSchema()
 	Harness.describe("RemoteSchema", function()
@@ -123,6 +124,24 @@ local function describeRemoteSchema()
 			expect.toBe(RemoteSchema:GetPayloadType(BombChannel, "Place"), PayloadType.Vector3)
 			expect.toBe(RemoteSchema:GetPayloadType(PartyChannel, "Invite"), PayloadType.Number)
 			expect.toBe(RemoteSchema:GetPayloadType(BombChannel, "Inventada"), nil)
+		end)
+
+		Harness.it("el canal ItemDrop existe y Collect acepta Cadena", function()
+			expect.toBe(RemoteSchema:HasChannel(ItemDropChannel), true)
+			expect.toBe(RemoteSchema:HasAction(ItemDropChannel, "Collect"), true)
+			expect.toBe(RemoteSchema:HasAction(ItemDropChannel, "Delete"), false)
+			expect.toBe(RemoteSchema:GetPayloadType(ItemDropChannel, "Collect"), PayloadType.String)
+		end)
+
+		Harness.it("ItemDrop rechaza cadenas vacias o inseguras", function()
+			local ok1 = RemoteSchemaLib.ValidatePayload(PayloadType.String, "")
+			expect.toBe(ok1, false)
+
+			local ok2 = RemoteSchemaLib.ValidatePayload(PayloadType.String, "item\nprint(1)")
+			expect.toBe(ok2, false)
+
+			local ok3 = RemoteSchemaLib.ValidatePayload(PayloadType.String, "Wings_Angel")
+			expect.toBe(ok3, true)
 		end)
 	end)
 end

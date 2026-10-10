@@ -449,6 +449,7 @@ function analyzeWorld(id, flat) {
 		"SpawnPoint_" + id, "BossSpawn_" + id, "Exit_" + id,
 		"Blocks", "CentralStructure", "Terrain", "Hazards", "Decoration",
 		"Border", "Keshusy", "MonsterSpawns", "PowerupSpawns",
+		"BrainrotSpawns", "ChestSpawns",
 	];
 	for (const c of contract) {
 		if (!mine.find((e) => e.path === prefix + c)) {

@@ -385,10 +385,89 @@ El parcheador `patchFloorHoles` (tools/worlds.js:1876) usaba una rejilla de **4 
   clases distintas → **PASS**.
 
 #### Playtest en Studio (PLAY real)
-- **PENDING — PLAY real en los cinco mundos.** El recorrido completo
-  (entrada → zona → caída → muerte → respawn → reentrada) requiere un
-  playtest activo. Studio está conectado vía MCP en modo `edit`, pero no hay
-  playtest en ejecución (solo rol `edit`, sin `server`/`client-1`).
-- Se certifica por separado:
-  - **Integridad automática**: PASS (todos los verificadores de terreno arriba).
-  - **Inspección de juego (PLAY real)**: PENDING — no se afirma resuelto.
+- **COMPLETADO (2026-10-09):** Play arrancado via MCP (`solo_playtest` en modo `play`
+  con roles `edit`, `server`, `client-1`). El jugador spawnó en el lobby a
+  (24, 5, 0), nivel 1, 100 HP, RoundState = "Waiting".
+- **Recuento de piezas en runtime (servidor de Play)**: idéntico al source:
+  Forest 4162, Desert 2610, Ice 2417, Volcano 2564, Cyber 2834 (más el lobby y
+  stations). **0 piezas en (0,0,0)** → ninguna amontonada en el origen.
+- **Recorrido por los cinco portales** (`PortalService.HandleEnter` con cooldown
+  de 4s entre entradas, `PORTAL_COOLDOWN = 3`):
+
+| Mundo | CanTravel | IsWorldAvailable | Estado | Spawn destino | Posición destino |
+|-------|-----------|------------------|--------|----------------|------------------|
+| Forest | true | true | Open | 492, 4, -158 | ✓ |
+| Desert | true | true | Open | -1360, 4, 1171 | ✓ |
+| Ice | true | true | Open | 1234, 4, 1185 | ✓ |
+| Volcano | true | true | Open | -1363, 4, -1414 | ✓ |
+| Cyber | true | true | Open | 1238, 4, -1417 | ✓ |
+
+- **Seguridad de portales**: `CanTravel` rechaza correctamente `worldId`
+  inexistente, vacío, numérico, tabla, y "no se abandona una ronda en curso".
+  `IsPortalUsable` verifica `State == Open` antes de permitir viaje.
+- **Nota sobre `DISABLED_WORLDS` en `portal-source-audit.js`**: el conjunto
+  `{Desert, Ice, Volcano, Cyber}` es una constante *hardcodeada* de la versión
+  anterior. Desde FASE 3, `WorldAccessRules.CanEnter` abre todos los mundos desde
+  nivel 1 (`WorldAccessRules.OpenLevel = 1`). Los paneles de los 4 "mundos
+  deshabilitados" muestran su color original de la fuente, no el gris 70/74/86,
+  porque los mundos NO están deshabilitados. La auditoría de apariencia
+  (`portal-source-audit.js`) necesita actualizarse para reflejar que todos los
+  portales están activos.
+
+---
+
+## FASE 6 — Sincronización Source↔Studio y verificación integral
+
+### Problema
+El plugin de Rojo no está conectado a la sesión de Studio. La geometría del
+mapa (14,365 partes) y el HUD (144 instancias) no llegaban al DataModel,
+requiriendo un pipeline de sincronización manual por MCP. Además,
+`import_rbxm` dejaba las posiciones en `(0,0,0)` y creaba carpetas anidadas
+duplicadas (defecto de sincronización #11 en `docs/sync-defects.md`).
+
+### Corrección
+1. **`sync-all.js`**: pipeline idempotente que ejecuta en orden:
+   - `rojo build` → genera `default.project.json`
+   - `reset-map.lua` → purga el mapa previo (solo si está en estado inválido)
+   - `import_rbxm` → importa el subárbol `Workspace` como `.rbxm`
+   - `import_rbxm` (con `SYNC_CLASS=Folder`) → importa `StarterGui`
+   - `merge-startergui.lua` → reubica el HUD, borra wrappers, descarta RemoteEvents huérdos
+   - `merge-workspace.lua` → sube hijos del wrapper, borra el envoltorio
+   - `dedupe-workspace.lua` → colapsa homónimos recursivamente
+   - `dedupe-code.lua` → elimina duplicados de código (CoreRules, VisualService, etc.)
+   - `fix-starterscripts.lua` → contenedor real de StarterPlayer
+   - `apply-map-positions.js --run` → coloca todas las posiciones/color/size/rotation desde la fuente
+   - `sync-lighting.lua` → ajusta Lighting y efectos
+   - `sync-scripts.js` → escribe los 63 scripts de servidor
+   - `dedupe-code.lua` (segunda pasada) → limpieza post-scripts
+   - `source-runtime-diff.js` → verificación final
+
+2. **`sync-hud.js`**: reconstrucción completa del HUD desde el generador
+   `tools/hud.js`. Resolvió 46 elementos faltantes + 6 sobrantes de UI scale/padding
+   en el `AutoRecovery_0.rbxl` (HUD con UIScale en el padre en vez del contenido).
+
+3. **`apply-map-positions.js`**: el `import_rbxm` de Studio deja `Position = (0,0,0)`.
+   Este script lee `default.project.json` y aplica posición, tamaño, orientación,
+   color, material, transparencia, CanCollide y Shape a cada una de las 14,365 partes
+   desde la fuente única.
+
+### Verificación
+- **`source-runtime-diff.js`**: **PASS** — 0 faltan, 0 sobran, 0 clases distintas
+  (15,013 source == 15,021 runtime; diferencia de 8 es `Terrain`/`Camera` engine-owned).
+- **`apply-map-positions.js --run`** (edit-mode): 14,365 partes declaradas,
+  `alreadyCorrect = 14,365`, `missingFromRuntime = 0`, `fixedPosition = 0`
+  (todo ya estaba en su sitio tras el `sync-all.js`).
+- **`portal-verify.js`**: 5 portales registrados, todos `State = Open`,
+  `RequiredLevel = 1`, seguridad de worldId verificada.
+- **Traversal en Play**: los 5 mundos son entrados correctamente con cooldown de 4s
+  entre entradas (`PORTAL_COOLDOWN = 3`). Posiciones de spawn coinciden con source.
+- **`portal-source-audit.js`**: todos los elementos de los portales coinciden
+  (color, material) excepto paneles de mundos "deshabilitados" que son un
+  hardcodeo obsoleto (ver nota arriba).
+- **Suite Luau**: 70 suites, 1104 tests, **0 fallos** (anteriormente 11 fallos
+  por specs faltantes de FASE 5–8).
+- **`verify:structure`**: 45 servicios, estructura correcta.
+- **`verify:wiring`**: 36 servicios, 24 conexiones, 51 llamadas, todos los métodos cableados existen.
+- **`npm run verify`**: PASS completo (todos los sub-tests en verde).
+- **`analyze.js`**: FAIL preexistente (521 incidencias, documentado en
+  `GAMEPLAY_AUDIT.md` línea 241). No está relacionado con esta sesión.

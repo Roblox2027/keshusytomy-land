@@ -96,6 +96,21 @@ Service.MagnetPullSpeed = 18
 Service.FreezeDuration = 5
 Service.FreezeRadius = 55
 
+-- REABASTECIMIENTO durante la ronda.
+--
+-- El llenado inicial (`SpawnForRound`) ocurre UNA vez, en `RoundStarting`: el
+-- jugador que tarda en llegar, o que recoge todo al principio, se queda con la
+-- arena vacia el resto de la partida. El vigilante de `MatchService` llama a
+-- `RespawnEmptyPoints` cada este intervalo para que el mapa "se reponga" y
+-- siempre haya algo que decidir. 8 s es bastante para notar el relleno sin que
+-- parezca magia instantanea.
+Service.PowerupRespawnInterval = 8
+
+-- Distancia bajo la cual un punto se considera OCUPADO por otro powerup vivo.
+-- Evita apilar dos objetos en el mismo marcador si el vigilante corre dos
+-- veces antes de que el jugador llegue.
+Service.RespawnClearance = 4
+
 --- Carpeta unica donde viven los powerups.
 --- @return Folder?
 function Service.GetFolder(): Folder?
@@ -534,6 +549,59 @@ function Service.SpawnForRound(worldId: string?): number
 
 	if spawned > 0 then
 		Logger.Info(("%d powerup(s) generados en %s"):format(spawned, world))
+	end
+
+	return spawned
+end
+
+--- Rellena SOLO los puntos de spawn vacios (sin powerup vivo cerca).
+---
+--- Es el reabastecimiento durante la partida: el llenado inicial deja la arena
+--- surtida una vez, pero los powerups se recogen y se destruyen. Sin esto, una
+--- arena que el jugador despeja al principio queda vacia el resto de la ronda y
+--- "no hay nada que hacer".
+---
+--- La regla de ocupacion evita duplicar objetos en el mismo marcador: si ya hay
+--- un powerup vivo a menos de `RespawnClearance` del punto, ese punto se
+--- considera surtido y se salta. Asi el vigilante puede correr con libertad sin
+--- apilar instancias ni acercarse al techo de `PerformanceConfig`.
+--- @param worldId string?
+--- @return number spawned
+function Service.RespawnEmptyPoints(worldId: string?): number
+	local world = worldId
+		or (Service._worldService and Service._worldService.GetDefaultWorldId())
+
+	if not world then
+		return 0
+	end
+
+	local points = Service.CollectSpawnPoints(world)
+	local folder = Service._folder
+	local spawned = 0
+
+	for index, point in ipairs(points) do
+		local occupied = false
+
+		if folder then
+			for _, child in ipairs(folder:GetChildren()) do
+				local core = child:IsA("Model") and child:FindFirstChild("Core")
+
+				if core and core:IsA("BasePart") then
+					if (core.Position - point.Position).Magnitude <= Service.RespawnClearance then
+						occupied = true
+						break
+					end
+				end
+			end
+		end
+
+		if not occupied then
+			local kind = KINDS[((index - 1) % #KINDS) + 1]
+
+			if Service.Spawn(kind, point.Position + Vector3.new(0, 1.5, 0)) then
+				spawned += 1
+			end
+		end
 	end
 
 	return spawned

@@ -88,5 +88,14 @@ return {
 		-- Eventos dinámicos (FASE 6): el servidor publica estado de fase
 		-- (WARNING/ACTIVE/RECOVERY) y el cliente solo muestra el HUD.
 		Event = "EventAction",
+		-- Cofres físicos (FASE 20): el cliente pide la oferta de habilidades,
+		-- reclama y consulta el estado. El servidor decide el mundo, el
+		-- tipo de cofre y la recompensa.
+		Chest = "ChestAction",
+		-- Objetos del mundo (FASE 32): pickups brillantes que cuestionan
+		-- Robux al recogerse. El cliente envia solo el `pickupId` del
+		-- objeto; el servidor valida proximidad, el producto de desarrollador
+		-- y el precio antes de abrir la puerta de pago.
+		ItemDrop = "ItemDropAction",
 	},
 }

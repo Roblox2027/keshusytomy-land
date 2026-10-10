@@ -24,6 +24,7 @@
     "verify:env": "node tools/verify-environment.js",
     "hud:geometry": "node tools/dump-hud-geometry.js",
     "rojo:build": "rojo\\rojo.exe build default.project.json -o .ai\\runtime\\latest.rbxlx",
+    "build:game": "node tools/build-game.js",
     "rojo:serve": "rojo\\rojo.exe serve default.project.json",
     "runtime:scan": "node tools/diagnostics/runtime-scan.js",
     "mcp:list": "node tools/studio-mcp.js list",

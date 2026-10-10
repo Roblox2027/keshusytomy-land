@@ -46,6 +46,7 @@ local Logger = require(UTILS:WaitForChild("Logger"))
 -- la configuracion y no debe repetirse como numero magico en el handler.
 local GameConfig = require(CONFIG:WaitForChild("GameConfig"))
 local GameConstants = require(SHARED:WaitForChild("Constants"):WaitForChild("GameConstants"))
+local ItemCatalog = require(CONFIG:WaitForChild("ItemCatalog"))
 local ServiceRegistry = require(SERVER:WaitForChild("Systems"):WaitForChild("ServiceRegistry"))
 local RemoteGateway = require(SERVER:WaitForChild("Systems"):WaitForChild("RemoteGateway"))
 
@@ -153,6 +154,17 @@ local questService = nil
 -- ActivityService (exploracion, FASE 3). Comparte pareja economica con
 -- QuestService: lee el perfil y paga con la economia.
 local activityService = nil
+
+-- BrainrotService y ChestService. Se assignan a nivel de modulo para
+-- que los handlers de REMOTE_CHANNELS puedan consultarlos.
+-- BrainrotService no necesita un canal remoto (usa MonsterService para
+-- todo); ChestService sí usa ChestAction para la oferta y consulta.
+local brainrotService = nil
+local chestService = nil
+local skillService = nil
+
+-- ItemDropService: pickups brillantes que cobran Robux (FASE 32).
+local itemDropService = nil
 
 -- AntiExploitService. Es el UNICO modulo de este archivo que se consulta
 -- DENTRO de un handler de remoto, asi que necesita una referencia de
@@ -460,6 +472,16 @@ local SERVICES = {
 		dependencies = { "NightService" },
 	},
 
+	-- PvpService: enciende la arena PvP del lobby (asigna bandos, teletransporta
+	-- y publica `PvpActive`/`PvpTeam`). Es autonomo: no depende de nadie porque
+	-- no aplica dano ni mueve logica de ronda. `CombatService` lee sus atributos
+	-- en tiempo de ejecucion, asi que el orden de arranque es indiferente.
+	{
+		name = "PvpService",
+		module = SERVER.Services.PvpService,
+		dependencies = {},
+	},
+
 	-- HazardService: la mecanica caracteristica de cada mundo (mision
 	-- V2, FASE 3): emboscadas, arenas movedizas, viento, lava y laseres.
 	-- Depende de `CombatService` (autoridad de dano) y `MonsterService`
@@ -521,6 +543,45 @@ local SERVICES = {
 		dependencies = { "ProfileService" },
 	},
 
+	-- BrainrotService: NPCs pacíficos errantes en el mapa (FASE 20).
+	--
+	-- Depende de `MonsterService` (crea el modelo y la IA) y `WorldService`
+	-- (resuelve los mundos). Se declara DESPUÉS de MonsterService porque
+	-- necesita que el servicio de monstruos ya esté registrado.
+	{
+		name = "BrainrotService",
+		module = SERVER.Services.BrainrotService,
+		dependencies = { "WorldService", "MonsterService" },
+	},
+
+	-- ChestService: cofres físicos que otorgan habilidades pasivas (FASE 20).
+	-- Depende de ProfileService (estado de habilidades) y WorldService
+	-- (resuelve los mundos). El ProximityPrompt se conecta en Start, igual
+	-- que SecretService.
+		{ name = "ChestService",
+		module = SERVER.Services.ChestService,
+		dependencies = { "ProfileService", "WorldService" },
+	},
+
+	-- SkillService: aplica habilidades pasivas de cofres (FASE 20).
+	-- Depende de ProfileService (lee habilidades desbloqueadas).
+	-- BombService y ChestService lo inyectan para aplicar radio/daño/
+	-- capacidad y recalcular tras abrir un cofre.
+	{
+		name = "SkillService",
+		module = SERVER.Services.SkillService,
+		dependencies = { "ProfileService" },
+	},
+
+	-- ItemDropService: pickups brillantes en el mapa que cuestionan Robux
+	-- al recogerse (FASE 32). Depende de ProfileService (estado) e
+	-- InventoryService (entrega tras el pago). WorldService es opcional.
+	{
+		name = "ItemDropService",
+		module = SERVER.Services.ItemDropService,
+		dependencies = { "ProfileService", "InventoryService", "WorldService" },
+	},
+
 	-- PuzzleService: doble interruptor por mundo (mision V2, FASES 13/14).
 	-- Depende de `EconomyService` (pago); `QuestService` es opcional.
 	{
@@ -567,6 +628,7 @@ local function wireDependencies(registry: any): { string }
 	roundService = registry:Get("RoundService")
 	local playerService = registry:Get("PlayerService")
 	local combatService = registry:Get("CombatService")
+	local pvpService = registry:Get("PvpService")
 	local explosionService = registry:Get("ExplosionService")
 	local bombService = registry:Get("BombService")
 	local destructionService = registry:Get("DestructionService")
@@ -587,6 +649,9 @@ local function wireDependencies(registry: any): { string }
 	local hazardService = registry:Get("HazardService")
 	local miniBossService = registry:Get("MiniBossService")
 	local secretService = registry:Get("SecretService")
+	local brainrotService = registry:Get("BrainrotService")
+	local chestService = registry:Get("ChestService")
+	local skillService = registry:Get("SkillService")
 
 	-- Los seis de economia, inventario, progresion, perfil, datos y tienda.
 	local dataService = registry:Get("DataService")
@@ -765,6 +830,9 @@ local function wireDependencies(registry: any): { string }
 			-- defecto quedaba sin nombre y `IsInsideArena` caia al primer
 			-- nombre de la tabla.
 			service.SetWorldService(worldService)
+			if skillService then
+				service.SetSkillService(skillService)
+			end
 		end
 	)
 
@@ -1005,6 +1073,65 @@ local function wireDependencies(registry: any): { string }
 		end
 	)
 
+	-- BrainrotService: NPCs errantes en el mapa de exploracion (FASE 20).
+	-- Depende de MonsterService (crea el modelo y la IA) y WorldService
+	-- (resuelve los mundos). BestiaryService ya esta cableado a MonsterService,
+	-- asi que los brainrots que mueren se registran en el bestiario automaticamente.
+	connect(
+		"BrainrotService",
+		brainrotService,
+		{ "WorldService", "MonsterService" },
+		function(service: any)
+			service.SetDependencies(monsterService, worldService)
+		end
+	)
+
+	-- ChestService: cofres fisicos que otorgan habilidades pasivas (FASE 20).
+	-- Depende de ProfileService (estado de habilidades) y WorldService
+	-- (resuelve los mundos). Usa ProximityPrompt para la interaccion,
+	-- igual que SecretService: NO necesita un canal remoto.
+	connect(
+		"ChestService",
+		chestService,
+		{ "ProfileService", "WorldService" },
+		function(service: any)
+			service.SetDependencies(profileService)
+		end
+	)
+
+	-- SkillService -> ProfileService: SkillService lee habilidades desbloqueadas.
+	connect(
+		"SkillService",
+		skillService,
+		{ "ProfileService" },
+		function(service: any)
+			service.SetDependencies(profileService)
+		end
+	)
+
+	-- ItemDropService: pickups brillantes que cuestionan Robux (FASE 32).
+	-- Depende de ProfileService (estado) e InventoryService (entrega).
+	-- `WorldService` se inyecta opcionalmente para resolver el mundo activo.
+	connect(
+		"ItemDropService",
+		itemDropService,
+		{ "ProfileService", "InventoryService", "WorldService" },
+		function(service: any)
+			service.SetDependencies(profileService, inventoryService)
+			if worldService then
+				service.SetWorldService(worldService)
+			end
+		end
+	)
+
+	-- ChestService -> SkillService: al abrir un cofre se recalculan las stats.
+	if chestService and skillService then
+		pcall(function()
+			chestService.SetSkillService(skillService)
+		end)
+		table.insert(report, "[WIRING OK] ChestService -> SkillService")
+	end
+
 	-- PowerupService -> MonsterService: la flecha que hace que CONGELAR
 	-- tenga efecto.
 	--
@@ -1033,6 +1160,27 @@ local function wireDependencies(registry: any): { string }
 		table.insert(report, "[WIRING OK] MatchService -> PowerupService")
 	else
 		table.insert(report, "[WIRING FAIL] MatchService/PowerupService no disponibles")
+	end
+
+	-- CombatService -> PvpService: la flecha que ENCIENDE el marcador y el
+	-- killfeed. `CombatService` es la autoridad del killer (atribuye y
+	-- contabiliza), y este listener es el unico aviso que recibe el marcador de
+	-- la arena PvP. Sin el, las kills de la arena no se verian nunca: el
+	-- marcador existiria mostrando "Sin kills aun" para siempre.
+	--
+	-- Va con `pcall` y fuera del `connect` de arranque porque es una flecha
+	-- inversa al orden topologico (PvpService no depende de CombatService).
+	if combatService and pvpService and combatService.SetKillListener then
+		pcall(function()
+			combatService.SetKillListener(function(killer: any, victim: any)
+				if pvpService._onKill then
+					pvpService._onKill(killer, victim)
+				end
+			end)
+		end)
+		table.insert(report, "[WIRING OK] CombatService -> PvpService (marcador PvP)")
+	else
+		table.insert(report, "[WIRING FAIL] CombatService/PvpService no disponibles")
 	end
 
 	-- La flecha va de ExplosionService HACIA MonsterService: sin esto las
@@ -1455,6 +1603,84 @@ local REMOTE_CHANNELS = {
 			end
 		end,
 	},
+
+	-- El canal de cofres. El payload es el `chestKey` que el jugador quiere
+	-- reclamar: el servidor comprueba proximidad, estado y si ya fue abierto
+	-- antes de entregar la habilidad. Las respuestas van por atributos
+	-- (`SkillCount`, `SkillUnlockedId`, `ChestJustOpened`).
+	[GameConstants.RemoteAction.Chest] = {
+		RequestOffer = function(player: Player, _payload: any)
+			if chestService then
+				chestService.PublishOffer(player)
+			end
+		end,
+
+		Claim = function(player: Player, payload: any)
+			if not chestService then
+				Logger.Warn("ChestAction.Claim recibido sin ChestService")
+				return
+			end
+
+			local allowed, reason = Service_CheckRequest(player, "ChestAction", "Claim", {
+				serverState = roundService and roundService.GetState() or nil,
+				distance = measureDistance(player, payload and payload.Position or Vector3.new()),
+				maxDistance = 14,
+			})
+
+			if not allowed then
+				Logger.Debug(("cofre rechazado por anti-exploit para %s: %s"):format(
+					player.Name, tostring(reason)
+				))
+				return
+			end
+
+			chestService.TryClaim(player, payload)
+		end,
+
+		Query = function(player: Player, _payload: any)
+			if chestService then
+				chestService.PublishQuery(player)
+			end
+		end,
+	},
+
+	-- Pickups brillantes en el mapa (FASE 32). El payload es el `itemId`
+	-- (string) del pickup que el jugador quiere recoger. El servidor busca
+	-- el pickup en su carpeta, valida distancia y abre la puerta de pago
+	-- de Robux. Nunca se confia en una posicion del cliente.
+	[GameConstants.RemoteAction.ItemDrop] = {
+		Collect = function(player: Player, payload: any)
+			if not itemDropService then
+				Logger.Warn("ItemDropAction.Collect recibido sin ItemDropService")
+				return
+			end
+
+			if type(payload) ~= "string" or payload == "" then
+				return
+			end
+
+			local definition = ItemCatalog.Get(payload)
+			if not definition or not definition.WorldDrop then
+				return
+			end
+
+			-- Busca el pickup activo con ese itemId en la carpeta.
+			local folder = itemDropService.GetFolder()
+			if not folder then
+				return
+			end
+
+			for _, child in ipairs(folder:GetChildren()) do
+				if child:IsA("Model") and child:GetAttribute("ItemId") == payload then
+					local core = child:FindFirstChild("Core")
+					if core and core:IsA("BasePart") then
+						itemDropService.RequestCollect(player, payload, core.Position)
+						return
+					end
+				end
+			end
+		end,
+	},
 }
 
 --- Comprueba que los modulos base esten presentes y sean validos.
@@ -1604,6 +1830,10 @@ function ServerMain.Start(): boolean
 	codeService = registry:Get("CodeService")
 	questService = registry:Get("QuestService")
 	activityService = registry:Get("ActivityService")
+	brainrotService = registry:Get("BrainrotService")
+	chestService = registry:Get("ChestService")
+	skillService = registry:Get("SkillService")
+	itemDropService = registry:Get("ItemDropService")
 	antiExploitService = registry:Get("AntiExploitService")
 
 	for _, name in ipairs({

@@ -40,19 +40,25 @@
 const color = (r, g, b) => [r / 255, g / 255, b / 255];
 
 // Paleta del HUD, centralizada para que ningun panel invente su propio tono.
+//
+// Tema "GAMER PROFESIONAL": fondo oscuro profundo, acentos de neón y
+// transparencias que dejan ver el juego sin perder legibilidad.
 const THEME = {
-	panel: color(16, 19, 28),
-	accent: color(120, 190, 255),
+	panel: color(12, 14, 22),
+	panelDeep: color(8, 10, 16),
+	accent: color(100, 200, 255),
+	accentGlow: color(60, 160, 255),
 	crystal: color(150, 220, 255),
 	ember: color(255, 176, 90),
 	hp: color(255, 96, 110),
 	bomb: color(255, 200, 90),
-	xp: color(150, 255, 190),
+	xp: color(120, 255, 190),
 	coin: color(255, 214, 110),
 	gem: color(196, 150, 255),
 	level: color(255, 236, 150),
 	text: color(236, 241, 255),
-	textDim: color(176, 188, 214),
+	textDim: color(140, 160, 190),
+	textMuted: color(100, 120, 150),
 };
 
 /**
@@ -96,7 +102,7 @@ function card(name, opts) {
 			UICorner: { $className: "UICorner", $properties: { CornerRadius: [0, 10] } },
 			UIStroke: {
 				$className: "UIStroke",
-				$properties: { Color: THEME.accent, Thickness: 1, Transparency: 0.7 },
+				$properties: { Color: THEME.accent, Thickness: 2, Transparency: 0.5 },
 			},
 		},
 	};
@@ -297,7 +303,7 @@ function buildTopBar() {
 		$className: "Frame",
 		$properties: {
 			BackgroundColor3: THEME.panel,
-			BackgroundTransparency: 0.2,
+			BackgroundTransparency: 0.15,
 			BorderSizePixel: 0,
 			Position: [0, EDGE, 0, 10],
 			Size: [1, -EDGE * 2, 0, TOP_CARD_H],
@@ -306,7 +312,7 @@ function buildTopBar() {
 		UICorner: { $className: "UICorner", $properties: { CornerRadius: [0, 12] } },
 		UIStroke: {
 			$className: "UIStroke",
-			$properties: { Color: THEME.accent, Thickness: 1, Transparency: 0.7 },
+			$properties: { Color: THEME.accent, Thickness: 2, Transparency: 0.5 },
 		},
 		// `UIListLayout`: los dos bloques (identidad y recursos) se separan
 		// solos. Sin el, la separacion seria un offset mas que se desincroniza
@@ -315,7 +321,7 @@ function buildTopBar() {
 			$className: "UIListLayout",
 			$properties: {
 				FillDirection: "Horizontal",
-				Padding: { UDim: [0, 14] },
+				Padding: { UDim: [0, 16] },
 				SortOrder: "LayoutOrder",
 				VerticalAlignment: "Center",
 			},
@@ -323,10 +329,10 @@ function buildTopBar() {
 		UIPadding: {
 			$className: "UIPadding",
 			$properties: {
-				PaddingLeft: { UDim: [0, 14] },
-				PaddingRight: { UDim: [0, 14] },
-				PaddingTop: { UDim: [0, 8] },
-				PaddingBottom: { UDim: [0, 8] },
+				PaddingLeft: { UDim: [0, 16] },
+				PaddingRight: { UDim: [0, 16] },
+				PaddingTop: { UDim: [0, 10] },
+				PaddingBottom: { UDim: [0, 10] },
 			},
 		},
 	};
@@ -389,6 +395,31 @@ function buildTopBar() {
 	currency.Gems.$properties.Size = [1, 0, 0, 20];
 	cardNode.Currency = currency;
 
+	// Boton de AUDIO: vive en la BARRA SUPERIOR, no dentro del panel de
+	// misiones. Asi se puede OCULTAR el panel de misiones cuando no hay nada
+	// que hacer sin perder el acceso al volumen. Entra en el `UIListLayout`
+	// horizontal de la barra (LayoutOrder 3) y `UIController.bindAudioSettings`
+	// lo enlaza con el panel `Overlays.AudioSettings`.
+	cardNode.AudioToggle = {
+		$className: "TextButton",
+		$properties: {
+			BackgroundTransparency: 1,
+			BorderSizePixel: 0,
+			Font: "GothamBold",
+			LayoutOrder: 3,
+			Size: [0, 62, 0, 22],
+			Text: "AUDIO",
+			TextColor3: THEME.accent,
+			TextSize: 10,
+			TextScaled: false,
+			TextXAlignment: "Right",
+			TextYAlignment: "Center",
+			TextWrapped: false,
+			AutoButtonColor: false,
+			ZIndex: 3,
+		},
+	};
+
 	zoneNode.Bar = cardNode;
 	// `UIScale` va en el CONTENIDO (`Bar`), NO en la zona. Escalar la zona
 	// encogia su propio rectangulo, asi que una barra de ancho completo se
@@ -422,6 +453,10 @@ function buildLeftPanel() {
 	missionCard.node.$properties.ZIndex = 1;
 	// Escala en la TARJETA, no en la zona: ver la nota de `buildTopBar`.
 	missionCard.node.Scale = { $className: "UIScale", $properties: { Scale: 1 } };
+	// MISIONES arranca OCULTO. Solo aparece cuando hay misiones listas para
+	// reclamar (lo decide `UIController.refresh`): un panel de misiones fijo en
+	// la esquina estorba y el jugador aprende a ignorarlo.
+	missionCard.node.$properties.Visible = false;
 
 	// Cabecera plegable. Sin esto el jugador no puede quitarse de delante lo
 	// que no le importa en ese momento, y un HUD que no se aparta estorba.
@@ -445,25 +480,8 @@ function buildLeftPanel() {
 		},
 	};
 	missionCard.node.Toggle = toggle;
-	missionCard.node.AudioToggle = {
-		$className: "TextButton",
-		$properties: {
-			BackgroundTransparency: 1,
-			BorderSizePixel: 0,
-			Font: "GothamBold",
-			Position: [1, -62, 0, 0],
-			Size: [0, 58, 0, 22],
-			Text: "AUDIO",
-			TextColor3: THEME.accent,
-			TextSize: 10,
-			TextScaled: false,
-			TextXAlignment: "Right",
-			TextYAlignment: "Center",
-			TextWrapped: false,
-			AutoButtonColor: false,
-			ZIndex: 4,
-		},
-	};
+	// El boton de AUDIO se movio a la barra superior (`TopBar.Bar.AudioToggle`)
+	// para poder ocultar este panel sin perder el control de volumen.
 
 	// El CUERPO se separa de la cabecera para que plegarla sea cambiar
 	// `Visible` de un solo hijo, y no reconstruir el panel.
@@ -618,6 +636,10 @@ function buildRightPanel() {
 		tint: THEME.text,
 		size2: 14,
 	});
+	// OBJETIVO arranca OCULTO. `UIController.refresh` solo lo muestra cuando
+	// hay una horda o un evento reales. Mostrar ahi el nombre del mundo es
+	// redundante con la barra superior ("MUNDO: X") y estorba.
+	objective.node.$properties.Visible = false;
 	node.Objective = objective.node;
 
 	// Bombas VIVAS del jugador. Se oculta cuando no hay ninguna: un "x0"
@@ -969,6 +991,11 @@ function buildOverlays() {
 	});
 	timer.node.$properties.AnchorPoint = [0.5, 0];
 	timer.node.$properties.ZIndex = 1;
+	timer.node.$properties.BackgroundTransparency = 0.15;
+	timer.node.$properties.BackgroundColor3 = THEME.panelDeep;
+	timer.node.UIStroke.$properties.Color = THEME.ember;
+	timer.node.UIStroke.$properties.Thickness = 1;
+	timer.node.UIStroke.$properties.Transparency = 0.3;
 	timer.node.Round = label("Round", {
 		position: [0, 8, 0, 4],
 		size: [1, -16, 0, 16],

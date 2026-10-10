@@ -88,9 +88,10 @@ local function describeMonsterScale()
 			-- nueve arquetipos (Slime, BombBug, Shadow, Hunter, Guardian,
 			-- IceBeast, FireBeast, Bomber, CyberStalker), hay un boss por
 			-- mundo y un mini-boss por zona (15 total).
+			-- A los nueve arquetipos se anaden 5 zombies halloween (1 por mundo).
 			local ids = allIds()
 
-			expect.toBe(#ids, 29)
+			expect.toBe(#ids, 49)
 
 			-- Y el reparto tiene que seguir siendo el de la especificacion:
 			-- cinco bosses, uno por mundo, y ninguno compartido.

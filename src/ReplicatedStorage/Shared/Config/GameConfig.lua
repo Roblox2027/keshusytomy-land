@@ -26,7 +26,7 @@ return {
 	GameName = "KeshusyTomy-LanD",
 	GameVersion = "0.1.0",
 	ContentVersion = "0.1.0",
-	DataVersion = 3,
+	DataVersion = 4,
 
 	DebugMode = true,
 
@@ -289,11 +289,17 @@ return {
 	-- ---------------------------------------------------------------
 	XPMultiplier = 1,
 	CoinMultiplier = 1,
-	XPPerKill = 25,
-	CoinsPerKill = 10,
-	-- Recompensa base por terminar la ronda, para cualquier jugador.
-	XPPerRound = 50,
-	CoinsPerRound = 25,
+	-- Recompensas ajustadas para que el bucle central (matar -> progresar ->
+	-- volver) sea gratificante desde la primera partida. Un kill debe notarse
+	-- en la barra de experiencia y en el monedero; con 25/10 la sensacion era
+	-- "mucho esfuerzo para poco avance" y el jugador no repetia ronda. Se
+	-- mantienen por encima de 0 (contrato de `Gameplay.spec`).
+	XPPerKill = 40,
+	CoinsPerKill = 18,
+	-- Recompensa base por terminar la ronda, para cualquier jugador. Premia
+	-- participar aunque no se gane: estar en la arena ya cuesta algo.
+	XPPerRound = 80,
+	CoinsPerRound = 50,
 
 	-- Recompensa por SUBIR de nivel. Es una FUNCION del nivel, no una
 	-- tabla guardada: si se guardase, un jugador con un perfil viejo

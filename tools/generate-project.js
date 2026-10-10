@@ -16,6 +16,7 @@ const path = require("path");
 const Worlds = require("./worlds");
 const Portals = require("./portals");
 const Hud = require("./hud");
+const Premium = require("./lobby-premium");
 
 const ROOT = path.join(__dirname, "..");
 const PROJECT = path.join(ROOT, "default.project.json");
@@ -306,7 +307,9 @@ function perimeter(prefix, cx, cz, half, height, colorRGB) {
 //
 // El suelo arranca en Y = -1 con grosor 2: su cara superior queda
 // exactamente en Y = 0, que es la altura de referencia del mapa.
-const LOBBY_HALF = 70;
+// LOBBY_HALF = 115: el lobby premium (arena PvP al sur en z=82+23=105,
+// podio este x=62, tienda oeste x=-58) tiene que caber DENTRO del muro.
+const LOBBY_HALF = 115;
 
 // Identidad Keshusy: verde-azulado energetico + acento Tomy naranja.
 const KESHUSY = [86, 214, 124];
@@ -486,11 +489,13 @@ for (const s of STATION_DEFS) {
 
 // -------------------------------------------------------- DECORACIONES
 // Farolas perimetrales: dan profundidad y puntos de luz sin depender de
-// un `Lighting` configurado a mano.
-for (let i = 0; i < 8; i++) {
-	const a = (i / 8) * Math.PI * 2;
-	const x = Math.round(Math.cos(a) * 58);
-	const z = Math.round(Math.sin(a) * 58);
+// un `Lighting` configurado a mano. Radio 100: el lobby premium mide
+// 115 de mitad, las farolas abrazan el anillo de estaciones (radio 40)
+// y dejan fuera la arena PvP / podio / tienda (tienen su propia luz).
+for (let i = 0; i < 12; i++) {
+	const a = (i / 12) * Math.PI * 2;
+	const x = Math.round(Math.cos(a) * 100);
+	const z = Math.round(Math.sin(a) * 100);
 
 	lobbyParts.push(part("Lamp_" + i, {
 		position: [x, 5, z], size: [0.6, 10, 0.6],
@@ -555,6 +560,16 @@ function spawnIsClear(px, pz, blockers) {
 }
 
 const SPAWN_BLOCKERS = [];
+
+// LOBBY PREMIUM (plaza social original): arena PvP sur, podio este,
+// sala tienda oeste, plazas party/codigos y balizas de zona segura.
+// Se inyecta ANTES del registro de bloqueadores para que los spawns
+// eviten sus pilares/muros, y ANTES de los portales/Core (no los toca).
+// Contrato: nombres PvPArena_*, Podium_*, ShopHall_*, Plaza_*, SafeZone_*,
+// PvPCenter/PvPSpawn_A/PvPSpawn_B/PvPEntry/ShopPoint/PartyPoint/CodesPoint.
+for (const piece of Premium.buildPremiumLobby({ part: part, decor: decor, marker: marker })) {
+	lobbyParts.push(piece);
+}
 
 // Los portales y el Core se GENERAN despues que esta seccion, asi que no se
 // puede copiar su disposicion desde aqui. Se recorre `lobbyParts` y, dentro
@@ -813,7 +828,19 @@ function luauLightingScript(lighting) {
 		throw new Error("sync-lighting: valor no convertible: " + JSON.stringify(v));
 	};
 
-	const propLines = Object.keys(props).map((k) => `Lighting.${k} = ${luaValue(props[k])}`);
+	// Propiedades protegidas por el motor que requieren RobloxScript capability.
+	// El MCP ejecuta en modo edicion y falla con "lacking capability" si se
+	// intenta escribir Technology directamente: el error aborta el script y
+	// nada de lo demas (Brightness, Ambient, efectos) se aplica.
+	// Se envuelve en pcall para que el resto del script siga ejecutandose.
+	const PROTECTED_PROPS = new Set(["Technology"]);
+	const propLines = Object.keys(props).map((k) => {
+		const line = `Lighting.${k} = ${luaValue(props[k])}`;
+		if (PROTECTED_PROPS.has(k)) {
+			return `pcall(function() ${line} end) -- requiere RobloxScript: se intenta, no aborta`;
+		}
+		return line;
+	});
 
 	const childBlocks = children.map((name) => {
 		const node = lighting[name];
@@ -989,14 +1016,13 @@ const project = {
 			$className: "Lighting",
 			$properties: {
 				GlobalShadows: true,
-				// MEDIDO en la captura del cliente: con `Brightness = 2.4` el
-				// lobby salia BLANCO. El suelo de Concrete (124,134,146)
-				// quemado a blanco, los portales del color que tuvieran
-				// perdian el tono y el Keshusy Core se leia como una mancha
-				// palida sin forma. `Brightness` multiplica la luz final: por
-				// encima de ~1.2 satura los canales y TODO el mapa se ve
-				// igual. El valor de un lugar iluminado tiene que dejar
-				// margen para que el Neon y el Bloom tienen algo que destacar.
+				// RENDER MODERNO. Sin esto el juego arranca en
+				// `Compatibility`: el motor antiguo, con sombras duras,
+				// materiales plastico muerto y Neon que no florece. Es LA
+				// razon de que "se vea feo": la geometria es la misma, pero
+				// el render la aplana. `Future` es el motor actual de Roblox
+				// y es el que hace que Slate/Neon/Glass se lean como tales.
+				Technology: "Future",
 				ClockTime: 15.2,
 				Brightness: 1.05,
 				// Ambiente mas bajo y mas frio que antes. Antes (92,104,118)
@@ -1025,7 +1051,30 @@ const project = {
 					Offset: 0.15,
 				},
 			},
-			// Tinte y saturacion. Sin esto el mapa se lava hacia el cyan:
+			// CIELO con nubes y horizonte. Sin esto el fondo es el gris
+			// plano del motor ("ceiling"), que es justo lo que hace que todo
+			// se vea muerto por arriba. El `Sky` pinta horizonte + nubes +
+			// sol y es lo que convierte una caja gris en un lugar.
+			KeshusySky: {
+				$className: "Sky",
+				$properties: {
+					// Cielo crepuscular: azul alto, horizonte calido. El
+					// contraste arriba-abajo es lo que da sensacion de mundo
+					// abierto y no de sala.
+					CelestialBodiesShown: true,
+					MoonAngularSize: 11,
+					SunAngularSize: 21,
+					SkyboxBk: "rbxassetid://6444885077",
+					SkyboxDn: "rbxassetid://6444885459",
+					SkyboxFt: "rbxassetid://6444884785",
+					SkyboxLf: "rbxassetid://6444885077",
+					SkyboxRt: "rbxassetid://6444884785",
+					SkyboxUp: "rbxassetid://6444884335",
+					SunTextureId: "rbxassetid://6196665106",
+					MoonTextureId: "rbxassetid://6444320595",
+				},
+			},
+		// Tinte y saturacion. Sin esto el mapa se lava hacia el cyan:
 			// el cielo, la niebla y el Neon comparten tono y no hay
 			// jerarquia de color. El contraste-enhanced separa el
 			// personaje del fondo, que es lo que hace legible una escena.

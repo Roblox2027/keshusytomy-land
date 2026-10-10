@@ -187,7 +187,16 @@ async function main() {
 	out.push("");
 	out.push(`return ${JSON.stringify(`HUD sincronizado: ${count(hud.node)} instancias`)}`);
 
-	const res = await mcp.toolJson("execute_luau", { code: out.join("\n") });
+	// `MCP_INSTANCE_ID`: cuando hay VARIAS sesiones de Studio abiertas,
+	// `execute_luau` responde "ambiguous_target" porque no sabe a cual apuntar.
+	// Fijandolo aqui se elige la sesion canonica (`instance:...`) sin tocar el
+	// resto del flujo. Si no se define, el comportamiento es el de siempre
+	// (una sola sesion, o el target por defecto del puente).
+	const instanceId = process.env.MCP_INSTANCE_ID;
+	const execArgs = { code: out.join("\n") };
+	if (instanceId) execArgs.instance_id = instanceId;
+
+	const res = await mcp.toolJson("execute_luau", execArgs);
 	console.log(typeof res === "string" ? res : JSON.stringify(res, null, 2));
 }
 

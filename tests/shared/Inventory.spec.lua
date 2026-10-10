@@ -244,6 +244,52 @@ return function()
 
 			expect.toBe(inventory:GetEquipped(state).Head, nil)
 		end)
+
+		Harness.it("equipa alas en la ranura Wings", function()
+			local inventory = makeInventory()
+			local state = newState()
+
+			inventory:AddItem(state, "Wings_Angel", 1, "shop")
+			local ok = inventory:EquipItem(state, "Wings_Angel")
+
+			expect.toBe(ok, true)
+			expect.toBe(inventory:GetEquipped(state).Wings, "Wings_Angel")
+		end)
+
+		Harness.it("equipa un arma en la ranura Weapon", function()
+			local inventory = makeInventory()
+			local state = newState()
+
+			inventory:AddItem(state, "Weapon_Sword_Flame", 1, "shop")
+			inventory:EquipItem(state, "Weapon_Sword_Flame")
+
+			expect.toBe(inventory:GetEquipped(state).Weapon, "Weapon_Sword_Flame")
+		end)
+
+		Harness.it("una ranura Weapon tiene UN item", function()
+			-- No se pueden equipar dos armas a la vez.
+			local inventory = makeInventory()
+			local state = newState()
+
+			inventory:AddItem(state, "Weapon_Sword_Flame", 1, "shop")
+			inventory:AddItem(state, "Weapon_Crossbow", 1, "shop")
+			inventory:EquipItem(state, "Weapon_Sword_Flame")
+			inventory:EquipItem(state, "Weapon_Crossbow")
+
+			expect.toBe(inventory:GetEquipped(state).Weapon, "Weapon_Crossbow")
+		end)
+
+		Harness.it("desequipar Wings vacia la ranura", function()
+			local inventory = makeInventory()
+			local state = newState()
+
+			inventory:AddItem(state, "Wings_Demon", 1, "shop")
+			inventory:EquipItem(state, "Wings_Demon")
+
+			local ok = inventory:UnequipItem(state, "Wings")
+			expect.toBe(ok, true)
+			expect.toBe(inventory:GetEquipped(state).Wings, nil)
+		end)
 	end)
 
 	Harness.describe("Inventory: auditoria", function()

@@ -54,6 +54,11 @@ ItemCatalog.Category = {
 	Powerup = "Powerup",
 	Bundle = "Bundle",
 	VIP = "VIP",
+	-- Contenido nuevo (master mission V2 - FASE 31: mercado de alas, armas,
+	-- objetos y vehiculos).
+	Wings = "Wings",
+	Weapon = "Weapon",
+	Vehicle = "Vehicle",
 }
 
 -- Rarezas. `Common` es la de partida; las demas son PURA cosmetica y
@@ -93,6 +98,11 @@ ItemCatalog.Currency = {
 --   Price         coste en `Currency`
 --   Available     si se puede COMPRAR ahora
 --   Description   texto para el jugador
+--   DeveloperProductId  id del producto de Robux en Roblox (opcional;
+--                       solo items cosméticos pueden tenerlo, nunca stats)
+--   WorldDrop      si puede aparecer como pickup brillante en el mapa
+--   Flight        otorga vuelo real (vehiculos)
+--   SpeedBoost    multiplicador de velocidad de la montura
 local ITEMS: { [string]: any } = {
 	-- --- Consumibles -------------------------------------------------
 	-- Cure: cura pura. No aumenta dano, no da velocidad, no salta mas
@@ -425,6 +435,329 @@ local ITEMS: { [string]: any } = {
 		Description = "-10 % al enfriamiento de la habilidad.",
 		Stats = { AbilityCooldownMult = -0.10 },
 	},
+
+	-- --- Alas (habilidad de movimiento vertical) ------------------------
+	--
+	-- Las alas son el primer paso hacia la movilidad tridimensional del
+	-- mapa. Algunas son puramente esteticas (visual del personaje) y una
+	-- selecta grupo otorga `JumpPowerBonus`: suficiente para alcanzar
+	-- plataformas altas, nunca para volar sin limites. El vuelo completo
+	-- se reservara para los vehiculos (categoria Vehicle).
+	--
+	-- Todas usan la ranura "Wings" (una sola pareja a la vez). Las de stats
+	-- se compran con monedas: la regla anti-P2W aplica a las habilidades de
+	-- movilidad tanto como al daño.
+	Wings_Angel = {
+		Id = "Wings_Angel",
+		DisplayName = "Alas de angel",
+		Category = ItemCatalog.Category.Wings,
+		Rarity = ItemCatalog.Rarity.Common,
+		Stackable = false,
+		MaxStack = 1,
+		Tradable = false,
+		Consumable = false,
+		Cosmetic = true,
+		Equipable = true,
+		Slot = "Wings",
+		Price = 500,
+		Currency = ItemCatalog.Currency.Coins,
+		DeveloperProductId = 101,
+		WorldDrop = true,
+		Available = true,
+		Description = "Alas de angel luminosas. Puramente estetico.",
+	},
+
+	Wings_Demon = {
+		Id = "Wings_Demon",
+		DisplayName = "Alas de demonio",
+		Category = ItemCatalog.Category.Wings,
+		Rarity = ItemCatalog.Rarity.Rare,
+		Stackable = false,
+		MaxStack = 1,
+		Tradable = false,
+		Consumable = false,
+		Cosmetic = true,
+		Equipable = true,
+		Slot = "Wings",
+		Price = 1200,
+		Currency = ItemCatalog.Currency.Coins,
+		DeveloperProductId = 102,
+		WorldDrop = true,
+		Available = true,
+		Description = "Alas de demonio negras y brillantes. Puramente estetico.",
+	},
+
+	Wings_Shadow = {
+		Id = "Wings_Shadow",
+		DisplayName = "Alas de sombra",
+		Category = ItemCatalog.Category.Wings,
+		Rarity = ItemCatalog.Rarity.Epic,
+		Stackable = false,
+		MaxStack = 1,
+		Tradable = false,
+		Consumible = false,
+		Consumable = false,
+		Cosmetic = true,
+		Equipable = true,
+		Slot = "Wings",
+		Price = 40,
+		Currency = ItemCatalog.Currency.Gems,
+		DeveloperProductId = 103,
+		WorldDrop = true,
+		Available = true,
+		Description = "Alas de sombra translucidas. Puramente estetico.",
+	},
+
+	Wings_Crystal = {
+		Id = "Wings_Crystal",
+		DisplayName = "Alas de cristal",
+		Category = ItemCatalog.Category.Wings,
+		Rarity = ItemCatalog.Rarity.Legendary,
+		Stackable = false,
+		MaxStack = 1,
+		Tradable = false,
+		Consumable = false,
+		Cosmetic = true,
+		Equipable = true,
+		Slot = "Wings",
+		Price = 200,
+		Currency = ItemCatalog.Currency.Gems,
+		DeveloperProductId = 104,
+		WorldDrop = true,
+		Available = true,
+		Description = "Alas de cristal prismatico que brillan en la oscuridad. Puramente estetico.",
+	},
+
+	Wings_Spring = {
+		Id = "Wings_Spring",
+		DisplayName = "Alas resorte",
+		Category = ItemCatalog.Category.Wings,
+		Rarity = ItemCatalog.Rarity.Rare,
+		Stackable = false,
+		MaxStack = 1,
+		Tradable = false,
+		Consumable = false,
+		Cosmetic = false,
+		Equipable = true,
+		Slot = "Wings",
+		Price = 1000,
+		Currency = ItemCatalog.Currency.Coins,
+		WorldDrop = false,
+		Available = true,
+		Description = "Alas con resortes integrados: salto mas alto (+30 JumpPower).",
+		Stats = { JumpPowerBonus = 30 },
+	},
+
+	-- --- Armas (combate cuerpo a cuerpo) -------------------------------
+	--
+	-- Las armas son equipables en la ranura "Weapon". Las de stats aumentan
+	-- el daño del ataque rapido: se compran con monedas por la regla
+	-- anti-P2W. La pistola visual solo muestra el modelo en la espalda.
+	--
+	-- El tope de `MeleeDamageMult` lo impone `EquipmentRules.Caps`: aunque
+	-- el jugador gane todas las armas, el daño del melee no supera el 50 %
+	-- del base.
+	Weapon_Sword_Flame = {
+		Id = "Weapon_Sword_Flame",
+		DisplayName = "Espada de llama",
+		Category = ItemCatalog.Category.Weapon,
+		Rarity = ItemCatalog.Rarity.Epic,
+		Stackable = false,
+		MaxStack = 1,
+		Tradable = false,
+		Consumable = false,
+		Cosmetic = false,
+		Equipable = true,
+		Slot = "Weapon",
+		Price = 1400,
+		Currency = ItemCatalog.Currency.Coins,
+		WorldDrop = false,
+		Available = true,
+		Description = "Espada que arde. +30 % de daño de ataque rapido.",
+		Stats = { MeleeDamageMult = 0.30 },
+	},
+
+	Weapon_Axe_Bone = {
+		Id = "Weapon_Axe_Bone",
+		DisplayName = "Hacha de hueso",
+		Category = ItemCatalog.Category.Weapon,
+		Rarity = ItemCatalog.Rarity.Rare,
+		Stackable = false,
+		MaxStack = 1,
+		Tradable = false,
+		Consumable = false,
+		Cosmetic = false,
+		Equipable = true,
+		Slot = "Weapon",
+		Price = 900,
+		Currency = ItemCatalog.Currency.Coins,
+		WorldDrop = false,
+		Available = true,
+		Description = "Hacha de hueso serrado. +20 % de daño de ataque rapido.",
+		Stats = { MeleeDamageMult = 0.20 },
+	},
+
+	Weapon_Staff_Void = {
+		Id = "Weapon_Staff_Void",
+		DisplayName = "Baston del vacio",
+		Category = ItemCatalog.Category.Weapon,
+		Rarity = ItemCatalog.Rarity.Epic,
+		Stackable = false,
+		MaxStack = 1,
+		Tradable = false,
+		Consumable = false,
+		Cosmetic = false,
+		Equipable = true,
+		Slot = "Weapon",
+		Price = 1500,
+		Currency = ItemCatalog.Currency.Coins,
+		WorldDrop = false,
+		Available = true,
+		Description = "Baston que distorsiona el espacio. +25 % de daño melee y -5 % de cooldown de habilidad.",
+		Stats = { MeleeDamageMult = 0.25, AbilityCooldownMult = -0.05 },
+	},
+
+	Weapon_Crossbow = {
+		Id = "Weapon_Crossbow",
+		DisplayName = "Ballesta de precisión",
+		Category = ItemCatalog.Category.Weapon,
+		Rarity = ItemCatalog.Rarity.Rare,
+		Stackable = false,
+		MaxStack = 1,
+		Tradable = false,
+		Consumable = false,
+		Cosmetic = true,
+		Equipable = true,
+		Slot = "Weapon",
+		Price = 30,
+		Currency = ItemCatalog.Currency.Gems,
+		DeveloperProductId = 105,
+		WorldDrop = true,
+		Available = true,
+		Description = "Ballesta visual en la espalda. No cambia el daño: la bomba sigue siendo el alcance.",
+	},
+
+	-- --- Objetos (consumibles de efecto unico) --------------------------
+	--
+	-- Los objetos son consumibles de un solo uso. Cada uno define su
+	-- efecto con campos propios (`Invisibility`, `Teleport`,
+	-- `BombRadiusMult`, `BombDamageMult`). La logica pura no los
+	-- conoce: quien consume el item (`InventoryService.UseItem`) devuelve
+	-- la definicion, y el servicio correspondiente aplica el efecto.
+	--
+	-- Ninguno es cosmetico con efecto mecanico: la regla anti-P2W impone
+	-- que los efectos reales sean siempre `Cosmetic = false`.
+	Potion_Invisibility = {
+		Id = "Potion_Invisibility",
+		DisplayName = "Pocion de invisibilidad",
+		Category = ItemCatalog.Category.Consumable,
+		Rarity = ItemCatalog.Rarity.Rare,
+		Stackable = true,
+		MaxStack = 20,
+		Tradable = false,
+		Consumable = true,
+		Cosmetic = false,
+		Equipable = false,
+		Price = 300,
+		Currency = ItemCatalog.Currency.Coins,
+		WorldDrop = false,
+		Available = true,
+		Description = "Te vuelve invisible durante 15 segundos. No puedes atacar mientras dura.",
+		DurationSeconds = 15,
+		Invisibility = true,
+	},
+
+	Potion_Teleport = {
+		Id = "Potion_Teleport",
+		DisplayName = "Pocion de teletransporte",
+		Category = ItemCatalog.Category.Consumable,
+		Rarity = ItemCatalog.Rarity.Epic,
+		Stackable = true,
+		MaxStack = 10,
+		Tradable = false,
+		Consumable = true,
+		Cosmetic = false,
+		Equipable = false,
+		Price = 50,
+		Currency = ItemCatalog.Currency.Gems,
+		WorldDrop = false,
+		Available = true,
+		Description = "Te teletransporta al punto de spawn de tu mundo. Un uso.",
+		Teleport = true,
+	},
+
+	Grenade_Cluster = {
+		Id = "Grenade_Cluster",
+		DisplayName = "Granada de fragmentacion",
+		Category = ItemCatalog.Category.Consumable,
+		Rarity = ItemCatalog.Rarity.Rare,
+		Stackable = true,
+		MaxStack = 10,
+		Tradable = false,
+		Consumable = true,
+		Cosmetic = false,
+		Equipable = false,
+		Price = 150,
+		Currency = ItemCatalog.Currency.Coins,
+		WorldDrop = false,
+		Available = true,
+		Description = "Explosion de radio amplio y daño reducido. +30 % de radio, -50 % de daño directo.",
+		BombRadiusMult = 0.30,
+		BombDamageMult = 0.50,
+	},
+
+	-- --- Vehiculos (aviones y monturas) ----------------------------------
+	--
+	-- Los vehiculos son consumibles de tiempo limitado: el jugador activa
+	-- uno y gana una montura voladora durante unos segundos. No son
+	-- equipables (no ocupan ranura): se consumen al usarlos, como los
+	-- boosters. El `SpeedBoost` es el multiplicador de velocidad de la
+	-- montura respecto a la caminata normal.
+	--
+	-- `Flight = true` marca que el vehiculo otorga vuelo REAL (no solo
+	-- velocidad): el cliente crea la montura y el servidor valida que el
+	-- jugador esta dentro del tiempo y sin colisiones de mapa.
+	Vehicle_MiniPlane = {
+		Id = "Vehicle_MiniPlane",
+		DisplayName = "Mini avion",
+		Category = ItemCatalog.Category.Vehicle,
+		Rarity = ItemCatalog.Rarity.Rare,
+		Stackable = true,
+		MaxStack = 5,
+		Tradable = false,
+		Consumable = true,
+		Cosmetic = false,
+		Equipable = false,
+		Price = 300,
+		Currency = ItemCatalog.Currency.Coins,
+		WorldDrop = false,
+		Available = true,
+		Description = "Avioneta de juguete. Vuelo durante 60 s a 2x velocidad.",
+		DurationSeconds = 60,
+		SpeedBoost = 2.0,
+		Flight = true,
+	},
+
+	Vehicle_Warplane = {
+		Id = "Vehicle_Warplane",
+		DisplayName = "Avion de combate",
+		Category = ItemCatalog.Category.Vehicle,
+		Rarity = ItemCatalog.Rarity.Epic,
+		Stackable = true,
+		MaxStack = 5,
+		Tradable = false,
+		Consumable = true,
+		Cosmetic = false,
+		Equipable = false,
+		Price = 60,
+		Currency = ItemCatalog.Currency.Gems,
+		WorldDrop = false,
+		Available = true,
+		Description = "Avion de combate de ala alta. Vuelo durante 90 s a 2.5x velocidad.",
+		DurationSeconds = 90,
+		SpeedBoost = 2.5,
+		Flight = true,
+	},
 }
 
 -- ---------------------------------------------------------------
@@ -568,9 +901,30 @@ function ItemCatalog.Add(definition: any): (boolean, string?)
 	filled.Available = filled.Available ~= false
 	filled.Price = filled.Price or 0
 	filled.Currency = filled.Currency or ItemCatalog.Currency.Coins
+	filled.DeveloperProductId = filled.DeveloperProductId or nil
+	filled.WorldDrop = filled.WorldDrop == true
 
 	ITEMS[definition.Id] = filled
 	return true, nil
+end
+
+--- Items que pueden aparecer como pickups brillantes en el mapa.
+---
+--- Solo los cosméticos con `WorldDrop = true` y un `DeveloperProductId`
+--- aparecen aqui: la regla anti-P2W prohíbe vender ventaja competitiva
+--- por Robux. El mundo spawnea estos items; el resto se compra en la
+--- tienda con monedas.
+--- @return { [string]: any }
+function ItemCatalog.GetWorldDropItems(): { [string]: any }
+	local result: { [string]: any } = {}
+
+	for _, definition in pairs(ITEMS) do
+		if definition.WorldDrop and definition.Cosmetic and definition.DeveloperProductId then
+			result[definition.Id] = definition
+		end
+	end
+
+	return result
 end
 
 --- Elimina una definicion. NO se usa en produccion: existe para que las
@@ -651,6 +1005,27 @@ function ItemCatalog.Validate(): { string }
 
 		if definition.MaxStack ~= nil and definition.MaxStack < 1 then
 			table.insert(problems, ("%s: MaxStack invalido"):format(id))
+		end
+
+		-- Anti-P2W REAL: un item con `DeveloperProductId` (venta por Robux)
+		-- DEBE ser cosmético. Vender ventaja competitiva por dinero real
+		-- rompe la regla de la tienda. El `Stats` table se comprueba por
+		-- separado en EquipmentRules.ValidateItem.
+		if definition.DeveloperProductId and not definition.Cosmetic then
+			table.insert(
+				problems,
+				("%s: tiene DeveloperProductId pero no es Cosmetic (venta P2W)"):format(id)
+			)
+		end
+
+		-- Un item `WorldDrop` debe tener DeveloperProductId para poder
+		-- cobrar Robux al recogerlo. Sin el, el pickup no sabe que producto
+		-- abrir en MarketplaceService.
+		if definition.WorldDrop and not definition.DeveloperProductId then
+			table.insert(
+				problems,
+				("%s: WorldDrop=true pero sin DeveloperProductId"):format(id)
+			)
 		end
 	end
 
